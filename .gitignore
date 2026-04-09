@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+
+# Secrets (로컬만 유지)
+.env
+functions/.env
+*.local
+
+# Logs & cache
+*.log
+.firebase/
+.cache/
