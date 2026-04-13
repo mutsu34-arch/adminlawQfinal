@@ -1,6 +1,8 @@
 (function () {
   var selectedId = null;
   var ticketsCache = [];
+  /** 홍보 티켓: getPromotionDraftParts() 결과 캐시 (최종 답변란에 넣기용) */
+  var promoDraftPartsCache = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -20,20 +22,26 @@
     var tabSingle = $("admin-tab-single");
     var tabJson = $("admin-tab-json");
     var tabExcel = $("admin-tab-excel");
+    var tabReview = $("admin-tab-review");
     var tabLibrary = $("admin-tab-library");
     var tabInbox = $("admin-tab-inbox");
+    var tabQuotes = $("admin-tab-quotes");
     var panelSingle = $("admin-panel-single");
     var panelJson = $("admin-panel-json");
     var panelExcel = $("admin-panel-excel");
+    var panelReview = $("admin-panel-review");
     var panelLibrary = $("admin-panel-library");
     var panelInbox = $("admin-panel-inbox");
+    var panelQuotes = $("admin-panel-quotes");
     function off() {
-      [tabSingle, tabJson, tabExcel, tabLibrary, tabInbox].forEach(function (t) {
+      [tabSingle, tabJson, tabExcel, tabReview, tabLibrary, tabInbox, tabQuotes].forEach(function (t) {
         if (t) t.classList.remove("admin-tab--active");
       });
-      [panelSingle, panelJson, panelExcel, panelLibrary, panelInbox].forEach(function (p) {
-        if (p) p.hidden = true;
-      });
+      [panelSingle, panelJson, panelExcel, panelReview, panelLibrary, panelInbox, panelQuotes].forEach(
+        function (p) {
+          if (p) p.hidden = true;
+        }
+      );
     }
     off();
     if (which === "json") {
@@ -42,6 +50,10 @@
     } else if (which === "excel") {
       if (tabExcel) tabExcel.classList.add("admin-tab--active");
       if (panelExcel) panelExcel.hidden = false;
+    } else if (which === "review") {
+      if (tabReview) tabReview.classList.add("admin-tab--active");
+      if (panelReview) panelReview.hidden = false;
+      if (typeof window.loadAdminReviewQueue === "function") window.loadAdminReviewQueue();
     } else if (which === "library") {
       if (tabLibrary) tabLibrary.classList.add("admin-tab--active");
       if (panelLibrary) panelLibrary.hidden = false;
@@ -49,6 +61,10 @@
     } else if (which === "inbox") {
       if (tabInbox) tabInbox.classList.add("admin-tab--active");
       if (panelInbox) panelInbox.hidden = false;
+    } else if (which === "quotes") {
+      if (tabQuotes) tabQuotes.classList.add("admin-tab--active");
+      if (panelQuotes) panelQuotes.hidden = false;
+      if (typeof window.loadAdminQuotesPanel === "function") window.loadAdminQuotesPanel();
     } else {
       if (tabSingle) tabSingle.classList.add("admin-tab--active");
       if (panelSingle) panelSingle.hidden = false;
@@ -79,7 +95,13 @@
         "admin-inbox-row" + (selectedId === t.id ? " admin-inbox-row--active" : "");
       btn.innerHTML =
         "<span class=\"admin-inbox-row__type\">" +
-        (t.type === "question" ? "질문" : t.type === "promotion" ? "홍보" : "신고") +
+        (t.type === "question"
+          ? "질문"
+          : t.type === "promotion"
+            ? "홍보"
+            : t.type === "suggestion"
+              ? "개선"
+              : "신고") +
         "</span>" +
         "<span class=\"admin-inbox-row__status\">" +
         fmtStatus(t.status) +
@@ -109,15 +131,30 @@
     if (!det) return;
     det.hidden = false;
     if (meta) {
-      meta.textContent =
+      var metaLine =
         (t.userNickname ? "닉네임: " + t.userNickname + " · " : "") +
         (t.userEmail || t.userId || "") +
         " · " +
         (t.id || "") +
         " · " +
         fmtStatus(t.status);
+      if (t.type === "suggestion" && t.status === "approved") {
+        metaLine +=
+          " · " +
+          (t.suggestionAdopted ? "채택" : "미채택") +
+          (typeof t.suggestionPointsAwarded === "number"
+            ? " · 지급 " + t.suggestionPointsAwarded + "점"
+            : "");
+      }
+      meta.textContent = metaLine;
     }
-    if (msg) msg.textContent = t.message || "";
+    if (msg) {
+      if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+        msg.innerHTML = window.formatHanlawRichParagraphsHtml(t.message || "");
+      } else {
+        msg.textContent = t.message || "";
+      }
+    }
     if (links) {
       links.innerHTML = "";
       (t.linkUrls || []).forEach(function (u) {
@@ -146,9 +183,42 @@
       });
     }
     if (aiTa) aiTa.value = t.aiDraft || "";
+
+    promoDraftPartsCache =
+      typeof window.getPromotionDraftParts === "function" ? window.getPromotionDraftParts(t) : null;
+    var promoPicks = $("admin-inbox-promo-reply-picks");
+    if (promoPicks) promoPicks.hidden = !promoDraftPartsCache;
+
+    var sugOpts = $("admin-inbox-suggestion-opts");
+    if (sugOpts) {
+      sugOpts.hidden = t.type !== "suggestion";
+      if (t.type === "suggestion") {
+        var adoptCb = $("admin-inbox-suggestion-adopt");
+        var ptsIn = $("admin-inbox-suggestion-points");
+        if (adoptCb) adoptCb.checked = false;
+        if (ptsIn) {
+          ptsIn.value = "3000";
+          ptsIn.disabled = !adoptCb || !adoptCb.checked;
+        }
+      }
+    }
+
     if (replyTa) {
-      replyTa.value = t.adminReply || t.aiDraft || "";
-      if (t.userNickname && String(t.userNickname).trim()) {
+      var hasAdmin = t.adminReply && String(t.adminReply).trim();
+      if (hasAdmin) {
+        replyTa.value = t.adminReply;
+      } else if (promoDraftPartsCache) {
+        replyTa.value = "";
+      } else {
+        replyTa.value = t.aiDraft || "";
+      }
+      if (promoDraftPartsCache) {
+        replyTa.placeholder =
+          "위 버튼으로 승인/불승인 안을 넣거나 직접 작성한 뒤, 수정하여 승인하세요.";
+      } else if (t.type === "suggestion") {
+        replyTa.placeholder =
+          "사용자에게 전달할 답변을 작성하세요. (채택·포인트는 위 옵션에서 선택합니다.)";
+      } else if (t.userNickname && String(t.userNickname).trim()) {
         var nn = String(t.userNickname).trim();
         replyTa.placeholder =
           nn + "님께 답변합니다. (예: " + nn + "님, 안녕하세요. 문의 주신 내용은 …)";
@@ -194,7 +264,9 @@
     var tabSingle = $("admin-tab-single");
     var tabJson = $("admin-tab-json");
     var tabExcel = $("admin-tab-excel");
+    var tabReview = $("admin-tab-review");
     var tabLibrary = $("admin-tab-library");
+    var tabQuotes = $("admin-tab-quotes");
     if (tabSingle) {
       tabSingle.addEventListener("click", function () {
         switchAdminTab("single");
@@ -210,6 +282,11 @@
         switchAdminTab("excel");
       });
     }
+    if (tabReview) {
+      tabReview.addEventListener("click", function () {
+        switchAdminTab("review");
+      });
+    }
     if (tabLibrary) {
       tabLibrary.addEventListener("click", function () {
         switchAdminTab("library");
@@ -219,6 +296,11 @@
       tabInbox.addEventListener("click", function () {
         switchAdminTab("inbox");
         loadTickets();
+      });
+    }
+    if (tabQuotes) {
+      tabQuotes.addEventListener("click", function () {
+        switchAdminTab("quotes");
       });
     }
 
@@ -267,10 +349,40 @@
           window.alert("사용자에게 전달할 답변을 입력하세요.");
           return;
         }
+        var tSel = ticketsCache.filter(function (x) {
+          return x.id === selectedId;
+        })[0];
+        if (tSel && tSel.type === "suggestion") {
+          if (typeof window.adminApproveSuggestionTicketCallable !== "function") {
+            window.alert("티켓 모듈을 불러오지 못했습니다.");
+            return;
+          }
+          var adopted = $("admin-inbox-suggestion-adopt") && $("admin-inbox-suggestion-adopt").checked;
+          var ptsRaw = $("admin-inbox-suggestion-points") && $("admin-inbox-suggestion-points").value;
+          var pts = parseInt(ptsRaw, 10);
+          if (adopted && !Number.isFinite(pts)) pts = 3000;
+          if (!adopted) pts = 0;
+          if (adopted && Number.isFinite(pts) && pts < 0) pts = 0;
+          window
+            .adminApproveSuggestionTicketCallable(selectedId, text, user.email || "", adopted, pts)
+            .then(function () {
+              window.dispatchEvent(new CustomEvent("notifications-updated"));
+              window.alert("처리되었으며 사용자 알림이 발송되었습니다.");
+              loadTickets();
+              var det = $("admin-inbox-detail");
+              if (det) det.hidden = true;
+              selectedId = null;
+            })
+            .catch(function (e) {
+              window.alert((e && e.message) || "처리 실패");
+            });
+          return;
+        }
         window
           .adminApproveTicket(selectedId, text, user.email || "")
           .then(function () {
             window.dispatchEvent(new CustomEvent("notifications-updated"));
+            window.dispatchEvent(new CustomEvent("hanlaw-public-qa-refresh"));
             window.alert("승인되었으며 사용자 알림이 발송되었습니다.");
             loadTickets();
             var det = $("admin-inbox-detail");
@@ -285,6 +397,43 @@
 
     var btnRefresh = $("admin-inbox-refresh");
     if (btnRefresh) btnRefresh.addEventListener("click", loadTickets);
+
+    var adoptCb = $("admin-inbox-suggestion-adopt");
+    var ptsIn = $("admin-inbox-suggestion-points");
+    if (adoptCb && ptsIn && !adoptCb._hanlawSuggestionBound) {
+      adoptCb._hanlawSuggestionBound = true;
+      adoptCb.addEventListener("change", function () {
+        ptsIn.disabled = !adoptCb.checked;
+      });
+    }
+
+    var btnPromoA = $("admin-inbox-promo-approve");
+    var btnPromoR = $("admin-inbox-promo-reject");
+    function applyPromoReply(which) {
+      if (!promoDraftPartsCache) return;
+      var replyTa = $("admin-inbox-reply");
+      if (!replyTa) return;
+      var text =
+        which === "approve"
+          ? promoDraftPartsCache.approveReply
+          : promoDraftPartsCache.rejectReply;
+      if (text == null) return;
+      replyTa.value = String(text);
+      replyTa.focus();
+      try {
+        replyTa.setSelectionRange(0, 0);
+      } catch (e) {}
+    }
+    if (btnPromoA) {
+      btnPromoA.addEventListener("click", function () {
+        applyPromoReply("approve");
+      });
+    }
+    if (btnPromoR) {
+      btnPromoR.addEventListener("click", function () {
+        applyPromoReply("reject");
+      });
+    }
 
     window.addEventListener("support-ticket-created", function () {
       if ($("admin-panel-inbox") && !$("admin-panel-inbox").hidden) loadTickets();

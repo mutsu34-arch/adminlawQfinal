@@ -299,6 +299,20 @@
     emitScopeChange();
   };
 
+  /**
+   * 즐겨찾기 등에서 시험·연도 범위를 한 번에 반영할 때 사용합니다.
+   * @param {{ examIds?: string[], years?: number[] }} o
+   */
+  window.applyStudyScopeFromObject = function (o) {
+    if (!o || typeof o !== "object") return;
+    applyV3({
+      examIds: o.examIds,
+      years: o.years
+    });
+    save();
+    emitScopeChange();
+  };
+
   window.getScopeSummaryText = function () {
     var examPart;
     var ids = window.APP_SCOPE.examIds;

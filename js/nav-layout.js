@@ -5,6 +5,12 @@
     return document.getElementById(id);
   }
 
+  /** 이메일이 있는 계정만 로그인으로 간주 (app.js isViewerLoggedIn 과 동일) */
+  function isNavViewerLoggedIn() {
+    var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    return !!(u && u.email);
+  }
+
   function isAdminUser(user) {
     if (!user || !user.email) return false;
     var emails = window.ADMIN_EMAILS || [];
@@ -27,6 +33,103 @@
       b.setAttribute("aria-current", pid === panelId ? "page" : "false");
     });
     closeSidebar();
+    if (panelId === "settings" && typeof window.refreshHanlawNicknameFormState === "function") {
+      window.refreshHanlawNicknameFormState();
+    }
+    if (
+      panelId === "dict" &&
+      window.DictionaryUI &&
+      typeof window.DictionaryUI.refreshTermSearch === "function"
+    ) {
+      window.DictionaryUI.refreshTermSearch();
+    }
+    if (panelId === "qa" && typeof window.refreshHanlawPublicQa === "function") {
+      window.refreshHanlawPublicQa();
+    }
+    if (
+      panelId === "statutes" &&
+      window.DictionaryUI &&
+      typeof window.DictionaryUI.refreshStatuteSearch === "function"
+    ) {
+      window.DictionaryUI.refreshStatuteSearch();
+    }
+    if (
+      panelId === "cases" &&
+      window.DictionaryUI &&
+      typeof window.DictionaryUI.refreshCaseSearch === "function"
+    ) {
+      window.DictionaryUI.refreshCaseSearch();
+    }
+    syncNavJumpSelect(panelId);
+  }
+
+  function syncNavJumpSelect(panelId) {
+    var sel = $("nav-main-jump");
+    if (!sel || !panelId) return;
+    var o = sel.querySelector('option[value="' + panelId + '"]');
+    if (o) sel.value = panelId;
+  }
+
+  function buildNavJumpOptions() {
+    var sel = $("nav-main-jump");
+    if (!sel) return;
+    sel.innerHTML = "";
+    document.querySelectorAll(".nav-main__btn[data-panel]").forEach(function (btn) {
+      if (btn.hidden) return;
+      var pid = btn.getAttribute("data-panel");
+      if (!pid) return;
+      var opt = document.createElement("option");
+      opt.value = pid;
+      opt.textContent = btn.textContent.replace(/\s+/g, " ").trim();
+      sel.appendChild(opt);
+    });
+    var active = document.querySelector(".nav-main__btn.nav-main__btn--active[data-panel]");
+    if (active) {
+      var ap = active.getAttribute("data-panel");
+      if (sel.querySelector('option[value="' + ap + '"]')) sel.value = ap;
+    }
+  }
+
+  function initNavMobileBar() {
+    var sc = document.querySelector(".nav-main__scroll");
+    var prev = $("nav-main-scroll-prev");
+    var next = $("nav-main-scroll-next");
+    var sel = $("nav-main-jump");
+    if (!sc || !prev || !next || !sel) return;
+
+    function step() {
+      return Math.min(200, Math.max(100, Math.floor(sc.clientWidth * 0.55)));
+    }
+
+    function updateRail() {
+      var maxScroll = sc.scrollWidth - sc.clientWidth;
+      if (maxScroll <= 2) {
+        prev.disabled = true;
+        next.disabled = true;
+        return;
+      }
+      prev.disabled = sc.scrollLeft <= 2;
+      next.disabled = sc.scrollLeft >= maxScroll - 2;
+    }
+
+    prev.addEventListener("click", function () {
+      sc.scrollBy({ left: -step(), behavior: "smooth" });
+    });
+    next.addEventListener("click", function () {
+      sc.scrollBy({ left: step(), behavior: "smooth" });
+    });
+    sc.addEventListener("scroll", updateRail);
+    window.addEventListener("resize", updateRail);
+
+    sel.addEventListener("change", function () {
+      var v = String(sel.value || "").trim();
+      if (!v) return;
+      var btn = document.querySelector('.nav-main__btn[data-panel="' + v + '"]');
+      if (btn && !btn.hidden) btn.click();
+    });
+
+    buildNavJumpOptions();
+    updateRail();
   }
 
   function onNavClick(e) {
@@ -39,6 +142,10 @@
         showPanel("quiz");
         return;
       }
+    }
+    if (!isNavViewerLoggedIn() && panel && panel !== "quiz" && panel !== "pricing") {
+      window.alert("로그인 후 이용할 수 있습니다.");
+      return;
     }
     if (panel) showPanel(panel);
   }
@@ -59,21 +166,6 @@
     var ul = el.sidebarExams;
     if (!ul || !Array.isArray(window.EXAM_CATALOG)) return;
     ul.innerHTML = "";
-    var liAll = document.createElement("li");
-    var btnAll = document.createElement("button");
-    btnAll.type = "button";
-    btnAll.className = "sidebar__exam sidebar__exam--all";
-    btnAll.id = "btn-sidebar-exam-all";
-    btnAll.setAttribute("data-exam-all", "1");
-    btnAll.setAttribute("aria-pressed", "false");
-    btnAll.textContent = "전체 시험";
-    btnAll.addEventListener("click", function (e) {
-      e.stopPropagation();
-      if (typeof window.toggleStudyExamsAll === "function") window.toggleStudyExamsAll();
-    });
-    liAll.appendChild(btnAll);
-    ul.appendChild(liAll);
-    el.btnExamAll = btnAll;
 
     window.EXAM_CATALOG.forEach(function (exam) {
       var li = document.createElement("li");
@@ -160,7 +252,6 @@
       container.appendChild(btn);
     }
 
-    addChip("전체 연도", null, true);
     yearList.forEach(function (y) {
       addChip(String(y) + "년", y, false);
     });
@@ -170,12 +261,14 @@
     var ids = window.APP_SCOPE.examIds;
     var examsAll = scopeAllExams();
     if (el.btnExamAll) {
-      if (examsAll) {
-        el.btnExamAll.classList.add("sidebar__exam--active");
-      } else {
-        el.btnExamAll.classList.remove("sidebar__exam--active");
-      }
+      el.btnExamAll.classList.toggle("sidebar__heading-all--active", examsAll);
       el.btnExamAll.setAttribute("aria-pressed", examsAll ? "true" : "false");
+    }
+    if (el.btnYearsAll) {
+      var allYears = typeof window.getYearsForStudyScope === "function" ? window.getYearsForStudyScope() : [];
+      var yearsAll = scopeAllYears(allYears);
+      el.btnYearsAll.classList.toggle("sidebar__heading-all--active", yearsAll);
+      el.btnYearsAll.setAttribute("aria-pressed", yearsAll ? "true" : "false");
     }
     if (el.sidebarExams) {
       el.sidebarExams.classList.toggle("sidebar__exams--all-selected", examsAll);
@@ -248,6 +341,7 @@
         }
       }
     }
+    buildNavJumpOptions();
   });
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -255,6 +349,8 @@
     el.sidebarExams = $("sidebar-exams");
     el.sidebarYearsWrap = $("sidebar-years-wrap");
     el.sidebarYears = $("sidebar-years");
+    el.btnExamAll = $("btn-sidebar-exam-all");
+    el.btnYearsAll = $("btn-sidebar-years-all");
     el.scopeSummary = $("scope-summary");
     el.scopeSummaryQuiz = $("scope-summary-quiz");
     el.btnSidebarToggle = $("btn-sidebar-toggle");
@@ -273,6 +369,19 @@
 
     if (el.backdrop) {
       el.backdrop.addEventListener("click", closeSidebar);
+    }
+
+    if (el.btnExamAll) {
+      el.btnExamAll.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (typeof window.toggleStudyExamsAll === "function") window.toggleStudyExamsAll();
+      });
+    }
+    if (el.btnYearsAll) {
+      el.btnYearsAll.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (typeof window.toggleStudyYearsAll === "function") window.toggleStudyYearsAll();
+      });
     }
 
     if (el.sidebar) {
@@ -298,5 +407,7 @@
         if (adminPanel0 && !adminPanel0.hidden) showPanel("quiz");
       }
     }
+
+    initNavMobileBar();
   });
 })();

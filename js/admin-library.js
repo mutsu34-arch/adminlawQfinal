@@ -33,10 +33,14 @@
     if (!files || !files.length) return;
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
-      var isPdf =
+      var n = String((f && f.name) || "");
+      var isLib =
         !!f &&
-        (f.type === "application/pdf" || /\.pdf$/i.test(String((f && f.name) || "")));
-      if (isPdf) selectedFiles.push(f);
+        (f.type === "application/pdf" ||
+          f.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+          /\.pdf$/i.test(n) ||
+          /\.xlsx$/i.test(n));
+      if (isLib) selectedFiles.push(f);
     }
     // 파일을 고르면 제목 입력란에 첫 파일명을 기본값으로 채운다.
     var titleEl = document.getElementById("admin-lib-title");
@@ -88,7 +92,10 @@
       parts.push(catLabel[x.category] || x.category || "");
       parts.push(statusLabel(x.status));
       if (x.chunkCount != null) parts.push("청크 " + x.chunkCount + "개");
-      if (x.numPages != null) parts.push("약 " + x.numPages + "페이지");
+      if (x.numPages != null) {
+        if (x.fileKind === "xlsx") parts.push("시트 " + x.numPages + "개");
+        else parts.push("약 " + x.numPages + "페이지");
+      }
       meta.textContent = parts.filter(Boolean).join(" · ");
       var err = document.createElement("div");
       if (x.status === "error" && x.errorMessage) {
@@ -153,6 +160,14 @@
     return cleanBase + " (" + (index + 1) + ")";
   }
 
+  function libraryFileContentType(file) {
+    var n = String((file && file.name) || "").toLowerCase();
+    if (n.endsWith(".xlsx")) {
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    }
+    return "application/pdf";
+  }
+
   function uploadSingleFile(createFn, category, description, file, title) {
     return createFn({
       title: title,
@@ -163,7 +178,7 @@
       var data = res && res.data;
       if (!data || !data.storagePath) throw new Error("서버 응답이 올바르지 않습니다.");
       var ref = firebase.storage().ref(data.storagePath);
-      return ref.put(file, { contentType: "application/pdf" });
+      return ref.put(file, { contentType: libraryFileContentType(file) });
     });
   }
 
@@ -187,7 +202,7 @@
       files = selectedFiles.slice();
     }
     if (!files.length) {
-      setMsg(msgEl, "PDF 파일을 1개 이상 선택하세요.", true);
+      setMsg(msgEl, "PDF 또는 Excel(.xlsx) 파일을 1개 이상 선택하세요.", true);
       return;
     }
     if (typeof firebase === "undefined" || !firebase.functions || !firebase.storage) {

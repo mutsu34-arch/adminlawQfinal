@@ -611,36 +611,35 @@
             }
             ok.push(questions[i]);
           }
-          setMsg(msgEl, ok.length + "건 업로드 중…", false);
+          setMsg(msgEl, ok.length + "건 검수대기 등록 중…", false);
           window
-            .saveQuestionsBatchToFirestore(ok)
-            .then(function () {
-              applyScopeToUploaded(ok);
-              var defY =
-                window.HANLAW_EXCEL_DEFAULT_YEAR != null &&
-                !isNaN(Number(window.HANLAW_EXCEL_DEFAULT_YEAR))
-                  ? String(window.HANLAW_EXCEL_DEFAULT_YEAR)
-                  : String(new Date().getFullYear());
-              var defEx =
-                window.HANLAW_EXCEL_DEFAULT_EXAM_ID != null
-                  ? String(window.HANLAW_EXCEL_DEFAULT_EXAM_ID).trim()
-                  : "grade9";
-              setMsg(
-                msgEl,
-                ok.length +
-                  "건 Firestore에 반영되었습니다. 방금 업로드한 문항의 시험·연도로 필터를 자동 전환했습니다. 퀴즈에는 왼쪽에서 선택한 시험·연도와 문항의 examId·year가 같을 때만 나옵니다. 엑셀에 비어 있으면 기본값 examId=" +
-                  defEx +
-                  ", year=" +
-                  defY +
-                  " 이 들어갑니다(js/firebase-config.js).",
-                false
-              );
+            .adminStageQuizBatch(ok)
+            .then(function (res) {
+              var okCount = parseInt(res && res.okCount, 10) || 0;
+              var failRows = (res && res.failRows) || [];
+              if (okCount > 0) applyScopeToUploaded(ok.slice(0, okCount));
+              var msg = okCount + "건이 검수대기로 등록되었습니다.";
+              if (failRows.length) {
+                msg += " 실패 " + failRows.length + "건(예: " + failRows[0].index + "행 " + failRows[0].reason + ")";
+              }
+              setMsg(msgEl, msg + " '검수·승인' 탭에서 승인하면 퀴즈에 반영됩니다.", false);
               fileEl.value = "";
             })
             .catch(function (e) {
+              var code = e && (e.code || (e.details && e.details.code)) ? String(e.code || e.details.code) : "";
+              var msg = (e && e.message) || "";
+              if (msg.toUpperCase() === "INTERNAL" || code.indexOf("internal") >= 0) {
+                msg =
+                  "서버 함수에서 오류가 발생했습니다. 최신 Functions 배포가 필요할 수 있습니다. " +
+                  "관리자에게 firebase deploy --only functions 실행 여부를 확인해 주세요.";
+              } else if (code.indexOf("not-found") >= 0) {
+                msg = "검수 업로드 함수가 배포되지 않았습니다. firebase deploy --only functions 를 먼저 실행해 주세요.";
+              } else if (code.indexOf("permission-denied") >= 0) {
+                msg = "관리자 계정 권한이 없습니다. ADMIN_EMAILS 설정을 확인해 주세요.";
+              }
               setMsg(
                 msgEl,
-                (e && e.message) || "저장 실패. 규칙·네트워크를 확인하세요.",
+                msg || "검수대기 등록 실패. Functions/권한을 확인하세요.",
                 true
               );
             });

@@ -1,5 +1,10 @@
 /**
- * 퀴즈 AI·용어사전 등 공통: 마크다운 스타일 텍스트 → HTML (불릿 숨김, 강조는 CSS 클래스)
+ * 퀴즈 AI·용어사전·관리자 편집 본문 공통:
+ * - <키워드> 또는 [키워드] → 굵은 강조(quiz-ai-answer__accent)
+ * - 전각 ＜키워드＞ · ［키워드］ (한글 입력기) 동일 처리
+ * - **굵게** / __굵게__
+ * - formatHanlawAiAnswerHtml: 불릿·단락
+ * - formatHanlawRichParagraphsHtml: 줄바꿈만(문항 지문 등, 불릿 해석 없음)
  */
 (function () {
   var AI_LOADING_QUOTES = [
@@ -40,13 +45,35 @@
 
   function formatInline(md) {
     var s = String(md || "");
+    // 전각 괄호 (IME·복붙 시 반각과 섞일 수 있음)
+    s = s.replace(/＜([^＜＞\n]{1,200})＞/g, function (_, inner) {
+      var t = String(inner || "").trim();
+      return t ? "**" + t + "**" : "";
+    });
+    s = s.replace(/［([^［］\n]{1,200})］/g, function (_, inner) {
+      var t = String(inner || "").trim();
+      return t ? "**" + t + "**" : "";
+    });
+    // 관리자 편의: <강조어> → 굵게
+    s = s.replace(/<([^<>\n]{1,200})>/g, function (_, inner) {
+      var t = String(inner || "").trim();
+      return t ? "**" + t + "**" : "";
+    });
+    // [강조어] → 굵게 (줄바꿈·닫는 ] 없는 본문은 제외)
+    s = s.replace(/\[([^\]\n]{1,200})\]/g, function (_, inner) {
+      var t = String(inner || "").trim();
+      return t ? "**" + t + "**" : "";
+    });
+    // 흔한 오타 보정: "***강조**", "****강조****" 등을 "**강조**"로 정규화
+    s = s.replace(/\*{2,}\s*([^*]+?)\s*\*{2,}/g, "**$1**");
+    s = s.replace(/_{2,}\s*([^_]+?)\s*_{2,}/g, "__$1__");
     var out = [];
-    var re = /\*\*(.+?)\*\*/g;
+    var re = /(\*\*|__)(.+?)\1/g;
     var last = 0;
     var m;
     while ((m = re.exec(s)) !== null) {
       out.push(escHtml(s.slice(last, m.index)));
-      out.push('<strong class="quiz-ai-answer__accent">' + escHtml(m[1]) + "</strong>");
+      out.push('<strong class="quiz-ai-answer__accent">' + escHtml(m[2]) + "</strong>");
       last = re.lastIndex;
     }
     out.push(escHtml(s.slice(last)));
@@ -96,8 +123,20 @@
 
     function flushPara() {
       if (!para.length) return;
-      var text = para.join(" ").replace(/\s+/g, " ").trim();
-      if (text) blocks.push("<p>" + formatInline(text) + "</p>");
+      // 연속 줄(빈 줄 없이 Enter만 친 경우)은 단락 하나로 묶되, 줄바꿈은 유지한다.
+      // 예전 join(" ")+collapse는 관리자가 넣은 줄바꿈을 지웠음.
+      var raw = para.join("\n");
+      if (!raw.trim()) {
+        para = [];
+        return;
+      }
+      var lines = raw.split("\n");
+      var inner = lines
+        .map(function (line) {
+          return formatInline(line.replace(/\s+$/, ""));
+        })
+        .join("<br>");
+      blocks.push("<p>" + inner + "</p>");
       para = [];
     }
 
@@ -138,6 +177,37 @@
     return blocks.join("");
   }
 
+  /**
+   * 문항 지문·명언 등: 불릿/번호 목록 해석 없이 줄만 나누고, <>·[]·** 강조만 적용.
+   */
+  function formatHanlawRichParagraphsHtml(raw) {
+    var lines = String(raw || "")
+      .replace(/\r\n/g, "\n")
+      .split("\n");
+    if (!lines.length) return "";
+    var inner = lines
+      .map(function (line) {
+        return formatInline(line.replace(/\s+$/, ""));
+      })
+      .join("<br>");
+    return inner ? '<span class="hanlaw-rich-text">' + inner + "</span>" : "";
+  }
+
+  /**
+   * 변호사 답변 등 표시용: 줄 시작의 목록 기호(- * • 숫자.)만 제거(마크다운 불릿이 그대로 보이지 않게).
+   */
+  function stripHanlawReplyListMarkers(raw) {
+    return String(raw || "")
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map(function (line) {
+        return line.replace(/^\s*(?:(?:[-*•·])\s+|\d{1,3}[\.)]\s+)/, "");
+      })
+      .join("\n");
+  }
+
   window.pickHanlawAiLoadingQuote = pickHanlawAiLoadingQuote;
   window.formatHanlawAiAnswerHtml = formatHanlawAiAnswerHtml;
+  window.formatHanlawRichParagraphsHtml = formatHanlawRichParagraphsHtml;
+  window.stripHanlawReplyListMarkers = stripHanlawReplyListMarkers;
 })();

@@ -22,6 +22,16 @@
     return window.APP_MEMBERSHIP && window.APP_MEMBERSHIP.tier === "paid";
   }
 
+  function isAdminEmail(email) {
+    if (!email || typeof email !== "string") return false;
+    var e = email.toLowerCase().trim();
+    var list = window.ADMIN_EMAILS || [];
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i]).toLowerCase() === e) return true;
+    }
+    return false;
+  }
+
   function sumPurchasedBatches(batches, nowMs) {
     if (!batches || !batches.length) return 0;
     var n = 0;
@@ -35,7 +45,7 @@
     return n;
   }
 
-  function computeState(walletSnap) {
+  function computeState(walletSnap, userEmail) {
     var paid = isPaidMember();
     var periodKey = kstYearMonth();
     var monthlyUsed = 0;
@@ -50,6 +60,11 @@
     var monthlyRemaining = paid ? Math.max(0, 4 - monthlyUsed) : 0;
     var nowMs = Date.now();
     var purchased = sumPurchasedBatches(batches, nowMs);
+    var adminUnlimited = isAdminEmail(userEmail);
+    var total = monthlyRemaining + purchased;
+    if (adminUnlimited) {
+      total = Math.max(total, 999);
+    }
     return {
       loading: false,
       periodKey: periodKey,
@@ -57,7 +72,8 @@
       monthlyUsed: monthlyUsed,
       monthlyRemaining: monthlyRemaining,
       purchased: purchased,
-      total: monthlyRemaining + purchased
+      total: total,
+      adminUnlimited: adminUnlimited
     };
   }
 
@@ -68,15 +84,24 @@
     monthlyUsed: 0,
     monthlyRemaining: 0,
     purchased: 0,
-    total: 0
+    total: 0,
+    adminUnlimited: false
   };
 
   function renderDashboard() {
     var el = document.getElementById("dashboard-question-credits");
+    var totalEl = document.getElementById("dashboard-question-credits-total");
     if (!el) return;
     var s = window.__QUESTION_CREDIT_STATE;
     if (s.loading) {
+      if (totalEl) totalEl.textContent = "보유 질문권: 불러오는 중…";
       el.textContent = "불러오는 중…";
+      return;
+    }
+    if (totalEl) totalEl.textContent = "보유 질문권: " + s.total + "건";
+    if (s.adminUnlimited) {
+      el.textContent =
+        "관리자 계정 · 변호사에게 물어보기는 질문권 차감 없이 이용할 수 있습니다.";
       return;
     }
     var parts = [];
@@ -95,8 +120,11 @@
       unsub();
       unsub = null;
     }
+    var u =
+      typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    var email = u && u.email ? String(u.email) : "";
     if (!uid || typeof firebase === "undefined" || !firebase.firestore) {
-      window.__QUESTION_CREDIT_STATE = computeState(null);
+      window.__QUESTION_CREDIT_STATE = computeState(null, email);
       window.__QUESTION_CREDIT_STATE.loading = false;
       renderDashboard();
       window.dispatchEvent(new CustomEvent("question-credits-updated"));
@@ -107,12 +135,12 @@
     var ref = firebase.firestore().collection("hanlaw_question_wallet").doc(uid);
     unsub = ref.onSnapshot(
       function (snap) {
-        window.__QUESTION_CREDIT_STATE = computeState(snap);
+        window.__QUESTION_CREDIT_STATE = computeState(snap, email);
         renderDashboard();
         window.dispatchEvent(new CustomEvent("question-credits-updated"));
       },
       function () {
-        window.__QUESTION_CREDIT_STATE = computeState(null);
+        window.__QUESTION_CREDIT_STATE = computeState(null, email);
         window.__QUESTION_CREDIT_STATE.loading = false;
         renderDashboard();
         window.dispatchEvent(new CustomEvent("question-credits-updated"));
@@ -216,7 +244,11 @@
       .doc(user.uid)
       .get()
       .then(function (snap) {
-        window.__QUESTION_CREDIT_STATE = computeState(snap);
+        var em =
+          user && user.email
+            ? String(user.email)
+            : "";
+        window.__QUESTION_CREDIT_STATE = computeState(snap, em);
         renderDashboard();
         window.dispatchEvent(new CustomEvent("question-credits-updated"));
       })

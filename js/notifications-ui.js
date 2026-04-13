@@ -45,7 +45,19 @@
       t.textContent = n.title || "알림";
       var b = document.createElement("p");
       b.className = "notif-item__body";
-      b.textContent = n.body || "";
+      var bodyRaw = n.body || "";
+      if (
+        n.type === "질문 답변" &&
+        typeof window.stripHanlawReplyListMarkers === "function"
+      ) {
+        bodyRaw = window.stripHanlawReplyListMarkers(bodyRaw);
+      }
+      b.className = "notif-item__body quiz-ai-answer";
+      if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+        b.innerHTML = window.formatHanlawRichParagraphsHtml(bodyRaw);
+      } else {
+        b.textContent = bodyRaw;
+      }
       row.appendChild(t);
       row.appendChild(b);
       if (n._docId && n.read === false && !isAdminPending) {

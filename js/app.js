@@ -5,11 +5,55 @@
     return window.QUESTION_BANK || [];
   }
 
+  /** Firebase User에 email이 비어 있는 경우(providerData)까지 확인 */
+  function getHanlawUserEmailForAdmin() {
+    var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (u && u.email) return String(u.email).toLowerCase().trim();
+    try {
+      if (typeof firebase !== "undefined" && firebase.auth && firebase.auth().currentUser) {
+        var cu = firebase.auth().currentUser;
+        if (cu.email) return String(cu.email).toLowerCase().trim();
+        if (cu.providerData && cu.providerData.length) {
+          for (var i = 0; i < cu.providerData.length; i++) {
+            var em = cu.providerData[i] && cu.providerData[i].email;
+            if (em) return String(em).toLowerCase().trim();
+          }
+        }
+      }
+    } catch (e) {}
+    return "";
+  }
+
+  function isAdminUser() {
+    var mail = getHanlawUserEmailForAdmin();
+    if (!mail) return false;
+    var emails = window.ADMIN_EMAILS || [];
+    for (var i = 0; i < emails.length; i++) {
+      if (String(emails[i]).toLowerCase() === mail) return true;
+    }
+    return false;
+  }
+
+  function syncQuizAdminEditVisibility() {
+    if (!el.quiz || el.quiz.hidden) return;
+    var adminEditBtn = ensureQuizAdminEditButton();
+    var adminOn = isAdminUser();
+    if (adminEditBtn) adminEditBtn.hidden = !adminOn;
+    if (el.quizAdminEditor && !adminOn) el.quizAdminEditor.hidden = true;
+  }
+
+  /** 이메일 로그인(또는 동일한 수준의 식별) — 익명 세션은 비로그인 UI */
+  function isViewerLoggedIn() {
+    var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    return !!(u && u.email);
+  }
+
   var el = {
     start: document.getElementById("screen-start"),
     quiz: document.getElementById("screen-quiz"),
     result: document.getElementById("screen-result"),
     filterTopic: document.getElementById("filter-topic"),
+    filterTopicSearch: document.getElementById("filter-topic-search"),
     questionCount: document.getElementById("question-count"),
     btnStart: document.getElementById("btn-start"),
     progress: document.getElementById("quiz-progress"),
@@ -27,24 +71,208 @@
     feedbackDetail: document.getElementById("feedback-detail"),
     feedbackTags: document.getElementById("feedback-tags"),
     btnQuizFavorite: document.getElementById("btn-quiz-favorite"),
+    btnQuizMaster: document.getElementById("btn-quiz-master"),
     btnNext: document.getElementById("btn-next"),
+    quizNavBottomRow: document.querySelector("#screen-quiz .quiz-nav-bottom-row"),
+    btnQuizPrevBottom: document.getElementById("btn-quiz-prev-bottom"),
+    btnQuizNavPrev: document.getElementById("btn-quiz-nav-prev"),
+    btnQuizNavNext: document.getElementById("btn-quiz-nav-next"),
     resultSummary: document.getElementById("result-summary"),
     btnRetry: document.getElementById("btn-retry"),
     btnHome: document.getElementById("btn-home"),
     feedbackMaster: document.getElementById("feedback-master"),
     feedbackAttendanceNotify: document.getElementById("feedback-attendance-notify"),
-    optAutoReview: document.getElementById("opt-auto-review")
+    feedbackGuestHint: document.getElementById("feedback-guest-hint"),
+    feedbackTagsSection: document.getElementById("feedback-tags-section"),
+    btnQuizAdminEdit: document.getElementById("btn-quiz-admin-edit"),
+    quizAdminEditor: null,
+    quizMemoSection: document.getElementById("quiz-memo-section"),
+    quizMemoBody: document.getElementById("quiz-memo-body"),
+    quizMemoPanelToggle: document.getElementById("quiz-memo-panel-toggle"),
+    quizMemoText: document.getElementById("quiz-memo-text"),
+    quizMemoCanvas: document.getElementById("quiz-memo-canvas"),
+    quizMemoTextWrap: document.getElementById("quiz-memo-text-wrap"),
+    quizMemoDrawWrap: document.getElementById("quiz-memo-draw-wrap"),
+    quizMemoSave: document.getElementById("quiz-memo-save"),
+    quizMemoMsg: document.getElementById("quiz-memo-msg"),
+    quizMemoClearCanvas: document.getElementById("quiz-memo-clear-canvas")
   };
+
+  var quizMemoCanvasCtl = null;
+
+  /** 상세 해설: detail.body 우선, 없으면 구버전 legal/trap/precedent를 한 덩어리로 편집용 병합 */
+  function mergeLegacyDetailToText(d) {
+    if (!d || typeof d !== "object") return "";
+    var b = String(d.body != null ? d.body : "").trim();
+    if (b) return b;
+    var parts = [];
+    if (String(d.legal || "").trim()) parts.push("법리 근거: " + String(d.legal).trim());
+    if (String(d.trap || "").trim()) parts.push("함정 포인트: " + String(d.trap).trim());
+    if (String(d.precedent || "").trim()) parts.push("판례: " + String(d.precedent).trim());
+    return parts.join("\n\n");
+  }
+
+  var QUIZ_ADMIN_EDITOR_VER = 2;
+
+  function ensureQuizAdminEditButton() {
+    if (
+      window.__hanlawQuizAdminEditInited &&
+      window.__hanlawQuizAdminEditorVer === QUIZ_ADMIN_EDITOR_VER
+    ) {
+      return el.btnQuizAdminEdit;
+    }
+    if (window.__hanlawQuizAdminEditInited) {
+      var oldEd = document.getElementById("quiz-admin-editor");
+      if (oldEd && oldEd.parentNode) oldEd.parentNode.removeChild(oldEd);
+      window.__hanlawQuizAdminEditInited = false;
+    }
+    var btn = el.btnQuizAdminEdit || document.getElementById("btn-quiz-admin-edit");
+    if (!btn || !el.qMeta || !el.qMeta.parentNode) return null;
+    el.btnQuizAdminEdit = btn;
+    var editor = document.createElement("section");
+    editor.id = "quiz-admin-editor";
+    editor.className = "quiz-admin-editor";
+    editor.hidden = true;
+    editor.innerHTML =
+      '<label class="field"><span class="field__label">문제 본문</span><textarea id="quiz-admin-statement" class="input textarea" rows="3"></textarea></label>' +
+      '<label class="field"><span class="field__label">정답</span><select id="quiz-admin-answer" class="select"><option value="true">O(참)</option><option value="false">X(거짓)</option></select></label>' +
+      '<label class="field"><span class="field__label">해설</span><textarea id="quiz-admin-explanation" class="input textarea" rows="3"></textarea></label>' +
+      '<label class="field"><span class="field__label">기본 해설 (필수)</span><textarea id="quiz-admin-explanation-basic" class="input textarea" rows="3"></textarea></label>' +
+      '<label class="field"><span class="field__label">상세 해설 (선택 · 자유 형식)</span><textarea id="quiz-admin-detail-body" class="input textarea" rows="6" placeholder="법리·함정·판례 등 형식 제한 없이 작성"></textarea></label>' +
+      '<label class="field"><span class="field__label">중요도(1~5)</span><input id="quiz-admin-importance" type="number" min="1" max="5" class="input" /></label>' +
+      '<label class="field"><span class="field__label">난이도(1~5)</span><input id="quiz-admin-difficulty" type="number" min="1" max="5" class="input" /></label>' +
+      '<label class="field"><span class="field__label">태그(쉼표 구분)</span><input id="quiz-admin-tags" type="text" class="input" /></label>' +
+      '<div class="quiz-admin-editor__actions"><button type="button" id="quiz-admin-save" class="btn btn--secondary btn--small">저장</button><button type="button" id="quiz-admin-cancel" class="btn btn--outline btn--small">닫기</button></div>' +
+      '<p id="quiz-admin-msg" class="settings-dday-msg" hidden role="status"></p>';
+    el.qMeta.parentNode.insertBefore(editor, btn.nextSibling);
+    el.quizAdminEditor = editor;
+    window.__hanlawQuizAdminEditInited = true;
+    window.__hanlawQuizAdminEditorVer = QUIZ_ADMIN_EDITOR_VER;
+
+    function setEditorMsg(text, isError) {
+      var m = document.getElementById("quiz-admin-msg");
+      if (!m) return;
+      m.textContent = text || "";
+      m.hidden = !text;
+      m.style.color = isError ? "var(--danger)" : "var(--muted)";
+    }
+
+    function fillEditorFromQuestion(q) {
+      if (!q) return;
+      document.getElementById("quiz-admin-statement").value = q.statement || "";
+      document.getElementById("quiz-admin-answer").value = q.answer === false ? "false" : "true";
+      document.getElementById("quiz-admin-explanation").value = q.explanation || "";
+      document.getElementById("quiz-admin-explanation-basic").value = q.explanationBasic || "";
+      var d = q.detail || {};
+      document.getElementById("quiz-admin-detail-body").value = mergeLegacyDetailToText(d);
+      document.getElementById("quiz-admin-importance").value =
+        q.importance != null ? String(q.importance) : "";
+      document.getElementById("quiz-admin-difficulty").value =
+        q.difficulty != null ? String(q.difficulty) : "";
+      document.getElementById("quiz-admin-tags").value =
+        Array.isArray(q.tags) ? q.tags.join(", ") : "";
+      setEditorMsg("", false);
+    }
+
+    btn.addEventListener("click", function () {
+      var q = state.list[state.index];
+      if (!q || !isAdminUser()) return;
+      fillEditorFromQuestion(q);
+      editor.hidden = false;
+    });
+    var btnCancel = document.getElementById("quiz-admin-cancel");
+    if (btnCancel) {
+      btnCancel.addEventListener("click", function () {
+        editor.hidden = true;
+      });
+    }
+    var btnSave = document.getElementById("quiz-admin-save");
+    if (btnSave) {
+      btnSave.addEventListener("click", function () {
+        var q = state.list[state.index];
+        if (!q || !isAdminUser()) return;
+        if (typeof window.saveQuestionToFirestore !== "function") {
+          setEditorMsg("저장 함수를 찾지 못했습니다.", true);
+          return;
+        }
+        var statement = String(document.getElementById("quiz-admin-statement").value || "").trim();
+        var explanation = String(document.getElementById("quiz-admin-explanation").value || "").trim();
+        var explanationBasic = String(
+          document.getElementById("quiz-admin-explanation-basic").value || ""
+        ).trim();
+        var detailBody = String(
+          document.getElementById("quiz-admin-detail-body").value || ""
+        ).trim();
+        if (!statement || !explanation) {
+          setEditorMsg("문제 본문과 해설은 필수입니다.", true);
+          return;
+        }
+        if (!explanationBasic) {
+          setEditorMsg("기본 해설은 필수입니다.", true);
+          return;
+        }
+        var tagsRaw = String(document.getElementById("quiz-admin-tags").value || "").trim();
+        var tags = tagsRaw
+          ? tagsRaw
+              .split(",")
+              .map(function (x) {
+                return String(x || "").trim();
+              })
+              .filter(Boolean)
+          : [];
+        var impRaw = String(document.getElementById("quiz-admin-importance").value || "").trim();
+        var diffRaw = String(document.getElementById("quiz-admin-difficulty").value || "").trim();
+        var payload = Object.assign({}, q, {
+          statement: statement,
+          explanation: explanation,
+          explanationBasic: explanationBasic,
+          answer: document.getElementById("quiz-admin-answer").value === "true"
+        });
+        delete payload.detail;
+        if (detailBody) payload.detail = { body: detailBody };
+        var saveOpts = { clearDetail: !detailBody };
+        if (impRaw) payload.importance = parseInt(impRaw, 10);
+        else delete payload.importance;
+        if (diffRaw) payload.difficulty = parseInt(diffRaw, 10);
+        else delete payload.difficulty;
+        if (tags.length) payload.tags = tags;
+        else delete payload.tags;
+        setEditorMsg("저장 중…", false);
+        window
+          .saveQuestionToFirestore(payload, saveOpts)
+          .then(function () {
+            q.statement = payload.statement;
+            q.explanation = payload.explanation;
+            q.explanationBasic = payload.explanationBasic;
+            q.detail = detailBody ? { body: detailBody } : undefined;
+            q.answer = payload.answer;
+            q.importance = payload.importance;
+            q.difficulty = payload.difficulty;
+            q.tags = payload.tags;
+            setEditorMsg("저장되었습니다.", false);
+            editor.hidden = true;
+            renderQuestion();
+          })
+          .catch(function (e) {
+            setEditorMsg((e && e.message) || "문항 수정 실패", true);
+          });
+      });
+    }
+    return el.btnQuizAdminEdit;
+  }
 
   var state = {
     list: [],
     index: 0,
     correct: 0,
     lastFilterTopic: ALL,
+    lastFilterTopicSearch: "",
+    lastPartMode: "all",
+    lastNotebookScope: { wrong: false, fav: false, master: false },
     lastOrderMode: "random",
     lastCount: "0",
-    sinceReviewCount: 0,
-    reviewModalQuestion: null
+    /** index → { userTrue } — 뒤로 가기 시 해설 복원용 */
+    sessionAnswers: {}
   };
 
   function matchesScope(q) {
@@ -102,21 +330,239 @@
     });
   }
 
+  function isExcludedByMaster(q) {
+    try {
+      if (window.QuizMaster && typeof window.QuizMaster.has === "function") {
+        return window.QuizMaster.has(q.id);
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function getNotebookScopeSelections() {
+    var w = document.getElementById("scope-note-wrong");
+    var f = document.getElementById("scope-note-fav");
+    var m = document.getElementById("scope-note-master");
+    return {
+      wrong: !!(w && w.checked),
+      fav: !!(f && f.checked),
+      master: !!(m && m.checked)
+    };
+  }
+
+  function anyNotebookScopeActive(sel) {
+    sel = sel || getNotebookScopeSelections();
+    return !!(sel.wrong || sel.fav || sel.master);
+  }
+
+  function normalizeNotebookQid(id) {
+    return String(id == null ? "" : id).trim();
+  }
+
+  /**
+   * 오답·찜·마스터 노트 패널과 동일: 무료는 최신 저장 앞쪽 100개만, 유료는 1000개까지 열람 한도.
+   * 퀴즈 "노트 범위" 필터는 저장소 전체가 아니라 이 한도 안의 ID만 사용합니다.
+   */
+  function applyNotebookQuizScopeLimit(ids) {
+    if (!Array.isArray(ids) || !ids.length) return [];
+    var lim = 1000;
+    try {
+      if (window.HanlawNoteQuizUi && typeof window.HanlawNoteQuizUi.getDisplayLimit === "function") {
+        lim = window.HanlawNoteQuizUi.getDisplayLimit();
+      } else if (typeof window.isPaidMember === "function") {
+        lim = window.isPaidMember() ? 1000 : 100;
+      }
+    } catch (e) {
+      lim = typeof window.isPaidMember === "function" && window.isPaidMember() ? 1000 : 100;
+    }
+    return ids.slice(0, lim);
+  }
+
+  function idMapFromIdList(ids) {
+    var out = {};
+    var i;
+    for (i = 0; i < ids.length; i++) {
+      var id = normalizeNotebookQid(ids[i]);
+      if (id) out[id] = true;
+    }
+    return out;
+  }
+
+  /** 노트별 퀴즈에 쓸 ID 집합(무료=최신순 앞 100개만). 한 번 필터링할 때마다 동일 maps를 넘겨 재계산을 줄입니다. */
+  function buildNotebookQuizMaps() {
+    var wrongRaw = [];
+    var favRaw = [];
+    var masterRaw = [];
+    try {
+      if (window.QuizWrongNote && typeof window.QuizWrongNote.getOrderedIds === "function") {
+        wrongRaw = window.QuizWrongNote.getOrderedIds();
+      }
+    } catch (e) {}
+    try {
+      if (window.QuizFavorites && typeof window.QuizFavorites.getOrderedIds === "function") {
+        favRaw = window.QuizFavorites.getOrderedIds();
+      }
+    } catch (e) {}
+    try {
+      if (window.QuizMaster && typeof window.QuizMaster.getOrderedIds === "function") {
+        masterRaw = window.QuizMaster.getOrderedIds();
+      }
+    } catch (e) {}
+    return {
+      wrong: idMapFromIdList(applyNotebookQuizScopeLimit(wrongRaw)),
+      fav: idMapFromIdList(applyNotebookQuizScopeLimit(favRaw)),
+      master: idMapFromIdList(applyNotebookQuizScopeLimit(masterRaw))
+    };
+  }
+
+  /** 노트 범위 미선택: 마스터 제외(기존 동작). 하나 이상 선택: 해당 노트(들)에 속한 문항만(합집합). */
+  function passesScopeNotebook(q, sel, quizMaps) {
+    sel = sel || getNotebookScopeSelections();
+    if (!anyNotebookScopeActive(sel)) {
+      return !isExcludedByMaster(q);
+    }
+    var id = normalizeNotebookQid(q.id);
+    if (!id) return false;
+    var maps = quizMaps || buildNotebookQuizMaps();
+    var ok = false;
+    if (sel.wrong && maps.wrong[id]) ok = true;
+    if (sel.fav && maps.fav[id]) ok = true;
+    if (sel.master && maps.master[id]) ok = true;
+    return ok;
+  }
+
   function scopedBank() {
-    return getBank().filter(matchesScope);
+    var maps = buildNotebookQuizMaps();
+    return getBank().filter(function (q) {
+      return matchesScope(q) && passesScopeNotebook(q, null, maps);
+    });
+  }
+
+  /**
+   * 행정법 교과서에서 흔한 편제(총론 → 행정작용 각론 → 구제·쟁송).
+   * data의 topic 문자열과 정확히 일치해야 하며, 없는 주제는 목차 맨 뒤(가나다)로 둡니다.
+   */
+  var ADMIN_LAW_TOPIC_ORDER = [
+    "행정법 일반",
+    "비례원칙",
+    "행정행위",
+    "행정계획",
+    "행정입법",
+    "행정강제",
+    "행정계약",
+    "행정절차",
+    "행정소송",
+    "국가배상",
+    "조세·행정"
+  ];
+
+  window.HANLAW_ADMIN_LAW_TOPIC_ORDER = ADMIN_LAW_TOPIC_ORDER;
+
+  function buildTopicOptionsForFilter(scoped) {
+    var bankTopics = uniqueSorted(scoped.map(function (q) { return q.topic; }));
+    var seen = {};
+    var out = [];
+    var ci;
+    for (ci = 0; ci < ADMIN_LAW_TOPIC_ORDER.length; ci++) {
+      var ct = ADMIN_LAW_TOPIC_ORDER[ci];
+      if (bankTopics.indexOf(ct) >= 0) {
+        out.push(ct);
+        seen[ct] = true;
+      }
+    }
+    var bi;
+    for (bi = 0; bi < bankTopics.length; bi++) {
+      var bt = bankTopics[bi];
+      if (!seen[bt]) {
+        out.push(bt);
+        seen[bt] = true;
+      }
+    }
+    return out;
+  }
+
+  function ensureFilterTopicOption(value) {
+    if (!el.filterTopic || !value || value === ALL) return;
+    var i;
+    for (i = 0; i < el.filterTopic.options.length; i++) {
+      if (el.filterTopic.options[i].value === value) return;
+    }
+    var o = document.createElement("option");
+    o.value = value;
+    o.textContent = value;
+    el.filterTopic.appendChild(o);
   }
 
   function initFilters() {
     var scoped = scopedBank();
-    var topics = uniqueSorted(scoped.map(function (q) { return q.topic; }));
+    var topics = buildTopicOptionsForFilter(scoped);
+    var prev = el.filterTopic ? String(el.filterTopic.value || ALL) : ALL;
+    var prevSearch = el.filterTopicSearch ? String(el.filterTopicSearch.value || "") : "";
     fillSelect(el.filterTopic, topics, true);
+    if (prev && prev !== ALL) {
+      var ok = false;
+      var j;
+      for (j = 0; j < el.filterTopic.options.length; j++) {
+        if (el.filterTopic.options[j].value === prev) {
+          ok = true;
+          break;
+        }
+      }
+      if (ok) {
+        el.filterTopic.value = prev;
+      } else {
+        ensureFilterTopicOption(prev);
+        el.filterTopic.value = prev;
+      }
+    } else {
+      el.filterTopic.value = ALL;
+    }
+    if (el.filterTopicSearch) el.filterTopicSearch.value = prevSearch;
+    syncFilterTopicWithPartMode();
+  }
+
+  function topicCurriculumRank(topic) {
+    var t = String(topic || "").trim();
+    var idx = ADMIN_LAW_TOPIC_ORDER.indexOf(t);
+    return idx >= 0 ? idx : -1;
+  }
+
+  /** 총론만: 교과 목차상 앞쪽 두 단원(행정법 일반, 비례원칙) */
+  function isTopicInGeneralPart(topic) {
+    var r = topicCurriculumRank(topic);
+    return r >= 0 && r <= 1;
+  }
+
+  function getPartMode() {
+    var r = document.querySelector('input[name="opt-part"]:checked');
+    return r && r.value === "general" ? "general" : "all";
+  }
+
+  function syncFilterTopicWithPartMode() {
+    if (!el.filterTopic) return;
+    if (getPartMode() !== "general") return;
+    var tp = el.filterTopic.value;
+    if (tp !== ALL && !isTopicInGeneralPart(tp)) {
+      el.filterTopic.value = ALL;
+    }
   }
 
   function filterQuestions() {
-    var tp = el.filterTopic.value;
+    var tp = el.filterTopic ? el.filterTopic.value : ALL;
+    var part = getPartMode();
+    var search =
+      el.filterTopicSearch && String(el.filterTopicSearch.value || "").trim();
+    var notebookMaps = buildNotebookQuizMaps();
     return getBank().filter(function (q) {
-      if (!matchesScope(q)) return false;
-      return tp === ALL || q.topic === tp;
+      if (!matchesScope(q) || !passesScopeNotebook(q, null, notebookMaps)) return false;
+      if (part === "general" && !isTopicInGeneralPart(q.topic)) return false;
+      if (search) {
+        var subj = String(q.topic || "");
+        if (subj.indexOf(search) === -1) return false;
+      } else {
+        if (tp !== ALL && q.topic !== tp) return false;
+      }
+      return true;
     });
   }
 
@@ -145,30 +591,6 @@
     var v = r && r.value;
     if (v && ORDER_MODES[v]) return v;
     return "random";
-  }
-
-  /**
-   * 행정법 교과서에서 흔한 편제(총론 → 행정작용 각론 → 구제·쟁송).
-   * data의 topic 문자열과 정확히 일치해야 하며, 없는 주제는 목차 맨 뒤(가나다)로 둡니다.
-   */
-  var ADMIN_LAW_TOPIC_ORDER = [
-    "행정법 일반",
-    "비례원칙",
-    "행정행위",
-    "행정계획",
-    "행정입법",
-    "행정강제",
-    "행정계약",
-    "행정절차",
-    "행정소송",
-    "국가배상",
-    "조세·행정"
-  ];
-
-  function topicCurriculumRank(topic) {
-    var t = String(topic || "").trim();
-    var idx = ADMIN_LAW_TOPIC_ORDER.indexOf(t);
-    return idx >= 0 ? idx : -1;
   }
 
   /** 같은 단원(주제) 안에서 연도 → 시험 → 문항 ID */
@@ -299,9 +721,6 @@
     if (btn.getAttribute("data-answer") != null) {
       return btn.getAttribute("data-answer") === "true";
     }
-    if (btn.getAttribute("data-review-answer") != null) {
-      return btn.getAttribute("data-review-answer") === "true";
-    }
     return false;
   }
 
@@ -374,12 +793,19 @@
     container.innerHTML = "";
     var hasDetail =
       q.detail &&
-      (q.detail.legal || q.detail.trap || q.detail.precedent);
+      ((q.detail.body && String(q.detail.body).trim()) ||
+        q.detail.legal ||
+        q.detail.trap ||
+        q.detail.precedent);
     if (!hasDetail) {
       var empty = document.createElement("p");
       empty.className = "feedback-detail__empty";
       empty.textContent = "등록된 상세 해설이 없습니다.";
       container.appendChild(empty);
+      return;
+    }
+    if (!isViewerLoggedIn()) {
+      buildDetailBlocks(container, q.detail);
       return;
     }
     if (userIsPaidMember()) {
@@ -393,40 +819,99 @@
     }
   }
 
-  function fillExplainPanel(parts, q) {
+  function fillExplainPanel(parts, q, opts) {
+    opts = opts || {};
+    var guest = !isViewerLoggedIn();
+    var rootFB = opts.feedbackRoot || el.feedback;
+    var hintEl = opts.hintEl !== undefined ? opts.hintEl : el.feedbackGuestHint;
+    var tagsSec = opts.tagsSection !== undefined ? opts.tagsSection : el.feedbackTagsSection;
+    if (rootFB) rootFB.classList.toggle("feedback--guest-lock", guest);
+    if (hintEl) hintEl.hidden = !guest;
+
     if (parts.answerKey) {
-      parts.answerKey.textContent = "정답: " + formatOx(q.answer);
-      parts.answerKey.hidden = false;
+      if (guest) {
+        parts.answerKey.textContent = "";
+        parts.answerKey.hidden = true;
+      } else {
+        parts.answerKey.textContent = "정답: " + formatOx(q.answer);
+        parts.answerKey.hidden = false;
+      }
     }
-    setImportanceLine(parts.importanceLine, q);
-    setDifficultyLine(parts.difficultyLine, q);
+    if (parts.importanceLine) parts.importanceLine.hidden = guest;
+    if (parts.difficultyLine) parts.difficultyLine.hidden = guest;
+    if (!guest) {
+      setImportanceLine(parts.importanceLine, q);
+      setDifficultyLine(parts.difficultyLine, q);
+    } else {
+      if (parts.importanceLine) parts.importanceLine.textContent = "";
+      if (parts.difficultyLine) parts.difficultyLine.textContent = "";
+    }
     if (parts.explain) {
       var basic = getBasicExplain(q);
-      parts.explain.textContent = basic
-        ? basic
-        : "등록된 기본 해설이 없습니다.";
+      var explainText = basic ? basic : "등록된 기본 해설이 없습니다.";
+      parts.explain.classList.add("quiz-ai-answer");
+      if (typeof window.formatHanlawAiAnswerHtml === "function") {
+        parts.explain.innerHTML = window.formatHanlawAiAnswerHtml(explainText);
+      } else {
+        parts.explain.textContent = explainText;
+      }
     }
     populateDetailContainer(parts.detail, q);
     if (parts.tags) {
       parts.tags.innerHTML = "";
-      if (q.tags && q.tags.length) {
-        renderTags(parts.tags, q.tags);
+      if (guest) {
+        if (tagsSec) tagsSec.hidden = true;
       } else {
-        var dash = document.createElement("span");
-        dash.className = "feedback__tag-empty";
-        dash.textContent = "—";
-        parts.tags.appendChild(dash);
+        if (tagsSec) tagsSec.hidden = false;
+        if (q.tags && q.tags.length) {
+          renderTags(parts.tags, q.tags);
+        } else {
+          var dash = document.createElement("span");
+          dash.className = "feedback__tag-empty";
+          dash.textContent = "—";
+          parts.tags.appendChild(dash);
+        }
       }
+    }
+    syncQuizMemoLoginState(guest);
+  }
+
+  /** 피드백 영역의 「나의 메모」 — 게스트는 패널만 닫아 두고, 클릭 시 안내는 별도 처리 */
+  function syncQuizMemoLoginState(guest) {
+    if (guest === undefined) guest = !isViewerLoggedIn();
+    if (!el.quizMemoPanelToggle || !el.quizMemoSection) return;
+    if (guest) {
+      el.quizMemoSection.classList.add("quiz-memo--need-login");
+      setQuizMemoPanelOpen(false);
+      el.quizMemoPanelToggle.disabled = false;
+      el.quizMemoPanelToggle.removeAttribute("title");
+      el.quizMemoPanelToggle.removeAttribute("aria-label");
+    } else {
+      el.quizMemoSection.classList.remove("quiz-memo--need-login");
+      el.quizMemoPanelToggle.disabled = false;
+      el.quizMemoPanelToggle.removeAttribute("title");
+      el.quizMemoPanelToggle.removeAttribute("aria-label");
+      if (el.quizMemoText) el.quizMemoText.disabled = false;
+      if (el.quizMemoSave) el.quizMemoSave.disabled = false;
     }
   }
 
   function clearFeedbackExtras() {
+    if (el.feedback) el.feedback.classList.remove("feedback--guest-lock");
+    if (el.feedbackGuestHint) el.feedbackGuestHint.hidden = true;
+    if (el.feedbackTagsSection) el.feedbackTagsSection.hidden = false;
     if (el.feedbackAnswerKey) {
       el.feedbackAnswerKey.textContent = "";
       el.feedbackAnswerKey.hidden = true;
     }
-    if (el.feedbackImportanceLine) el.feedbackImportanceLine.textContent = "";
-    if (el.feedbackDifficultyLine) el.feedbackDifficultyLine.textContent = "";
+    if (el.feedbackImportanceLine) {
+      el.feedbackImportanceLine.textContent = "";
+      el.feedbackImportanceLine.hidden = false;
+    }
+    if (el.feedbackDifficultyLine) {
+      el.feedbackDifficultyLine.textContent = "";
+      el.feedbackDifficultyLine.hidden = false;
+    }
     if (el.feedbackExplain) el.feedbackExplain.textContent = "";
     if (el.feedbackDetail) {
       el.feedbackDetail.innerHTML = "";
@@ -446,6 +931,220 @@
     if (window.QuizAiAsk && typeof window.QuizAiAsk.resetMain === "function") {
       window.QuizAiAsk.resetMain();
     }
+    clearQuizMemoDraft();
+  }
+
+  function setQuizMemoMsg(text, isError) {
+    if (!el.quizMemoMsg) return;
+    el.quizMemoMsg.textContent = text || "";
+    el.quizMemoMsg.hidden = !text;
+    el.quizMemoMsg.classList.toggle("quiz-memo__msg--error", !!isError);
+  }
+
+  function clearQuizMemoDraft() {
+    if (el.quizMemoText) el.quizMemoText.value = "";
+    if (quizMemoCanvasCtl && typeof quizMemoCanvasCtl.clear === "function") quizMemoCanvasCtl.clear();
+    if (quizMemoCanvasCtl && typeof quizMemoCanvasCtl.setEraser === "function") {
+      quizMemoCanvasCtl.setEraser(false);
+    }
+    setQuizMemoMsg("", false);
+    updateQuizMemoToolUi();
+  }
+
+  function setQuizMemoPanelOpen(open) {
+    if (!el.quizMemoBody || !el.quizMemoPanelToggle) return;
+    el.quizMemoBody.hidden = !open;
+    el.quizMemoPanelToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    el.quizMemoPanelToggle.textContent = open
+      ? "나의 메모 (암기·팁) 접기"
+      : "나의 메모 (암기·팁) 펼치기";
+  }
+
+  function syncQuizMemoForQuestion(q) {
+    if (!el.quizMemoSection) return;
+    if (!isViewerLoggedIn()) {
+      clearQuizMemoDraft();
+      setQuizMemoPanelOpen(false);
+      return;
+    }
+    if (!window.QuizQuestionMemo) return;
+    var qid = q && q.id != null ? String(q.id).trim() : "";
+    if (!qid) return;
+    var m = window.QuizQuestionMemo.get(qid);
+    if (el.quizMemoText) el.quizMemoText.value = m && m.text ? m.text : "";
+    if (quizMemoCanvasCtl) {
+      if (typeof quizMemoCanvasCtl.setEraser === "function") {
+        quizMemoCanvasCtl.setEraser(false);
+      }
+      if (m && m.drawing && String(m.drawing).indexOf("data:image") === 0) {
+        quizMemoCanvasCtl.loadDataUrl(m.drawing);
+      } else if (typeof quizMemoCanvasCtl.clear === "function") {
+        quizMemoCanvasCtl.clear();
+      }
+    }
+    setQuizMemoMsg("", false);
+    updateQuizMemoToolUi();
+    setQuizMemoPanelOpen(false);
+  }
+
+  function updateQuizMemoToolUi() {
+    if (!quizMemoCanvasCtl) return;
+    var isEr =
+      typeof quizMemoCanvasCtl.isEraser === "function" && quizMemoCanvasCtl.isEraser();
+    var penB = document.getElementById("quiz-memo-tool-pen");
+    var erB = document.getElementById("quiz-memo-tool-eraser");
+    var colorIn = document.getElementById("quiz-memo-pen-color");
+    var widthSel = document.getElementById("quiz-memo-pen-width");
+    if (penB) {
+      penB.classList.toggle("quiz-memo__tool-btn--active", !isEr);
+      penB.setAttribute("aria-pressed", !isEr ? "true" : "false");
+    }
+    if (erB) {
+      erB.classList.toggle("quiz-memo__tool-btn--active", !!isEr);
+      erB.setAttribute("aria-pressed", isEr ? "true" : "false");
+    }
+    if (colorIn) {
+      colorIn.disabled = !!isEr;
+      if (typeof quizMemoCanvasCtl.getPenColor === "function") {
+        var pc = quizMemoCanvasCtl.getPenColor();
+        if (pc && pc.indexOf("#") === 0) colorIn.value = pc;
+      }
+    }
+    if (widthSel && typeof quizMemoCanvasCtl.getLineWidth === "function") {
+      var w = String(quizMemoCanvasCtl.getLineWidth());
+      var opts = widthSel.querySelectorAll("option");
+      var oi;
+      for (oi = 0; oi < opts.length; oi++) {
+        if (opts[oi].value === w) {
+          widthSel.value = w;
+          break;
+        }
+      }
+    }
+  }
+
+  function bindQuizMemoPanelOnce() {
+    if (window.__hanlawQuizMemoBound) return;
+    window.__hanlawQuizMemoBound = true;
+    if (el.quizMemoPanelToggle && el.quizMemoBody) {
+      el.quizMemoPanelToggle.addEventListener("click", function () {
+        if (!isViewerLoggedIn()) {
+          window.alert("나의 메모(암기·팁)는 로그인 후 이용할 수 있습니다.");
+          return;
+        }
+        var nextOpen = !!el.quizMemoBody.hidden;
+        setQuizMemoPanelOpen(nextOpen);
+        if (nextOpen && el.quizMemoText) {
+          try {
+            el.quizMemoText.focus();
+          } catch (e) {}
+        }
+      });
+    }
+    if (
+      el.quizMemoCanvas &&
+      window.QuizQuestionMemo &&
+      typeof window.QuizQuestionMemo.attachDrawingCanvas === "function"
+    ) {
+      quizMemoCanvasCtl = window.QuizQuestionMemo.attachDrawingCanvas(el.quizMemoCanvas, {
+        onChange: function () {}
+      });
+      var colorIn0 = document.getElementById("quiz-memo-pen-color");
+      var widthSel0 = document.getElementById("quiz-memo-pen-width");
+      if (colorIn0 && quizMemoCanvasCtl.setPenColor) {
+        quizMemoCanvasCtl.setPenColor(colorIn0.value);
+      }
+      if (widthSel0 && quizMemoCanvasCtl.setLineWidth) {
+        quizMemoCanvasCtl.setLineWidth(widthSel0.value);
+      }
+      if (quizMemoCanvasCtl.setEraser) quizMemoCanvasCtl.setEraser(false);
+      updateQuizMemoToolUi();
+    }
+
+    var settingsToggle = document.getElementById("quiz-memo-draw-settings-toggle");
+    var settingsPanel = document.getElementById("quiz-memo-draw-settings");
+    if (settingsToggle && settingsPanel) {
+      settingsToggle.addEventListener("click", function () {
+        var open = !!settingsPanel.hidden;
+        settingsPanel.hidden = !open;
+        settingsToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    }
+
+    var penBtn = document.getElementById("quiz-memo-tool-pen");
+    var eraserBtn = document.getElementById("quiz-memo-tool-eraser");
+    if (penBtn) {
+      penBtn.addEventListener("click", function () {
+        if (quizMemoCanvasCtl && quizMemoCanvasCtl.setEraser) {
+          quizMemoCanvasCtl.setEraser(false);
+          updateQuizMemoToolUi();
+        }
+      });
+    }
+    if (eraserBtn) {
+      eraserBtn.addEventListener("click", function () {
+        if (quizMemoCanvasCtl && quizMemoCanvasCtl.setEraser) {
+          quizMemoCanvasCtl.setEraser(true);
+          updateQuizMemoToolUi();
+        }
+      });
+    }
+    var colorIn = document.getElementById("quiz-memo-pen-color");
+    if (colorIn) {
+      colorIn.addEventListener("input", function () {
+        if (quizMemoCanvasCtl && quizMemoCanvasCtl.setPenColor) {
+          quizMemoCanvasCtl.setPenColor(colorIn.value);
+        }
+      });
+    }
+    var widthSel = document.getElementById("quiz-memo-pen-width");
+    if (widthSel) {
+      widthSel.addEventListener("change", function () {
+        if (quizMemoCanvasCtl && quizMemoCanvasCtl.setLineWidth) {
+          quizMemoCanvasCtl.setLineWidth(widthSel.value);
+        }
+      });
+    }
+
+    if (el.quizMemoClearCanvas) {
+      el.quizMemoClearCanvas.addEventListener("click", function () {
+        if (quizMemoCanvasCtl && typeof quizMemoCanvasCtl.clear === "function") quizMemoCanvasCtl.clear();
+      });
+    }
+    if (el.quizMemoSave) {
+      el.quizMemoSave.addEventListener("click", function () {
+        if (!isViewerLoggedIn()) {
+          setQuizMemoMsg("로그인 후 이용할 수 있습니다.", true);
+          return;
+        }
+        if (!window.QuizQuestionMemo || typeof window.QuizQuestionMemo.set !== "function") {
+          setQuizMemoMsg("메모 저장을 사용할 수 없습니다.", true);
+          return;
+        }
+        var q = state.list[state.index];
+        if (!q || !String(q.id != null ? q.id : "").trim()) {
+          setQuizMemoMsg("문항 정보가 없습니다.", true);
+          return;
+        }
+        var qid = String(q.id).trim();
+        var txt = el.quizMemoText ? String(el.quizMemoText.value || "").trim() : "";
+        var drawing = "";
+        if (quizMemoCanvasCtl && typeof quizMemoCanvasCtl.hasInk === "function" && quizMemoCanvasCtl.hasInk()) {
+          try {
+            drawing = el.quizMemoCanvas.toDataURL("image/jpeg", 0.88);
+          } catch (e) {
+            drawing = "";
+          }
+        }
+        if (!txt && !drawing) {
+          window.QuizQuestionMemo.remove(qid);
+          setQuizMemoMsg("메모를 비웠습니다.", false);
+          return;
+        }
+        window.QuizQuestionMemo.set(qid, { text: txt, drawing: drawing });
+        setQuizMemoMsg("저장했습니다.", false);
+      });
+    }
   }
 
   function getBasicExplain(q) {
@@ -459,11 +1158,15 @@
     var basic = getBasicExplain(q);
     var det = "";
     if (q.detail && typeof q.detail === "object") {
-      var keys = ["legal", "trap", "precedent"];
-      var titles = { legal: "법리 근거", trap: "함정 포인트", precedent: "판례" };
-      for (var i = 0; i < keys.length; i++) {
-        var k = keys[i];
-        if (q.detail[k]) det += (titles[k] || k) + ": " + q.detail[k] + "\n\n";
+      if (q.detail.body != null && String(q.detail.body).trim()) {
+        det = String(q.detail.body).trim() + "\n\n";
+      } else {
+        var keys = ["legal", "trap", "precedent"];
+        var titles = { legal: "법리 근거", trap: "함정 포인트", precedent: "판례" };
+        for (var i = 0; i < keys.length; i++) {
+          var k = keys[i];
+          if (q.detail[k]) det += (titles[k] || k) + ": " + q.detail[k] + "\n\n";
+        }
       }
     }
     var stmt = String(q.statement || "");
@@ -505,7 +1208,59 @@
     return examPart;
   }
 
+  function paintAnsweredFeedback(q, userTrue) {
+    var ok = userTrue === q.answer;
+    el.feedback.hidden = false;
+    el.feedbackResult.textContent = ok ? "정답입니다." : "오답입니다.";
+    el.feedbackResult.classList.remove("is-correct", "is-wrong");
+    el.feedbackResult.classList.add(ok ? "is-correct" : "is-wrong");
+    applyOxReveal(el.qActions, userTrue, q.answer);
+    fillExplainPanel(
+      {
+        answerKey: el.feedbackAnswerKey,
+        importanceLine: el.feedbackImportanceLine,
+        difficultyLine: el.feedbackDifficultyLine,
+        explain: el.feedbackExplain,
+        detail: el.feedbackDetail,
+        tags: el.feedbackTags
+      },
+      q
+    );
+    setOxDisabled(true);
+    if (el.btnQuizFavorite) el.btnQuizFavorite.hidden = false;
+    if (el.btnQuizMaster) el.btnQuizMaster.hidden = false;
+    if (typeof window.refreshQuizFavoriteButton === "function") {
+      window.refreshQuizFavoriteButton();
+    }
+    if (typeof window.refreshQuizMasterButton === "function") {
+      window.refreshQuizMasterButton();
+    }
+    syncQuizMemoForQuestion(q);
+    window.__HANLAW_QUIZ_AI_CONTEXT = buildQuizAiContext(q, userTrue);
+  }
+
+  function updateQuizNavButtons() {
+    var answered = state.sessionAnswers[state.index] != null;
+    var canPrev = state.index > 0;
+    if (el.quizNavBottomRow) el.quizNavBottomRow.hidden = !answered;
+    var prevBtns = [el.btnQuizPrevBottom, el.btnQuizNavPrev];
+    var pi;
+    for (pi = 0; pi < prevBtns.length; pi++) {
+      if (prevBtns[pi]) prevBtns[pi].disabled = !canPrev;
+    }
+    if (el.btnQuizNavNext) el.btnQuizNavNext.hidden = !answered;
+  }
+
+  function previousQuestion() {
+    if (state.index <= 0) return;
+    state.index--;
+    renderQuestion();
+  }
+
   function renderQuestion() {
+    if (window.QuizAiAsk && typeof window.QuizAiAsk.resetMain === "function") {
+      window.QuizAiAsk.resetMain();
+    }
     var q = state.list[state.index];
     var total = state.list.length;
     el.progress.textContent = state.index + 1 + " / " + total;
@@ -519,7 +1274,13 @@
     if (q.importance) meta += " · 중요도 " + starsLine(q.importance);
     if (q.difficulty) meta += " · 난이도 " + starsLine(q.difficulty);
     el.qMeta.textContent = meta;
-    el.qText.textContent = q.statement;
+    if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+      el.qText.innerHTML = window.formatHanlawRichParagraphsHtml(q.statement || "");
+    } else {
+      el.qText.textContent = q.statement || "";
+    }
+    ensureQuizAdminEditButton();
+    syncQuizAdminEditVisibility();
     window.__QUIZ_QUESTION_CONTEXT = {
       questionId: q.id,
       statement: q.statement,
@@ -530,12 +1291,29 @@
       source: sourceStr,
       meta: meta
     };
-    el.feedback.hidden = true;
-    el.feedbackResult.classList.remove("is-correct", "is-wrong");
-    clearFeedbackExtras();
-    clearOxReveal(el.qActions);
-    if (el.btnQuizFavorite) el.btnQuizFavorite.hidden = true;
-    setOxDisabled(false);
+
+    var saved = state.sessionAnswers[state.index];
+    if (saved != null) {
+      paintAnsweredFeedback(q, saved.userTrue);
+      if (el.feedbackMaster) {
+        el.feedbackMaster.textContent = "";
+        el.feedbackMaster.hidden = true;
+      }
+      if (el.feedbackAttendanceNotify) {
+        el.feedbackAttendanceNotify.textContent = "";
+        el.feedbackAttendanceNotify.hidden = true;
+      }
+    } else {
+      el.feedback.hidden = true;
+      el.feedbackResult.classList.remove("is-correct", "is-wrong");
+      clearFeedbackExtras();
+      syncQuizMemoForQuestion(q);
+      clearOxReveal(el.qActions);
+      if (el.btnQuizFavorite) el.btnQuizFavorite.hidden = true;
+      if (el.btnQuizMaster) el.btnQuizMaster.hidden = true;
+      setOxDisabled(false);
+    }
+    updateQuizNavButtons();
   }
 
   function buildDetailBlocks(container, detail) {
@@ -575,34 +1353,42 @@
     if (typeof detail === "string") {
       merged = normalizedText(detail);
     } else if (typeof detail === "object") {
-      var parts = [];
-      if (detail.legal != null && String(detail.legal).trim()) {
-        parts.push(
-          "법리 근거: " +
-            stripHeadLabel(String(detail.legal), ["법리 근거", "법리"])
-        );
+      if (detail.body != null && String(detail.body).trim()) {
+        merged = normalizedText(String(detail.body));
+      } else {
+        var parts = [];
+        if (detail.legal != null && String(detail.legal).trim()) {
+          parts.push(
+            "법리 근거: " +
+              stripHeadLabel(String(detail.legal), ["법리 근거", "법리"])
+          );
+        }
+        if (detail.trap != null && String(detail.trap).trim()) {
+          parts.push(
+            "함정 포인트: " +
+              stripHeadLabel(String(detail.trap), ["함정 포인트", "함정"])
+          );
+        }
+        if (detail.precedent != null && String(detail.precedent).trim()) {
+          parts.push(
+            "판례: " +
+              stripHeadLabel(String(detail.precedent), ["판례 요지", "판례"])
+          );
+        }
+        merged = normalizedText(parts.join("\n\n"));
       }
-      if (detail.trap != null && String(detail.trap).trim()) {
-        parts.push(
-          "함정 포인트: " +
-            stripHeadLabel(String(detail.trap), ["함정 포인트", "함정"])
-        );
-      }
-      if (detail.precedent != null && String(detail.precedent).trim()) {
-        parts.push(
-          "판례: " +
-            stripHeadLabel(String(detail.precedent), ["판례 요지", "판례"])
-        );
-      }
-      merged = normalizedText(parts.join("\n\n"));
     }
     if (!merged) return;
 
     var wrap = document.createElement("div");
     wrap.className = "feedback-detail__block";
     var p = document.createElement("p");
-    p.className = "feedback-detail__text";
-    p.textContent = merged;
+    p.className = "feedback-detail__text quiz-ai-answer";
+    if (typeof window.formatHanlawAiAnswerHtml === "function") {
+      p.innerHTML = window.formatHanlawAiAnswerHtml(merged);
+    } else {
+      p.textContent = merged;
+    }
     wrap.appendChild(p);
     container.appendChild(wrap);
   }
@@ -632,6 +1418,12 @@
       return;
     }
     state.lastFilterTopic = el.filterTopic.value;
+    state.lastFilterTopicSearch =
+      el.filterTopicSearch && el.filterTopicSearch.value != null
+        ? String(el.filterTopicSearch.value)
+        : "";
+    state.lastPartMode = getPartMode();
+    state.lastNotebookScope = getNotebookScopeSelections();
     state.lastOrderMode = getOrderMode();
     state.lastCount = el.questionCount.value;
     var list = applyQuestionOrder(filtered, state.lastOrderMode);
@@ -642,65 +1434,38 @@
     state.list = list;
     state.index = 0;
     state.correct = 0;
-    state.sinceReviewCount = 0;
-    state.reviewModalQuestion = null;
+    state.sessionAnswers = {};
     showScreen("quiz");
     renderQuestion();
   }
 
   function onAnswer(userTrue) {
     var q = state.list[state.index];
+    state.sessionAnswers[state.index] = { userTrue: userTrue };
     var ok = userTrue === q.answer;
     if (ok) state.correct++;
-    el.feedback.hidden = false;
-    el.feedbackResult.textContent = ok ? "정답입니다." : "오답입니다.";
-    el.feedbackResult.classList.add(ok ? "is-correct" : "is-wrong");
-
-    applyOxReveal(el.qActions, userTrue, q.answer);
-    fillExplainPanel(
-      {
-        answerKey: el.feedbackAnswerKey,
-        importanceLine: el.feedbackImportanceLine,
-        difficultyLine: el.feedbackDifficultyLine,
-        explain: el.feedbackExplain,
-        detail: el.feedbackDetail,
-        tags: el.feedbackTags
-      },
-      q
-    );
-
-    setOxDisabled(true);
+    paintAnsweredFeedback(q, userTrue);
     el.score.textContent = "정답 " + state.correct;
     if (window.LearningStats && typeof window.LearningStats.recordQuizAnswer === "function") {
       window.LearningStats.recordQuizAnswer(q.topic, ok);
     }
+    if (!isViewerLoggedIn()) {
+      if (el.feedbackMaster) el.feedbackMaster.hidden = true;
+      if (el.feedbackAttendanceNotify) el.feedbackAttendanceNotify.hidden = true;
+    }
     if (
-      q.id &&
-      window.QuizReviewStore &&
-      typeof window.QuizReviewStore.recordAnswer === "function"
+      !ok &&
+      String(q.id != null ? q.id : "").trim() &&
+      window.QuizWrongNote &&
+      typeof window.QuizWrongNote.record === "function"
     ) {
-      var rr = window.QuizReviewStore.recordAnswer(q.id, ok, "main");
-      if (rr && rr.mastered && el.feedbackMaster) {
-        el.feedbackMaster.textContent = "이 문제를 마스터하셨습니다. 축하합니다!";
-        el.feedbackMaster.hidden = false;
-      }
+      window.QuizWrongNote.record(q.id);
     }
-    if (typeof window.refreshQuizFavoriteButton === "function") {
-      window.refreshQuizFavoriteButton();
-    }
-    window.__HANLAW_QUIZ_AI_CONTEXT = buildQuizAiContext(q, userTrue);
-    afterQuizAnswerTryAttendance(false);
+    updateQuizNavButtons();
+    afterQuizAnswerTryAttendance();
   }
 
-  function setReviewOxDisabled(disabled) {
-    var box = document.getElementById("review-q-actions");
-    if (!box) return;
-    box.querySelectorAll(".btn--ox").forEach(function (b) {
-      b.disabled = disabled;
-    });
-  }
-
-  function showAttendanceFeedback(data, useReviewPanel) {
+  function showAttendanceFeedback(data) {
     if (!data || !data.pointsAwarded) return;
     var rest = data.attendancePoints != null ? data.attendancePoints : 0;
     var msg =
@@ -709,16 +1474,13 @@
       "점 (잔여 " +
       rest +
       "점)";
-    var node = useReviewPanel
-      ? document.getElementById("review-q-attendance-notify")
-      : el.feedbackAttendanceNotify;
-    if (node) {
-      node.textContent = msg;
-      node.hidden = false;
+    if (el.feedbackAttendanceNotify) {
+      el.feedbackAttendanceNotify.textContent = msg;
+      el.feedbackAttendanceNotify.hidden = false;
     }
   }
 
-  function afterQuizAnswerTryAttendance(useReviewModal) {
+  function afterQuizAnswerTryAttendance() {
     try {
       if (typeof firebase === "undefined" || !firebase.auth) return;
       if (!firebase.auth().currentUser) return;
@@ -727,168 +1489,11 @@
         .recordQuizAttendanceCallable()
         .then(function (data) {
           if (data && data.pointsAwarded > 0) {
-            showAttendanceFeedback(data, useReviewModal);
+            showAttendanceFeedback(data);
           }
         })
         .catch(function () {});
     } catch (err) {}
-  }
-
-  function findQuestionById(qid) {
-    var bank = getBank();
-    for (var i = 0; i < bank.length; i++) {
-      if (bank[i].id === qid) return bank[i];
-    }
-    return null;
-  }
-
-  function openReviewQuizModal(qid) {
-    var q = findQuestionById(qid);
-    if (!q) {
-      state.index++;
-      renderQuestion();
-      return;
-    }
-    state.reviewModalQuestion = q;
-    var modal = document.getElementById("review-quiz-modal");
-    var hist = document.getElementById("review-quiz-history");
-    var qs = document.getElementById("review-q-source");
-    var qm = document.getElementById("review-q-meta");
-    var qt = document.getElementById("review-q-text");
-    var fb = document.getElementById("review-q-feedback");
-    var masterEl = document.getElementById("review-q-master");
-    if (!modal || !qt) return;
-
-    if (hist && window.QuizReviewStore && window.QuizReviewStore.buildHistorySummaryHtml) {
-      var attempts = window.QuizReviewStore.getAttempts(q.id);
-      hist.innerHTML = window.QuizReviewStore.buildHistorySummaryHtml(attempts);
-    }
-    var sourceStr = formatQuizSource(q);
-    if (qs) {
-      qs.textContent = sourceStr ? "출처: " + sourceStr : "";
-      qs.hidden = !sourceStr;
-    }
-    var meta = q.topic || "—";
-    if (q.importance) meta += " · 중요도 " + starsLine(q.importance);
-    if (q.difficulty) meta += " · 난이도 " + starsLine(q.difficulty);
-    if (qm) qm.textContent = meta;
-    qt.textContent = q.statement;
-    if (fb) {
-      fb.hidden = true;
-      var res = document.getElementById("review-q-result");
-      var ak = document.getElementById("review-q-answer-key");
-      var ex = document.getElementById("review-q-explain");
-      var ril = document.getElementById("review-q-importance-line");
-      var rdl = document.getElementById("review-q-difficulty-line");
-      var rdet = document.getElementById("review-q-detail");
-      var rtg = document.getElementById("review-q-tags");
-      if (res) {
-        res.textContent = "";
-        res.classList.remove("is-correct", "is-wrong");
-      }
-      if (ak) {
-        ak.textContent = "";
-        ak.hidden = true;
-      }
-      if (ex) ex.textContent = "";
-      if (ril) ril.textContent = "";
-      if (rdl) rdl.textContent = "";
-      if (rdet) rdet.innerHTML = "";
-      if (rtg) rtg.innerHTML = "";
-    }
-    clearOxReveal(document.getElementById("review-q-actions"));
-    if (masterEl) {
-      masterEl.textContent = "";
-      masterEl.hidden = true;
-    }
-    var attN = document.getElementById("review-q-attendance-notify");
-    if (attN) {
-      attN.textContent = "";
-      attN.hidden = true;
-    }
-    if (window.QuizAiAsk && typeof window.QuizAiAsk.resetReview === "function") {
-      window.QuizAiAsk.resetReview();
-    }
-    setReviewOxDisabled(false);
-    modal.hidden = false;
-    modal.setAttribute("aria-hidden", "false");
-  }
-
-  function closeReviewQuizModalAndAdvanceMain() {
-    var modal = document.getElementById("review-quiz-modal");
-    if (modal) {
-      modal.hidden = true;
-      modal.setAttribute("aria-hidden", "true");
-    }
-    state.reviewModalQuestion = null;
-    if (state.index + 1 >= state.list.length) {
-      var total = state.list.length;
-      var c = state.correct;
-      el.resultSummary.textContent =
-        "총 " + total + "문항 중 " + c + "문항을 맞혔습니다. (" +
-        Math.round((c / total) * 100) + "%)";
-      showScreen("result");
-      return;
-    }
-    state.index++;
-    renderQuestion();
-  }
-
-  function onReviewModalAnswer(userTrue) {
-    var q = state.reviewModalQuestion;
-    if (!q) return;
-    var ok = userTrue === q.answer;
-    var res = document.getElementById("review-q-result");
-    var ak = document.getElementById("review-q-answer-key");
-    var ex = document.getElementById("review-q-explain");
-    var fb = document.getElementById("review-q-feedback");
-    var masterEl = document.getElementById("review-q-master");
-    var hist = document.getElementById("review-quiz-history");
-
-    if (res) {
-      res.textContent = ok ? "정답입니다." : "오답입니다.";
-      res.classList.remove("is-correct", "is-wrong");
-      res.classList.add(ok ? "is-correct" : "is-wrong");
-    }
-    var reviewActions = document.getElementById("review-q-actions");
-    applyOxReveal(reviewActions, userTrue, q.answer);
-    fillExplainPanel(
-      {
-        answerKey: ak,
-        importanceLine: document.getElementById("review-q-importance-line"),
-        difficultyLine: document.getElementById("review-q-difficulty-line"),
-        explain: ex,
-        detail: document.getElementById("review-q-detail"),
-        tags: document.getElementById("review-q-tags")
-      },
-      q
-    );
-
-    var mastered = false;
-    if (window.QuizReviewStore && typeof window.QuizReviewStore.recordAnswer === "function") {
-      var rr = window.QuizReviewStore.recordAnswer(q.id, ok, "review");
-      mastered = rr && rr.mastered;
-      if (hist && window.QuizReviewStore.buildHistorySummaryHtml) {
-        var attempts = window.QuizReviewStore.getAttempts(q.id);
-        hist.innerHTML = window.QuizReviewStore.buildHistorySummaryHtml(attempts);
-      }
-    }
-    if (masterEl) {
-      if (mastered) {
-        masterEl.textContent = "이 문제를 마스터하셨습니다. 축하합니다!";
-        masterEl.hidden = false;
-      } else {
-        masterEl.textContent = "";
-        masterEl.hidden = true;
-      }
-    }
-    if (window.LearningStats && typeof window.LearningStats.recordQuizAnswer === "function") {
-      window.LearningStats.recordQuizAnswer(q.topic, ok);
-    }
-    window.__HANLAW_QUIZ_AI_CONTEXT = buildQuizAiContext(q, userTrue);
-    setReviewOxDisabled(true);
-    if (fb) fb.hidden = false;
-    afterQuizAnswerTryAttendance(true);
   }
 
   function nextOrFinish() {
@@ -902,36 +1507,36 @@
       return;
     }
 
-    var QRS = window.QuizReviewStore;
-    if (QRS && typeof QRS.isEnabled === "function" && QRS.isEnabled()) {
-      state.sinceReviewCount = (state.sinceReviewCount || 0) + 1;
-      if (state.sinceReviewCount >= 5) {
-        var ids = state.list.map(function (x) {
-          return x.id;
-        });
-        var nextId =
-          typeof QRS.pickNextReviewId === "function" ? QRS.pickNextReviewId(ids) : null;
-        if (nextId) {
-          state.sinceReviewCount = 0;
-          openReviewQuizModal(nextId);
-          return;
-        }
-        state.sinceReviewCount = 0;
-      }
-    }
-
     state.index++;
     renderQuestion();
   }
 
   function retrySame() {
     el.filterTopic.value = state.lastFilterTopic;
+    if (el.filterTopicSearch) {
+      el.filterTopicSearch.value =
+        state.lastFilterTopicSearch != null ? String(state.lastFilterTopicSearch) : "";
+    }
     el.questionCount.value = state.lastCount;
+    var part = state.lastPartMode || "all";
+    var pradio = document.querySelector('input[name="opt-part"][value="' + part + '"]');
+    if (pradio) pradio.checked = true;
+    else {
+      var pfb = document.querySelector('input[name="opt-part"][value="all"]');
+      if (pfb) pfb.checked = true;
+    }
     var mode = state.lastOrderMode || "random";
     if (mode === "importance") mode = "importance_desc";
     if (mode === "difficulty") mode = "difficulty_asc";
     var radio = document.querySelector('input[name="opt-order"][value="' + mode + '"]');
     if (radio) radio.checked = true;
+    var ns = state.lastNotebookScope || { wrong: false, fav: false, master: false };
+    var cw = document.getElementById("scope-note-wrong");
+    var cf = document.getElementById("scope-note-fav");
+    var cm = document.getElementById("scope-note-master");
+    if (cw) cw.checked = !!ns.wrong;
+    if (cf) cf.checked = !!ns.fav;
+    if (cm) cm.checked = !!ns.master;
     startQuiz();
   }
 
@@ -939,80 +1544,65 @@
     showScreen("start");
   }
 
-  el.btnStart.addEventListener("click", startQuiz);
-  el.qActions.addEventListener("click", function (e) {
-    var btn = e.target.closest(".btn--ox");
-    if (!btn || btn.disabled) return;
-    var v = btn.getAttribute("data-answer");
-    onAnswer(v === "true");
-  });
-  el.btnNext.addEventListener("click", nextOrFinish);
-  el.btnRetry.addEventListener("click", retrySame);
-  el.btnHome.addEventListener("click", goHome);
-
-  if (el.optAutoReview && window.QuizReviewStore) {
-    el.optAutoReview.checked = window.QuizReviewStore.isEnabled();
-    el.optAutoReview.addEventListener("change", function () {
-      window.QuizReviewStore.setEnabled(el.optAutoReview.checked);
+  if (el.btnStart) el.btnStart.addEventListener("click", startQuiz);
+  if (el.qActions) {
+    el.qActions.addEventListener("click", function (e) {
+      var btn = e.target.closest(".btn--ox");
+      if (!btn || btn.disabled) return;
+      var v = btn.getAttribute("data-answer");
+      onAnswer(v === "true");
     });
   }
+  function bindNav(btn, handler) {
+    if (btn) btn.addEventListener("click", handler);
+  }
+  bindNav(el.btnNext, nextOrFinish);
+  bindNav(el.btnQuizPrevBottom, previousQuestion);
+  bindNav(el.btnQuizNavPrev, previousQuestion);
+  bindNav(el.btnQuizNavNext, nextOrFinish);
+  if (el.btnRetry) el.btnRetry.addEventListener("click", retrySame);
+  if (el.btnHome) el.btnHome.addEventListener("click", goHome);
 
-  (function bindReviewModal() {
-    var modal = document.getElementById("review-quiz-modal");
-    var actions = document.getElementById("review-q-actions");
-    var cont = document.getElementById("review-q-continue");
-    var closeBtn = document.getElementById("review-quiz-modal-close");
-    if (actions) {
-      actions.addEventListener("click", function (e) {
-        var btn = e.target.closest("[data-review-answer]");
-        if (!btn || btn.disabled) return;
-        var v = btn.getAttribute("data-review-answer");
-        onReviewModalAnswer(v === "true");
+  function syncQuizMemoAfterAuthChange() {
+    if (!el.feedback || el.feedback.hidden || !el.quiz || el.quiz.hidden) return;
+    syncQuizMemoLoginState();
+    var q = state.list[state.index];
+    if (q) syncQuizMemoForQuestion(q);
+  }
+
+  window.addEventListener("app-auth", function () {
+    syncQuizAdminEditVisibility();
+    syncQuizMemoAfterAuthChange();
+  });
+  try {
+    if (typeof firebase !== "undefined" && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function () {
+        syncQuizAdminEditVisibility();
+        syncQuizMemoAfterAuthChange();
       });
     }
-    if (cont) {
-      cont.addEventListener("click", function () {
-        closeReviewQuizModalAndAdvanceMain();
-      });
-    }
-    if (modal) {
-      modal.addEventListener("click", function (e) {
-        if (e.target === modal) {
-          var fb = document.getElementById("review-q-feedback");
-          if (fb && !fb.hidden) closeReviewQuizModalAndAdvanceMain();
-        }
-      });
-    }
-    if (closeBtn) {
-      closeBtn.addEventListener("click", function () {
-        var fb = document.getElementById("review-q-feedback");
-        if (fb && !fb.hidden) {
-          closeReviewQuizModalAndAdvanceMain();
-        } else {
-          if (modal) {
-            modal.hidden = true;
-            modal.setAttribute("aria-hidden", "true");
-          }
-          state.reviewModalQuestion = null;
-          if (state.index + 1 >= state.list.length) {
-            var total = state.list.length;
-            var c = state.correct;
-            el.resultSummary.textContent =
-              "총 " + total + "문항 중 " + c + "문항을 맞혔습니다. (" +
-              Math.round((c / total) * 100) + "%)";
-            showScreen("result");
-            return;
-          }
-          state.index++;
-          renderQuestion();
-        }
-      });
-    }
-  })();
+  } catch (e) {}
 
   window.addEventListener("study-scope-change", initFilters);
 
+  ["quiz-favorites-updated", "quiz-wrong-note-updated", "quiz-master-updated"].forEach(function (ev) {
+    window.addEventListener(ev, initFilters);
+  });
+
+  if (el.start) {
+    el.start.addEventListener("change", function (e) {
+      var t = e.target;
+      if (t && t.getAttribute && t.getAttribute("name") === "opt-part") {
+        syncFilterTopicWithPartMode();
+      }
+      if (t && t.id && String(t.id).indexOf("scope-note-") === 0) {
+        initFilters();
+      }
+    });
+  }
+
   function syncBankUi() {
+    if (!el.btnStart) return;
     if (!getBank().length) {
       el.btnStart.disabled = true;
       el.btnStart.textContent = "문항 데이터 없음";
@@ -1026,4 +1616,18 @@
   window.addEventListener("question-bank-updated", syncBankUi);
 
   syncBankUi();
+
+  /** 범위 즐겨찾기 등 외부에서 현재 폼 기준으로 퀴즈를 시작할 때 */
+  window.startHanlawQuizFromSetup = startQuiz;
+  window.initHanlawQuizFilters = initFilters;
+  window.syncHanlawQuizSetupPartTopic = syncFilterTopicWithPartMode;
+  window.ensureHanlawFilterTopicOption = ensureFilterTopicOption;
+
+  window.hanlawAfterLogout = function () {
+    try {
+      showScreen("start");
+    } catch (e) {}
+  };
+
+  bindQuizMemoPanelOnce();
 })();

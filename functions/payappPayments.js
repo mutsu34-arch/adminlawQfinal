@@ -1,21 +1,37 @@
 "use strict";
 
 /**
- * PayApp (페이앱) — 질문권 + 구독 (Creem 과 병행)
+ * PayApp (페이앱) — 질문권 + 구독
  *
  * 환경변수 (functions/.env):
  * - PAYAPP_USERID, PAYAPP_LINK_KEY, PAYAPP_LINK_VALUE
  * - PAYAPP_SHOP_NAME
  * 질문권: PAYAPP_KRW_Q1, PAYAPP_KRW_Q10 (기본 3000, 15000)
  * 구독: PAYAPP_KRW_SUB_MONTHLY, PAYAPP_KRW_SUB_YEARLY, PAYAPP_KRW_SUB_TWO_YEAR (기본 10000, 100000, 150000)
+ * 비갱신(기간권): PAYAPP_KRW_NONRENEW_1M, PAYAPP_KRW_NONRENEW_3M, PAYAPP_KRW_NONRENEW_6M (기본 15000, 42750, 81000 — 3·6개월은 정가 대비 5%·10% 할인가)
  *
- * var2: 질문권 "1"|"10" · 구독 "sub_monthly"|"sub_yearly"|"sub_twoYear"
+ * var2: 질문권 "1"|"10" · 구독 "sub_monthly"|"sub_yearly"|"sub_twoYear" · 비갱신 "sub_nonrenew_1m"|"sub_nonrenew_3m"|"sub_nonrenew_6m"
+ *
+ * 정기결제(PayApp rebill): 월 구독(monthly)만 https://docs.payapp.kr 정기결제 요청(JS) — PayApp.rebill()
+ * · 연/2년 구독은 매뉴얼상 정기 주기가 Month·Week·Day뿐이라 기존 일회 결제(payrequest) 유지
+ * · PAYAPP_REBILL_CYCLE_DAY (기본 15): 매월 결제일 1~31, 90=말일
+ * · PAYAPP_REBILL_EXPIRE_YEARS (기본 10): 정기등록 만료일(오늘+년, KST yyyy-mm-dd)
+ * 정기 해지: cancelPayAppRebill — 페이앱 cmd=rebillCancel (userid, rebill_no, linkkey)
+ * 결제통보(payappQuestionFeedback): pay_state=1(요청 접수)은 금액 검증 전에 HTTP 200 + 본문 SUCCESS 필수. 미이행 시 에러 70080(고객사 응답 실패).
+ * 판매자: 페이앱 관리자(PC)·설정·연동정보(linkkey/linkval) 일치, 정기결제 API는 가맹 계약에 따라 제공(판매자 이용가이드·고객센터 1800-3772).
  */
 
 const querystring = require("querystring");
+const https = require("https");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineString } = require("firebase-functions/params");
 const functionsV1 = require("firebase-functions/v1");
+
+/** 배포 시 .env / Cloud 환경변수와 동기화 (process.env만 쓸 때 누락되는 경우 방지) */
+const payappUserIdParam = defineString("PAYAPP_USERID", { default: "" });
+const payappLinkKeyParam = defineString("PAYAPP_LINK_KEY", { default: "" });
+const payappLinkValParam = defineString("PAYAPP_LINK_VALUE", { default: "" });
 
 let _db;
 function db() {
@@ -69,6 +85,16 @@ function expectedKrwForSubPlan(plan) {
   return 0;
 }
 
+function expectedKrwForNonRenewMonths(months) {
+  const k1 = Math.max(1000, parseInt(process.env.PAYAPP_KRW_NONRENEW_1M || "15000", 10) || 15000);
+  const k3 = Math.max(1000, parseInt(process.env.PAYAPP_KRW_NONRENEW_3M || "42750", 10) || 42750);
+  const k6 = Math.max(1000, parseInt(process.env.PAYAPP_KRW_NONRENEW_6M || "81000", 10) || 81000);
+  if (months === 1) return k1;
+  if (months === 3) return k3;
+  if (months === 6) return k6;
+  return 0;
+}
+
 function packFromVar2(v) {
   const s = String(v || "").trim();
   if (s === "10" || s === "10건") return 10;
@@ -79,12 +105,15 @@ function packFromVar2(v) {
   return 0;
 }
 
-/** @returns {{ type: 'pack', pack: number } | { type: 'sub', plan: string } | null} */
+/** @returns {{ type: 'pack', pack: number } | { type: 'sub', plan: string } | { type: 'sub_nonrenew', months: number } | null} */
 function parseVar2Product(v) {
   const s = String(v || "").trim();
   if (s === "sub_monthly") return { type: "sub", plan: "monthly" };
   if (s === "sub_yearly") return { type: "sub", plan: "yearly" };
   if (s === "sub_twoYear") return { type: "sub", plan: "twoYear" };
+  if (s === "sub_nonrenew_1m") return { type: "sub_nonrenew", months: 1 };
+  if (s === "sub_nonrenew_3m") return { type: "sub_nonrenew", months: 3 };
+  if (s === "sub_nonrenew_6m") return { type: "sub_nonrenew", months: 6 };
   const pack = packFromVar2(v);
   if (pack) return { type: "pack", pack };
   return null;
@@ -94,6 +123,7 @@ function expectedKrwForProduct(product) {
   if (!product) return 0;
   if (product.type === "pack") return expectedKrwForPack(product.pack);
   if (product.type === "sub") return expectedKrwForSubPlan(product.plan);
+  if (product.type === "sub_nonrenew") return expectedKrwForNonRenewMonths(product.months);
   return 0;
 }
 
@@ -107,6 +137,71 @@ function addSubscriptionUntilMs(fromMs, plan) {
     d.setFullYear(d.getFullYear() + 2);
   }
   return d.getTime();
+}
+
+/** 비갱신 기간권: 현재 유료 만료일 이후로 N개월 연장 */
+function addNonRenewUntilMs(fromMs, months) {
+  const d = new Date(fromMs);
+  d.setMonth(d.getMonth() + months);
+  return d.getTime();
+}
+
+/** KST 기준 오늘 날짜에 years 더한 yyyy-mm-dd (정기결제 rebillExpire) */
+function rebillExpireYmdKst(yearsToAdd) {
+  const add = Math.max(1, parseInt(String(yearsToAdd || "10"), 10) || 10);
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  const parts = fmt.formatToParts(new Date());
+  const y = parseInt(parts.find((p) => p.type === "year").value, 10) + add;
+  const m = parts.find((p) => p.type === "month").value;
+  const d = parts.find((p) => p.type === "day").value;
+  return `${y}-${m}-${d}`;
+}
+
+function normalizeRecvPhoneKr(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (digits.length >= 11 && digits.startsWith("01")) return digits.slice(0, 11);
+  if (digits.length === 10 && digits.startsWith("01")) return digits;
+  return "";
+}
+
+/** @see https://docs.payapp.kr — REST FORM POST UTF-8 */
+function payappOapiPost(formObj) {
+  const body = querystring.stringify(formObj);
+  return new Promise((resolve, reject) => {
+    const u = new URL("https://api.payapp.kr/oapi/apiLoad.html");
+    const req = https.request(
+      {
+        hostname: u.hostname,
+        path: u.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "Content-Length": Buffer.byteLength(body, "utf8"),
+          "User-Agent": "hanlaw-functions/payapp"
+        }
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          try {
+            resolve(querystring.parse(text));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
 }
 
 function parseFeedbackBody(req) {
@@ -141,7 +236,7 @@ function feedbackUrlForProject() {
 }
 
 function assertPayAppConfigured() {
-  const payappUserid = String(process.env.PAYAPP_USERID || "").trim();
+  const payappUserid = String(payappUserIdParam.value() || process.env.PAYAPP_USERID || "").trim();
   if (!payappUserid) {
     throw new HttpsError("failed-precondition", "PayApp(PAYAPP_USERID)이 설정되지 않았습니다.");
   }
@@ -188,8 +283,19 @@ const getPayAppSubscriptionCheckout = onCall({ region: REGION }, async (request)
   }
   const uid = request.auth.uid;
   const plan = String((request.data && request.data.plan) || "").trim();
-  if (plan !== "monthly" && plan !== "yearly" && plan !== "twoYear") {
-    throw new HttpsError("invalid-argument", "plan은 monthly, yearly, twoYear 중 하나입니다.");
+  const allowed = [
+    "monthly",
+    "yearly",
+    "twoYear",
+    "nonrenew1m",
+    "nonrenew3m",
+    "nonrenew6m"
+  ];
+  if (allowed.indexOf(plan) < 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "plan은 monthly, yearly, twoYear, nonrenew1m, nonrenew3m, nonrenew6m 중 하나입니다."
+    );
   }
 
   const { payappUserid, feedbackUrl } = assertPayAppConfigured();
@@ -197,20 +303,67 @@ const getPayAppSubscriptionCheckout = onCall({ region: REGION }, async (request)
 
   let var2;
   let goodname;
+  let price;
   if (plan === "monthly") {
     var2 = "sub_monthly";
     goodname = "행정법Q 월 구독";
+    price = expectedKrwForSubPlan("monthly");
   } else if (plan === "yearly") {
     var2 = "sub_yearly";
-    goodname = "행정법Q 연 구독";
-  } else {
+    goodname = "행정법Q 1년 구독";
+    price = expectedKrwForSubPlan("yearly");
+  } else if (plan === "twoYear") {
     var2 = "sub_twoYear";
     goodname = "행정법Q 2년 구독";
+    price = expectedKrwForSubPlan("twoYear");
+  } else if (plan === "nonrenew1m") {
+    var2 = "sub_nonrenew_1m";
+    goodname = "행정법Q 1개월";
+    price = expectedKrwForNonRenewMonths(1);
+  } else if (plan === "nonrenew3m") {
+    var2 = "sub_nonrenew_3m";
+    goodname = "행정법Q 3개월";
+    price = expectedKrwForNonRenewMonths(3);
+  } else {
+    var2 = "sub_nonrenew_6m";
+    goodname = "행정법Q 6개월";
+    price = expectedKrwForNonRenewMonths(6);
   }
 
-  const price = expectedKrwForSubPlan(plan);
+  if (plan === "monthly") {
+    const recvphone = normalizeRecvPhoneKr((request.data && request.data.recvphone) || "");
+    if (!recvphone) {
+      throw new HttpsError(
+        "invalid-argument",
+        "월 정기구독은 페이앱 정기결제 연동을 위해 휴대폰 번호가 필요합니다. (숫자만 입력)"
+      );
+    }
+    const rebillCycleMonth = String(process.env.PAYAPP_REBILL_CYCLE_DAY || "15").trim() || "15";
+    const expireYears = parseInt(process.env.PAYAPP_REBILL_EXPIRE_YEARS || "10", 10) || 10;
+    const rebillExpire = rebillExpireYmdKst(expireYears);
+    const failUrl = feedbackUrl;
+    return {
+      payMode: "rebill",
+      userid: payappUserid,
+      goodname,
+      goodprice: price,
+      recvphone,
+      feedbackUrl,
+      failUrl,
+      var1: uid,
+      var2,
+      rebillCycleType: "Month",
+      rebillCycleMonth,
+      rebillExpire,
+      smsuse: "n",
+      checkretry: "y",
+      charset: "utf-8",
+      memo: "행정법Q 월 정기구독"
+    };
+  }
 
   return {
+    payMode: "onetime",
     userid: payappUserid,
     shopname,
     goodname,
@@ -221,6 +374,61 @@ const getPayAppSubscriptionCheckout = onCall({ region: REGION }, async (request)
     checkretry: "y",
     charset: "utf-8"
   };
+});
+
+/** PayApp 정기결제 해지 (rebillCancel) — 월 구독 등록이 있는 본인만 */
+const cancelPayAppRebill = onCall({ region: REGION }, async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const uid = request.auth.uid;
+  const payappUserid = String(payappUserIdParam.value() || process.env.PAYAPP_USERID || "").trim();
+  const linkKey = String(payappLinkKeyParam.value() || process.env.PAYAPP_LINK_KEY || "").trim();
+  if (!payappUserid || !linkKey) {
+    throw new HttpsError("failed-precondition", "PayApp 연동 정보(PAYAPP_USERID, PAYAPP_LINK_KEY)가 설정되지 않았습니다.");
+  }
+
+  const memRef = db().collection("hanlaw_members").doc(uid);
+  const snap = await memRef.get();
+  const m = snap.exists ? snap.data() : {};
+  const rebillNo = String(m.payappRebillNo || "").trim();
+  if (!rebillNo) {
+    throw new HttpsError(
+      "failed-precondition",
+      "해지할 PayApp 월 정기결제 등록이 없습니다. (이미 해지했거나 연·2년·비갱신 일회 결제만 이용 중일 수 있습니다.)"
+    );
+  }
+
+  let oRes;
+  try {
+    oRes = await payappOapiPost({
+      cmd: "rebillCancel",
+      userid: payappUserid,
+      rebill_no: rebillNo,
+      linkkey: linkKey
+    });
+  } catch (e) {
+    console.error("cancelPayAppRebill: payappOapiPost", e);
+    throw new HttpsError("internal", "페이앱 서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+
+  if (String(oRes.state) !== "1") {
+    const errMsg = String(oRes.errorMessage || oRes.errmsg || "").trim() || "정기결제 해지에 실패했습니다.";
+    console.warn("cancelPayAppRebill: payapp error", { errno: oRes.errno, errMsg, rebillNo });
+    throw new HttpsError("internal", errMsg);
+  }
+
+  await memRef.set(
+    {
+      payappRebillNo: FieldValue.delete(),
+      payappRebillCancelledAt: FieldValue.serverTimestamp(),
+      payappRebillCancelledNo: rebillNo,
+      updatedAt: FieldValue.serverTimestamp()
+    },
+    { merge: true }
+  );
+
+  return { ok: true };
 });
 
 const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async (req, res) => {
@@ -239,9 +447,9 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
   const var2 = String(body.var2 || "").trim();
   const price = parseInt(body.price, 10);
 
-  const envUser = String(process.env.PAYAPP_USERID || "").trim();
-  const envKey = String(process.env.PAYAPP_LINK_KEY || "").trim();
-  const envVal = String(process.env.PAYAPP_LINK_VALUE || "").trim();
+  const envUser = String(payappUserIdParam.value() || process.env.PAYAPP_USERID || "").trim();
+  const envKey = String(payappLinkKeyParam.value() || process.env.PAYAPP_LINK_KEY || "").trim();
+  const envVal = String(payappLinkValParam.value() || process.env.PAYAPP_LINK_VALUE || "").trim();
 
   const okSeller =
     envUser &&
@@ -257,6 +465,27 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
     return;
   }
 
+  if (payState === 99) {
+    console.warn("payappQuestionFeedback: 결제 실패 통보(정기결제 2회차 이후 등)", {
+      var1,
+      var2,
+      mulNo,
+      rebill_no: body.rebill_no
+    });
+    res.status(200).set("Content-Type", "text/plain; charset=utf-8").send("SUCCESS");
+    return;
+  }
+
+  /**
+   * pay_state=1: 결제·정기결제 요청 접수 단계 노티. 문서상 이 응답에 SUCCESS가 있어야 이후 결제창이 진행됨.
+   * 금액·var2 검증 전에 처리해야 함(선행 노티에 price 불일치 시 에러 70080 고객사 응답 실패).
+   * @see https://docs.payapp.kr — 결제통보, 정기결제 요청(JS)
+   */
+  if (payState === 1) {
+    res.status(200).set("Content-Type", "text/plain; charset=utf-8").send("SUCCESS");
+    return;
+  }
+
   const product = parseVar2Product(var2);
   const expectedPrice = expectedKrwForProduct(product);
   const priceOk = Number.isFinite(price) && price === expectedPrice;
@@ -264,11 +493,6 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
   if (!product || !priceOk) {
     console.warn("payappQuestionFeedback: price/product mismatch", { price, var2, product });
     res.status(200).set("Content-Type", "text/plain; charset=utf-8").send("FAIL");
-    return;
-  }
-
-  if (payState === 1) {
-    res.status(200).set("Content-Type", "text/plain; charset=utf-8").send("SUCCESS");
     return;
   }
 
@@ -350,13 +574,56 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
             mulNo,
             payState: 4
           });
+          const rebillNo = body.rebill_no != null ? String(body.rebill_no).trim() : "";
+          const subPatch = {
+            membershipTier: "paid",
+            paidUntil: newUntil,
+            updatedAt: FieldValue.serverTimestamp(),
+            payappSubscriptionPlan: plan,
+            payappLastMulNo: mulNo
+          };
+          if (rebillNo) {
+            subPatch.payappRebillNo = rebillNo;
+            subPatch.payappRebillCancelledAt = FieldValue.delete();
+            subPatch.payappRebillCancelledNo = FieldValue.delete();
+          }
+          t.set(memRef, subPatch, { merge: true });
+        });
+      } else if (product.type === "sub_nonrenew") {
+        const months = product.months;
+        const memRef = db().collection("hanlaw_members").doc(uid);
+        const planKey = "nonrenew_" + months + "m";
+
+        await db().runTransaction(async (t) => {
+          const dup = await t.get(dedupRef);
+          if (dup.exists) return;
+
+          const msnap = await t.get(memRef);
+          const mdata = msnap.exists ? msnap.data() : {};
+          const now = Date.now();
+          let base = now;
+          if (mdata.membershipTier === "paid" && mdata.paidUntil && typeof mdata.paidUntil.toMillis === "function") {
+            base = Math.max(now, mdata.paidUntil.toMillis());
+          }
+          const newUntilMs = addNonRenewUntilMs(base, months);
+          const newUntil = Timestamp.fromMillis(newUntilMs);
+
+          t.set(dedupRef, {
+            processedAt: FieldValue.serverTimestamp(),
+            source: "payapp",
+            kind: "subscription_nonrenew",
+            uid,
+            months,
+            mulNo,
+            payState: 4
+          });
           t.set(
             memRef,
             {
               membershipTier: "paid",
               paidUntil: newUntil,
               updatedAt: FieldValue.serverTimestamp(),
-              payappSubscriptionPlan: plan,
+              payappSubscriptionPlan: planKey,
               payappLastMulNo: mulNo
             },
             { merge: true }
@@ -379,5 +646,6 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
 module.exports = {
   getPayAppQuestionPackCheckout,
   getPayAppSubscriptionCheckout,
+  cancelPayAppRebill,
   payappQuestionFeedback
 };

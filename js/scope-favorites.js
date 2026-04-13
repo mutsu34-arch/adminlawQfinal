@@ -1,0 +1,257 @@
+/**
+ * 범위 설정 즐겨찾기: 시험·연도·주제·문항 수·순서를 묶어 저장하고, 버튼 한 번에 적용 후 퀴즈 시작
+ */
+(function () {
+  var STORAGE_KEY = "hanlaw_scope_favorites_v1";
+  var MAX_ITEMS = 15;
+  var ALL_TOPIC = "전체";
+
+  function loadStore() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { v: 1, items: [] };
+      var o = JSON.parse(raw);
+      if (!o || !Array.isArray(o.items)) return { v: 1, items: [] };
+      return o;
+    } catch (e) {
+      return { v: 1, items: [] };
+    }
+  }
+
+  function saveStore(store) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    } catch (e) {}
+  }
+
+  function captureCurrent() {
+    var examIds = window.APP_SCOPE && Array.isArray(window.APP_SCOPE.examIds)
+      ? window.APP_SCOPE.examIds.slice()
+      : [];
+    var years = window.APP_SCOPE && Array.isArray(window.APP_SCOPE.years)
+      ? window.APP_SCOPE.years.map(Number)
+      : [];
+    var ft = document.getElementById("filter-topic");
+    var fts = document.getElementById("filter-topic-search");
+    var qc = document.getElementById("question-count");
+    var ord = document.querySelector('input[name="opt-order"]:checked');
+    var part = document.querySelector('input[name="opt-part"]:checked');
+    var nw = document.getElementById("scope-note-wrong");
+    var nf = document.getElementById("scope-note-fav");
+    var nm = document.getElementById("scope-note-master");
+    return {
+      examIds: examIds,
+      years: years,
+      filterTopic: ft ? String(ft.value || ALL_TOPIC) : ALL_TOPIC,
+      filterTopicSearch: fts ? String(fts.value || "") : "",
+      questionCount: qc ? String(qc.value || "0") : "0",
+      partMode: part && part.value ? String(part.value) : "all",
+      notebookScope: {
+        wrong: !!(nw && nw.checked),
+        fav: !!(nf && nf.checked),
+        master: !!(nm && nm.checked)
+      },
+      orderMode: ord && ord.value ? String(ord.value) : "random"
+    };
+  }
+
+  function applyFormFields(preset) {
+    var ft = document.getElementById("filter-topic");
+    if (ft) {
+      var want = preset.filterTopic != null ? String(preset.filterTopic) : ALL_TOPIC;
+      var ok = false;
+      for (var i = 0; i < ft.options.length; i++) {
+        if (ft.options[i].value === want) {
+          ok = true;
+          break;
+        }
+      }
+      if (ok || want === ALL_TOPIC) {
+        ft.value = want;
+      } else if (typeof window.ensureHanlawFilterTopicOption === "function") {
+        window.ensureHanlawFilterTopicOption(want);
+        ft.value = want;
+      } else {
+        ft.value = ALL_TOPIC;
+      }
+    }
+    var fts = document.getElementById("filter-topic-search");
+    if (fts) {
+      fts.value =
+        preset.filterTopicSearch != null ? String(preset.filterTopicSearch) : "";
+    }
+    var qc = document.getElementById("question-count");
+    if (qc) {
+      var c = String(preset.questionCount != null ? preset.questionCount : "0");
+      var hasC = false;
+      var j;
+      for (j = 0; j < qc.options.length; j++) {
+        if (qc.options[j].value === c) {
+          hasC = true;
+          break;
+        }
+      }
+      if (hasC) qc.value = c;
+    }
+    var pm = String(preset.partMode != null ? preset.partMode : "all");
+    var pradio = document.querySelector('input[name="opt-part"][value="' + pm + '"]');
+    if (pradio) pradio.checked = true;
+    else {
+      var pfb = document.querySelector('input[name="opt-part"][value="all"]');
+      if (pfb) pfb.checked = true;
+    }
+    var mode = String(preset.orderMode || "random");
+    var radio = document.querySelector('input[name="opt-order"][value="' + mode + '"]');
+    if (radio) radio.checked = true;
+    var nw = document.getElementById("scope-note-wrong");
+    var nf = document.getElementById("scope-note-fav");
+    var nm = document.getElementById("scope-note-master");
+    var nb = preset.notebookScope;
+    if (nb && typeof nb === "object") {
+      if (nw) nw.checked = !!nb.wrong;
+      if (nf) nf.checked = !!nb.fav;
+      if (nm) nm.checked = !!nb.master;
+    } else {
+      if (nw) nw.checked = false;
+      if (nf) nf.checked = false;
+      if (nm) nm.checked = false;
+    }
+    if (typeof window.syncHanlawQuizSetupPartTopic === "function") {
+      window.syncHanlawQuizSetupPartTopic();
+    }
+    if (typeof window.initHanlawQuizFilters === "function") {
+      window.initHanlawQuizFilters();
+    }
+  }
+
+  function applyPresetAndStart(preset) {
+    if (!preset) return;
+    if (typeof window.applyStudyScopeFromObject !== "function") return;
+    window.applyStudyScopeFromObject({
+      examIds: preset.examIds,
+      years: preset.years
+    });
+    setTimeout(function () {
+      applyFormFields(preset);
+      if (typeof window.startHanlawQuizFromSetup === "function") {
+        window.startHanlawQuizFromSetup();
+      }
+    }, 0);
+  }
+
+  function addFavorite(name) {
+    var label = String(name || "").trim();
+    if (!label) {
+      alert("즐겨찾기 이름을 입력하세요.");
+      return;
+    }
+    if (label.length > 40) {
+      alert("이름은 40자 이하로 입력하세요.");
+      return;
+    }
+    var st = loadStore();
+    if (st.items.length >= MAX_ITEMS) {
+      alert("즐겨찾기는 최대 " + MAX_ITEMS + "개까지 저장할 수 있습니다.");
+      return;
+    }
+    var cur = captureCurrent();
+    if (!cur.examIds.length || !cur.years.length) {
+      alert("시험과 연도를 왼쪽에서 선택한 뒤 저장하세요.");
+      return;
+    }
+    st.items.push({
+      id: "fav_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+      name: label,
+      examIds: cur.examIds,
+      years: cur.years,
+      filterTopic: cur.filterTopic,
+      filterTopicSearch: cur.filterTopicSearch,
+      questionCount: cur.questionCount,
+      partMode: cur.partMode,
+      notebookScope: cur.notebookScope,
+      orderMode: cur.orderMode
+    });
+    saveStore(st);
+    renderList();
+    alert("저장되었습니다.");
+    var inp = document.getElementById("scope-favorite-name");
+    if (inp) inp.value = "";
+  }
+
+  function removeFavorite(id) {
+    var st = loadStore();
+    st.items = st.items.filter(function (x) {
+      return x.id !== id;
+    });
+    saveStore(st);
+    renderList();
+  }
+
+  function renderList() {
+    var host = document.getElementById("scope-favorites-list");
+    if (!host) return;
+    var st = loadStore();
+    host.innerHTML = "";
+    if (!st.items.length) {
+      var empty = document.createElement("p");
+      empty.className = "scope-favorites__empty";
+      empty.textContent = "저장된 즐겨찾기가 없습니다.";
+      host.appendChild(empty);
+      return;
+    }
+    st.items.forEach(function (item) {
+      var row = document.createElement("div");
+      row.className = "scope-favorites__row";
+      row.setAttribute("role", "listitem");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn--secondary scope-favorites__go";
+      btn.textContent = item.name;
+      btn.setAttribute("aria-label", item.name + " 범위로 퀴즈 시작");
+      btn.setAttribute("data-favorite-id", item.id);
+      btn.addEventListener("click", function () {
+        applyPresetAndStart(item);
+      });
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "scope-favorites__del";
+      del.setAttribute("aria-label", item.name + " 즐겨찾기 삭제");
+      del.innerHTML =
+        '<svg class="scope-favorites__trash-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>';
+      del.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (window.confirm("「" + item.name + "」 즐겨찾기를 삭제할까요?")) {
+          removeFavorite(item.id);
+        }
+      });
+      row.appendChild(btn);
+      row.appendChild(del);
+      host.appendChild(row);
+    });
+  }
+
+  function bind() {
+    var btnSave = document.getElementById("btn-scope-favorite-save");
+    var inp = document.getElementById("scope-favorite-name");
+    if (btnSave) {
+      btnSave.addEventListener("click", function () {
+        addFavorite(inp ? inp.value : "");
+      });
+    }
+    if (inp) {
+      inp.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addFavorite(inp.value);
+        }
+      });
+    }
+    renderList();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind);
+  } else {
+    bind();
+  }
+})();

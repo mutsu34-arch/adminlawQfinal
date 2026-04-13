@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "행정법Q: 로컬 서버 (5500)",
+      "type": "shell",
+      "command": "py -u serve-localhost.py 5500",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "group": "build"
+    }
+  ]
+}

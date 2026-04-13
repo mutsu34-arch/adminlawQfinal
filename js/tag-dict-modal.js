@@ -118,7 +118,12 @@
 
     var h = document.createElement("h3");
     h.className = "statute-article-popup__heading";
-    h.textContent = block.heading || parsed.displayTitle;
+    var headStr = block.heading || parsed.displayTitle;
+    if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+      h.innerHTML = window.formatHanlawRichParagraphsHtml(headStr);
+    } else {
+      h.textContent = headStr;
+    }
     root.appendChild(h);
 
     if (parsed.paragraph) {
@@ -130,14 +135,22 @@
     }
 
     var text = document.createElement("div");
-    text.className = "statute-article-popup__body";
-    text.textContent = block.body || "";
+    text.className = "statute-article-popup__body quiz-ai-answer";
+    if (typeof window.formatHanlawAiAnswerHtml === "function") {
+      text.innerHTML = window.formatHanlawAiAnswerHtml(block.body || "");
+    } else {
+      text.textContent = block.body || "";
+    }
     root.appendChild(text);
 
     if (block.sourceNote) {
       var sn = document.createElement("p");
       sn.className = "statute-article-popup__source";
-      sn.textContent = block.sourceNote;
+      if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+        sn.innerHTML = window.formatHanlawRichParagraphsHtml(block.sourceNote);
+      } else {
+        sn.textContent = block.sourceNote;
+      }
       root.appendChild(sn);
     }
 

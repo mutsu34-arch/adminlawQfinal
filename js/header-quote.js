@@ -2,6 +2,13 @@
  * 앱 상단 헤더 — 수험·학습용 랜덤 명언 (격려·냉정한 조언 혼합)
  */
 (function () {
+  window.HANLAW_REMOTE_QUOTES = window.HANLAW_REMOTE_QUOTES || [];
+  var MY_QUOTES_KEY = "hanlaw_my_quotes_v2";
+  var MY_QUOTE_KEY_LEGACY = "hanlaw_my_quote_v1";
+  /** 고정한 명언 본문(plain). 있으면 랜덤 대신 항상 이 문구만 표시 */
+  var PINNED_QUOTE_KEY = "hanlaw_header_quote_pinned_v1";
+  var timer = null;
+  var currentQuoteRaw = "";
   var QUOTES = [
     "오늘의 한 문제가 내일의 합격을 만든다.",
     "반복은 비범을 만든다. 같은 문제를 다시 푸는 용기가 실력이다.",
@@ -30,20 +37,142 @@
     "위로만 듣고 싶으면 SNS를 켜라. 합격하려면 책을 펴라."
   ];
 
+  function loadCustomQuotes() {
+    try {
+      var raw = localStorage.getItem(MY_QUOTES_KEY);
+      if (raw) {
+        var arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          return arr
+            .map(function (x) {
+              return String(x || "").trim();
+            })
+            .filter(Boolean)
+            .slice(0, 3);
+        }
+      }
+      var oldOne = String(localStorage.getItem(MY_QUOTE_KEY_LEGACY) || "").trim();
+      return oldOne ? [oldOne] : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function baseQuotePool() {
+    var remote = window.HANLAW_REMOTE_QUOTES;
+    if (remote && remote.length) {
+      return remote.concat(QUOTES);
+    }
+    return QUOTES.slice();
+  }
+
+  function getPinnedQuoteRaw() {
+    try {
+      var s = localStorage.getItem(PINNED_QUOTE_KEY);
+      return s ? String(s).trim() : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function setPinnedQuoteRaw(text) {
+    try {
+      localStorage.setItem(PINNED_QUOTE_KEY, String(text || "").trim());
+    } catch (e) {}
+  }
+
+  function clearPinnedQuote() {
+    try {
+      localStorage.removeItem(PINNED_QUOTE_KEY);
+    } catch (e) {}
+  }
+
   function pickQuote() {
-    var i = Math.floor(Math.random() * QUOTES.length);
-    return QUOTES[i];
+    var pinned = getPinnedQuoteRaw();
+    if (pinned) return pinned;
+
+    var customList = loadCustomQuotes();
+    var pool = baseQuotePool();
+    if (!customList.length) {
+      var i = Math.floor(Math.random() * pool.length);
+      return pool[i];
+    }
+    // 나의 명언을 더 자주 노출: 약 65% 확률
+    if (Math.random() < 0.65) {
+      var ci = Math.floor(Math.random() * customList.length);
+      return customList[ci];
+    }
+    var j = Math.floor(Math.random() * pool.length);
+    return pool[j];
   }
 
   function apply() {
     var el = document.getElementById("header-quote");
     if (!el) return;
-    el.textContent = pickQuote();
+    var raw = pickQuote();
+    currentQuoteRaw = raw;
+    if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+      el.innerHTML = window.formatHanlawRichParagraphsHtml(raw);
+    } else {
+      el.textContent = raw;
+    }
+    syncPinToggle();
+  }
+
+  function syncPinToggle() {
+    var btn = document.getElementById("header-quote-pin-toggle");
+    if (!btn) return;
+    var isPinned = !!getPinnedQuoteRaw();
+    var hasText = !!String(currentQuoteRaw || "").trim();
+    btn.classList.toggle("header-quote-pin-btn--pinned", isPinned);
+    btn.setAttribute("aria-pressed", isPinned ? "true" : "false");
+    btn.disabled = !hasText;
+    if (isPinned) {
+      btn.title = "고정 해제 (다시 랜덤으로 표시)";
+      btn.setAttribute("aria-label", "명언 고정 해제");
+    } else {
+      btn.title = "이 명언만 계속 표시";
+      btn.setAttribute("aria-label", "명언 고정하기");
+    }
+  }
+
+  function startRotationIfNeeded() {
+    if (timer) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+    if (getPinnedQuoteRaw()) return;
+    timer = window.setInterval(apply, 12000);
+  }
+
+  function bind() {
+    apply();
+    startRotationIfNeeded();
+    window.addEventListener("hanlaw-custom-quote-updated", apply);
+    window.addEventListener("hanlaw-remote-quotes-updated", apply);
+
+    var toggleBtn = document.getElementById("header-quote-pin-toggle");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", function () {
+        if (toggleBtn.disabled) return;
+        if (getPinnedQuoteRaw()) {
+          clearPinnedQuote();
+          apply();
+          startRotationIfNeeded();
+        } else {
+          var t = String(currentQuoteRaw || "").trim();
+          if (!t) return;
+          setPinnedQuoteRaw(t);
+          startRotationIfNeeded();
+        }
+        syncPinToggle();
+      });
+    }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", apply);
+    document.addEventListener("DOMContentLoaded", bind);
   } else {
-    apply();
+    bind();
   }
 })();

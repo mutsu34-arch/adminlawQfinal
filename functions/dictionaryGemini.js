@@ -11,7 +11,12 @@ function db() {
 }
 
 const MAX_STR = 12000;
-const GEMINI_MODEL_FALLBACKS = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+const GEMINI_MODEL_FALLBACKS = [
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite"
+];
 
 function normTag(s) {
   return String(s || "")
@@ -32,10 +37,19 @@ function makeSlug(tag) {
 }
 
 function isLikelyCaseTag(s) {
-  const t = String(s).trim();
-  if (/헌재\s*\d{4}헌[가바마]\d+/i.test(t)) return true;
-  if (/\d{2,4}\s*[누두구]\s*\d{3,6}/.test(t)) return true;
-  if (/^\d{2,4}[누두구]\d{3,6}$/.test(t.replace(/\s/g, ""))) return true;
+  const raw = String(s || "").trim().replace(/^#/, "");
+  const variants = [
+    raw,
+    raw.replace(/^판례/i, "").trim(),
+    raw.replace(/^대법원?/i, "").trim()
+  ];
+  for (let i = 0; i < variants.length; i++) {
+    const t = variants[i];
+    if (!t) continue;
+    if (/헌재\s*\d{4}헌[가바마]\d+/i.test(t)) return true;
+    if (/\d{2,4}\s*[누두구]\s*\d{2,7}/.test(t)) return true;
+    if (/^\d{2,4}[누두구]\d{2,7}$/.test(t.replace(/\s/g, ""))) return true;
+  }
   return false;
 }
 
@@ -56,10 +70,10 @@ const CASENOTE_HIGH_COURTS = [
 ];
 
 function normalizeCaseNoToken(str) {
-  const compact = String(str || "").replace(/\s/g, "");
+  let compact = String(str || "").replace(/\s/g, "").replace(/^판례/i, "");
   const hm = compact.match(/(\d{4}헌[가바마]\d+)/);
   if (hm) return hm[1];
-  const m = compact.match(/(\d{2,4})([누두구])(\d{3,7})/);
+  const m = compact.match(/(\d{2,4})([누두구])(\d{2,7})/);
   if (m) return m[1] + m[2] + m[3];
   return null;
 }
@@ -225,6 +239,14 @@ function firestoreToCasePayload(d) {
   };
 }
 
+function stagingCollectionByKind(asCase) {
+  return asCase ? "hanlaw_dict_cases_staging" : "hanlaw_dict_terms_staging";
+}
+
+function entryKeyByKind(asCase, payload) {
+  return asCase ? String(payload.citation || "").trim() : String(payload.term || "").trim();
+}
+
 const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -287,11 +309,35 @@ const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async
       createdBy: request.auth.uid
     });
 
-    await ref.set(toSave, { merge: false });
+    // 운영 컬렉션에 즉시 반영하지 않고, 검수 대기(staging)에 적재한다.
+    const stagingRef = db()
+      .collection(stagingCollectionByKind(asCase))
+      .doc(slug);
+    await stagingRef.set(
+      {
+        entityType: asCase ? "case" : "term",
+        entryKey: entryKeyByKind(asCase, payload),
+        payload,
+        status: "reviewing",
+        source: "ai-tag",
+        changeType: "upsert",
+        tagInput: raw,
+        normKey: normTag(raw),
+        createdAt: FieldValue.serverTimestamp(),
+        createdBy: request.auth.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: request.auth.uid,
+        approvedAt: null,
+        approvedBy: null,
+        rejectReason: "",
+        version: 1
+      },
+      { merge: true }
+    );
 
     return {
       ok: true,
-      source: "generated",
+      source: "generated-pending-review",
       kind: asCase ? "case" : "term",
       record: asCase ? firestoreToCasePayload(payload) : firestoreToTermPayload(payload)
     };

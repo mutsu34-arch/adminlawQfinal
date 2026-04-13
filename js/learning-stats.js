@@ -420,14 +420,37 @@
         }
         return;
       }
+      var ptsNow = Math.max(0, parseInt(attendancePointsSnap, 10) || 0);
+      var ask = window.confirm(
+        "출석 포인트를 질문권으로 전환할까요?\n\n" +
+          "- 차감 포인트: 3,000점\n" +
+          "- 지급 질문권: 1건\n" +
+          "- 유효기간: 전환 시점부터 1년\n" +
+          "- 현재 포인트: " +
+          ptsNow.toLocaleString("ko-KR") +
+          "점"
+      );
+      if (!ask) {
+        if (msg) {
+          msg.textContent = "전환을 취소했습니다.";
+          msg.hidden = false;
+        }
+        return;
+      }
       btn.disabled = true;
       if (msg) msg.hidden = true;
       window
         .convertAttendancePointsToQuestionCreditCallable()
-        .then(function () {
+        .then(function (data) {
           if (msg) {
+            var leftPts =
+              data && data.attendancePoints != null
+                ? Math.max(0, parseInt(data.attendancePoints, 10) || 0)
+                : null;
             msg.textContent =
-              "질문권 1건이 추가되었습니다. 전환한 시점부터 1년간 사용할 수 있습니다.";
+              "질문권 1건이 추가되었습니다. " +
+              (leftPts == null ? "" : "(남은 출석 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +
+              "전환한 시점부터 1년간 사용할 수 있습니다.";
             msg.hidden = false;
           }
           window.dispatchEvent(new CustomEvent("question-credits-updated"));
@@ -437,6 +460,9 @@
             err && err.message
               ? err.message
               : "전환에 실패했습니다.";
+          if (t === "INTERNAL" || t.indexOf("internal") >= 0) {
+            t = "전환 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+          }
           if (msg) {
             msg.textContent = t;
             msg.hidden = false;

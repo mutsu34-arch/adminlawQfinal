@@ -61,18 +61,14 @@
     el.authMsg.hidden = !text;
   }
 
+  /** 저장된 닉네임만 사용. 없으면 호칭은 「사용자」(이메일·displayName으로 대체하지 않음) */
   function pickGreetingName(user) {
     if (!user) return "";
     if (typeof window.getHanlawNickname === "function") {
       var n = String(window.getHanlawNickname() || "").trim();
       if (n) return n;
     }
-    if (user.displayName && String(user.displayName).trim()) {
-      return String(user.displayName).trim();
-    }
-    var email = String(user.email || "").trim();
-    if (email && email.indexOf("@") > 0) return email.split("@")[0];
-    return "회원";
+    return "사용자";
   }
 
   function renderUserGreeting(user) {
@@ -82,7 +78,7 @@
       return;
     }
     var name = pickGreetingName(user);
-    el.userEmail.textContent = name + "님, 반갑습니다.";
+    el.userEmail.textContent = name + " 님, 반갑습니다.";
   }
 
   function firebaseErrorToKo(err) {
@@ -157,6 +153,18 @@
     }
   }
 
+  /** 익명 세션은 게스트 UI 유지, 실제 계정만 로그인 상태 표시 */
+  function dispatchGuestAuthEvent() {
+    var evtUser = null;
+    try {
+      if (typeof firebase !== "undefined" && firebase.auth) {
+        var cu = firebase.auth().currentUser;
+        if (cu && cu.isAnonymous) evtUser = cu;
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent("app-auth", { detail: { user: evtUser } }));
+  }
+
   function createMockAdminUser() {
     var email = String(window.MOCK_ADMIN_EMAIL || "admin@mock.hanlaw.local").toLowerCase();
     return {
@@ -183,10 +191,15 @@
     el.userBar.classList.remove("user-bar--logged");
     renderUserGreeting(null);
     if (el.btnOpenAuth) el.btnOpenAuth.hidden = false;
-    if (el.btnLogout) el.btnLogout.hidden = true;
+    try {
+      var cu = typeof firebase !== "undefined" && firebase.auth ? firebase.auth().currentUser : null;
+      if (el.btnLogout) el.btnLogout.hidden = !(cu && cu.isAnonymous);
+    } catch (e) {
+      if (el.btnLogout) el.btnLogout.hidden = true;
+    }
     if (el.notifWrap) el.notifWrap.hidden = true;
     updateFirebaseHeaderHint();
-    window.dispatchEvent(new CustomEvent("app-auth", { detail: { user: null } }));
+    dispatchGuestAuthEvent();
   }
 
   function setLoading(on) {
@@ -320,10 +333,14 @@
     if (window.__hanlawMockUser) {
       window.__hanlawMockUser = null;
       showGuestShell();
+      if (typeof window.hanlawAfterLogout === "function") window.hanlawAfterLogout();
       return;
     }
     if (!auth) return;
-    auth.signOut().catch(function () {});
+    window.__hanlawLoggingOut = true;
+    auth.signOut().catch(function () {
+      window.__hanlawLoggingOut = false;
+    });
   }
 
   el.tabLogin.addEventListener("click", function () {
@@ -372,10 +389,14 @@
   var ok = initFirebase();
   if (ok && auth) {
     auth.onAuthStateChanged(function (user) {
-      if (user) {
+      if (user && !user.isAnonymous) {
         showApp(user);
       } else {
         showGuestShell();
+        if (window.__hanlawLoggingOut) {
+          window.__hanlawLoggingOut = false;
+          if (typeof window.hanlawAfterLogout === "function") window.hanlawAfterLogout();
+        }
       }
     });
   } else {

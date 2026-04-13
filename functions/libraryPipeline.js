@@ -1,9 +1,9 @@
 "use strict";
 
 /**
- * 자료실: Firestore 메타데이터 + Storage PDF 업로드 → 청크·임베딩·Pinecone
+ * 자료실: Firestore 메타데이터 + Storage 업로드 → 청크·임베딩·Pinecone
  * Callable: createLibraryDocument, deleteLibraryDocument (관리자만)
- * Storage: hanlaw_library/{libraryId}/{파일명}.pdf
+ * Storage: hanlaw_library/{libraryId}/{파일명}.pdf | .xlsx
  */
 
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -13,6 +13,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const {
   extractChunksFromPdf,
   extractChunksFromPdfByOcr,
+  extractChunksFromXlsx,
   upsertChunksToPinecone,
   deleteVectorsByFileId
 } = require("./libraryRag");
@@ -35,9 +36,32 @@ function isAdminEmail(email) {
 
 function sanitizeFileName(name) {
   const base = String(name || "document.pdf").replace(/[^\w.\-가-힣]/g, "_");
-  const s = base.slice(0, 120);
-  if (!s.toLowerCase().endsWith(".pdf")) return s + ".pdf";
-  return s;
+  let s = base.slice(0, 120);
+  const low = s.toLowerCase();
+  // 예전 버그·클라이언트 조합으로 생긴 *.xlsx.pdf → *.xlsx 로 정리
+  if (/\.xlsx\.pdf$/i.test(s)) {
+    s = s.slice(0, -4);
+  }
+  const low2 = s.toLowerCase();
+  if (low2.endsWith(".pdf") || low2.endsWith(".xlsx")) return s;
+  return s + ".pdf";
+}
+
+/** Storage 경로가 .pdf로 끝나도 실제 바이트가 엑셀(OOXML=ZIP)인 경우 */
+function shouldUseXlsxPipeline(fileName, buffer) {
+  if (!buffer || buffer.length < 2) return false;
+  const n = String(fileName || "").toLowerCase();
+  if (n.endsWith(".xlsx") || n.endsWith(".xlsx.pdf")) return true;
+  const isPdfMagic =
+    buffer.length >= 4 &&
+    buffer[0] === 0x25 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x44 &&
+    buffer[3] === 0x46;
+  if (isPdfMagic) return false;
+  const isZipMagic = buffer[0] === 0x50 && buffer[1] === 0x4b;
+  if (n.endsWith(".pdf") && isZipMagic) return true;
+  return false;
 }
 
 const createLibraryDocument = onCall({ region: "asia-northeast3" }, async (request) => {
@@ -126,7 +150,8 @@ const onLibraryPdfUploaded = onObjectFinalized(
   },
   async (event) => {
     const name = event.data.name || "";
-    if (!name.startsWith("hanlaw_library/") || !name.toLowerCase().endsWith(".pdf")) {
+    const low = name.toLowerCase();
+    if (!name.startsWith("hanlaw_library/") || (!low.endsWith(".pdf") && !low.endsWith(".xlsx"))) {
       return;
     }
     const parts = name.split("/");
@@ -155,21 +180,34 @@ const onLibraryPdfUploaded = onObjectFinalized(
       const [buffer] = await bucket.file(name).download();
 
       let chunksInfo;
-      try {
-        chunksInfo = await extractChunksFromPdf(buffer);
-      } catch (e) {
-        const msg = String((e && e.message) || e || "");
-        if (msg.indexOf("OCR") >= 0 || msg.indexOf("텍스트가 거의 없습니다") >= 0) {
-          // 스캔 PDF fallback: Vision OCR
-          chunksInfo = await extractChunksFromPdfByOcr(event.data.bucket, name, libraryId);
-          await docRef.set(
-            {
-              ocrUsed: true
-            },
-            { merge: true }
-          );
-        } else {
-          throw e;
+      let resolvedKind = "pdf";
+      if (shouldUseXlsxPipeline(name, buffer)) {
+        chunksInfo = extractChunksFromXlsx(buffer);
+        resolvedKind = "xlsx";
+      } else {
+        try {
+          chunksInfo = await extractChunksFromPdf(buffer);
+        } catch (e) {
+          const msg = String((e && e.message) || e || "");
+          if (msg.indexOf("OCR") >= 0 || msg.indexOf("텍스트가 거의 없습니다") >= 0) {
+            chunksInfo = await extractChunksFromPdfByOcr(event.data.bucket, name, libraryId);
+            await docRef.set(
+              {
+                ocrUsed: true
+              },
+              { merge: true }
+            );
+          } else if (
+            /invalid pdf|pdf structure/i.test(msg) &&
+            buffer.length >= 2 &&
+            buffer[0] === 0x50 &&
+            buffer[1] === 0x4b
+          ) {
+            chunksInfo = extractChunksFromXlsx(buffer);
+            resolvedKind = "xlsx";
+          } else {
+            throw e;
+          }
         }
       }
       const { chunks, numPages } = chunksInfo;
@@ -188,6 +226,7 @@ const onLibraryPdfUploaded = onObjectFinalized(
           status: "complete",
           chunkCount: chunks.length,
           numPages: numPages,
+          fileKind: resolvedKind,
           bytes: buffer.length,
           errorMessage: null,
           completedAt: FieldValue.serverTimestamp()

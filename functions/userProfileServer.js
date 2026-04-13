@@ -26,28 +26,25 @@ const setUserNickname = onCall({ region: "asia-northeast3" }, async (request) =>
   }
   const uid = request.auth.uid;
   const raw = normNickname((request.data && request.data.nickname) || "");
-  if (!raw) {
-    throw new HttpsError("invalid-argument", "닉네임을 입력하세요.");
-  }
   if (raw.length > NICK_MAX) {
     throw new HttpsError("invalid-argument", `닉네임은 ${NICK_MAX}자 이하로 입력하세요.`);
   }
-  if (!/^[\p{L}\p{N}\s._·\-~@]+$/u.test(raw)) {
-    throw new HttpsError("invalid-argument", "닉네임에 사용할 수 없는 문자가 포함되어 있습니다.");
+  if (raw) {
+    if (!/^[\p{L}\p{N}\s._·\-~@]+$/u.test(raw)) {
+      throw new HttpsError("invalid-argument", "닉네임에 사용할 수 없는 문자가 포함되어 있습니다.");
+    }
+    if (/[\u200b-\u200d\ufeff]/.test(raw)) {
+      throw new HttpsError("invalid-argument", "닉네임에 사용할 수 없는 문자가 포함되어 있습니다.");
+    }
   }
-  if (/[\u200b-\u200d\ufeff]/.test(raw)) {
-    throw new HttpsError("invalid-argument", "닉네임에 사용할 수 없는 문자가 포함되어 있습니다.");
+  const ref = getFirestore().collection("hanlaw_user_profiles").doc(uid);
+  const payload = { updatedAt: FieldValue.serverTimestamp() };
+  if (raw === "") {
+    payload.nickname = FieldValue.delete();
+  } else {
+    payload.nickname = raw;
   }
-  await getFirestore()
-    .collection("hanlaw_user_profiles")
-    .doc(uid)
-    .set(
-      {
-        nickname: raw,
-        updatedAt: FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
+  await ref.set(payload, { merge: true });
   return { ok: true, nickname: raw };
 });
 

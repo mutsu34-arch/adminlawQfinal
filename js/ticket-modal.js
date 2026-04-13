@@ -2,29 +2,43 @@
   var modal;
   var currentType = "report";
   var fileInputs = [];
+  var promoNavBtn = null;
 
   function $(id) {
     return document.getElementById(id);
   }
 
+  /** app.js 의 isViewerLoggedIn 과 동일 — 이메일이 있는 계정만 로그인으로 간주 */
+  function isTicketViewerLoggedIn() {
+    var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    return !!(u && u.email);
+  }
+
   function packPrices() {
     return typeof window.getQuestionPackPricesDisplay === "function"
       ? window.getQuestionPackPricesDisplay()
-      : "1건 $2 · 10건 $10 USD";
+      : "1건 ₩3,000 · 10건 ₩15,000";
   }
 
   function openModal(type) {
     currentType = "report";
     if (type === "question") currentType = "question";
     if (type === "promotion") currentType = "promotion";
+    if (type === "suggestion") currentType = "suggestion";
+    if (promoNavBtn) {
+      promoNavBtn.classList.toggle("nav-main__btn--active", currentType === "promotion");
+      promoNavBtn.setAttribute("aria-current", currentType === "promotion" ? "page" : "false");
+    }
     var title = $("ticket-modal-title");
     if (title) {
       title.textContent =
         currentType === "question"
-          ? "질문하기"
+          ? "변호사에게 물어보기"
           : currentType === "promotion"
             ? "홍보 인증 신청"
-            : "오류 신고하기";
+            : currentType === "suggestion"
+              ? "개선 의견 보내기"
+              : "오류 신고하기";
     }
     var body = $("ticket-modal-body");
     if (body) body.value = "";
@@ -33,7 +47,13 @@
     var bodyLabel = $("ticket-modal-body-label");
     var linksLabel = $("ticket-modal-links-label");
     if (body) {
-      if (currentType === "promotion") {
+      if (currentType === "suggestion") {
+        if (bodyLabel) bodyLabel.textContent = "개선 내용";
+        body.placeholder =
+          "UI·기능 제안, 학습 경험, 콘텐츠 아이디어 등 구체적으로 적어 주세요.";
+        if (linksLabel) linksLabel.textContent = "참고 링크 (선택, 줄바꿈으로 여러 개)";
+        if (links) links.placeholder = "관련 URL이 있으면 한 줄에 하나씩 입력하세요.";
+      } else if (currentType === "promotion") {
         if (bodyLabel) bodyLabel.textContent = "홍보 활동 요약";
         body.placeholder =
           "블로그·SNS 등 어디에 어떻게 이 앱을 소개했는지 적어 주세요. (글 제목·날짜를 쓰면 검토에 도움이 됩니다.)";
@@ -57,7 +77,7 @@
     });
     var ctx = $("ticket-modal-context");
     if (ctx) {
-      if (currentType === "promotion" || currentType === "question") {
+      if (currentType === "promotion" || currentType === "question" || currentType === "suggestion") {
         ctx.textContent = "";
         ctx.hidden = true;
       } else {
@@ -89,7 +109,7 @@
       if (currentType === "question") {
         var pp = packPrices();
         qHint.innerHTML =
-          "질문하기는 질문권 <strong>1건</strong>이 차감됩니다. 추가 질문권은 <strong>요금제</strong>에서 구매할 수 있습니다(" +
+          "변호사에게 물어보기는 질문권 <strong>1건</strong>이 차감됩니다. 추가 질문권은 <strong>요금제</strong>에서 구매할 수 있습니다(" +
           pp +
           ", 구매일로부터 1년 유효). 오류 신고는 질문권이 필요하지 않습니다.";
         qHint.hidden = false;
@@ -98,6 +118,12 @@
           "이 학습 앱을 <strong>직접 소개한 공개 글·게시물</strong>이 있으면 아래에 요약하고, 링크나 화면 캡처를 함께 올려 주세요. " +
           "관리자 확인 후 승인된 경우에만 <strong>9,000 포인트</strong>가 지급됩니다. " +
           "타인의 얼굴·연락처 등 <strong>개인정보는 가림 처리</strong>해 주세요. 허위·무관한 증빙은 승인되지 않을 수 있습니다.";
+        qHint.hidden = false;
+      } else if (currentType === "suggestion") {
+        qHint.innerHTML =
+          "<strong>로그인한 회원</strong>만 접수할 수 있습니다. 검토 후 답변이 알림으로 전달됩니다. " +
+          "의견이 <strong>채택</strong>된 경우 출석 포인트가 지급될 수 있습니다(기본 <strong>3,000점</strong>, 운영 정책·관리자 판단에 따름). " +
+          "질문권 차감 없이 보낼 수 있습니다.";
         qHint.hidden = false;
       } else {
         qHint.hidden = true;
@@ -114,12 +140,29 @@
       modal.hidden = true;
       modal.setAttribute("aria-hidden", "true");
     }
+    if (promoNavBtn) {
+      promoNavBtn.classList.remove("nav-main__btn--active");
+      promoNavBtn.setAttribute("aria-current", "false");
+    }
   }
 
   function submit() {
     var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
-    if (!user) {
+    if (!user || !String(user.email || "").trim()) {
       window.alert("로그인 후 이용할 수 있습니다.");
+      return;
+    }
+    submitTicketPayload();
+  }
+
+  function submitTicketPayload() {
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!user || !String(user.email || "").trim()) {
+      window.alert("로그인 후 이용할 수 있습니다.");
+      return;
+    }
+    if (currentType === "suggestion" && (!user.email || !String(user.email).trim())) {
+      window.alert("개선 의견은 이메일로 가입한 계정에서만 보낼 수 있습니다.");
       return;
     }
     var body = ($("ticket-modal-body") && $("ticket-modal-body").value) || "";
@@ -144,7 +187,9 @@
       fail(
         currentType === "promotion"
           ? "홍보 활동 요약을 입력해 주세요."
-          : "내용을 입력하세요."
+          : currentType === "suggestion"
+            ? "개선 내용을 입력해 주세요."
+            : "내용을 입력하세요."
       );
       return;
     }
@@ -183,13 +228,17 @@
         var msg = (e && e.message) || "전송에 실패했습니다.";
         if (code === "functions/failed-precondition") {
           msg = e.message || "질문권이 부족합니다.";
-          if (
-            currentType === "question" &&
-            msg.indexOf("$2") < 0 &&
-            msg.indexOf("USD") < 0
-          ) {
-            msg +=
-              " 요금제에서 질문권을 구매할 수 있습니다(" + packPrices() + ").";
+          if (currentType === "question") {
+            if (msg.indexOf("$2") >= 0 || msg.indexOf("USD") >= 0) {
+              msg =
+                "질문권이 부족합니다. 유료 구독 월간 혜택을 모두 쓰셨거나, 구매한 질문권이 없습니다. " +
+                "요금제에서 추가 구매: " +
+                packPrices() +
+                "(구매일로부터 1년 유효).";
+            } else if (msg.indexOf("₩") < 0 && msg.indexOf("구매") < 0) {
+              msg +=
+                " 요금제에서 질문권을 구매할 수 있습니다(" + packPrices() + ").";
+            }
           }
         }
         if (code === "functions/not-found") {
@@ -198,6 +247,13 @@
         }
         if (code === "functions/unauthenticated") {
           msg = "로그인이 필요합니다.";
+        }
+        if (
+          code === "permission-denied" ||
+          (msg && /Missing or insufficient permissions/i.test(msg))
+        ) {
+          msg =
+            "저장 권한이 없습니다. 로그인을 다시 확인해 주세요. 개발 중이면 Firebase Console에 최신 firestore.rules·storage.rules를 배포했는지 확인하세요.";
         }
         fail(msg);
       })
@@ -208,6 +264,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     modal = $("ticket-modal");
+    promoNavBtn = $("btn-ticket-promo");
     fileInputs = [
       $("ticket-file-1"),
       $("ticket-file-2"),
@@ -216,10 +273,23 @@
 
     var br = $("btn-ticket-report");
     var bq = $("btn-ticket-ask");
-    var bp = $("btn-ticket-promo");
-    if (br) br.addEventListener("click", function () { openModal("report"); });
+    var bp = promoNavBtn;
+    if (br) {
+      br.addEventListener("click", function () {
+        if (!isTicketViewerLoggedIn()) {
+          window.alert("오류 신고하기는 로그인 후 이용할 수 있습니다.");
+          return;
+        }
+        openModal("report");
+      });
+    }
     if (bq) {
       bq.addEventListener("click", function () {
+        var u0 = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+        if (!u0 || !u0.email) {
+          window.alert("변호사에게 물어보기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
+          return;
+        }
         if (typeof window.waitForQuestionCreditState !== "function") {
           openModal("question");
           return;
@@ -243,7 +313,27 @@
         });
       });
     }
-    if (bp) bp.addEventListener("click", function () { openModal("promotion"); });
+    if (bp) {
+      bp.addEventListener("click", function () {
+        if (!isTicketViewerLoggedIn()) {
+          window.alert("로그인 후 이용할 수 있습니다.");
+          return;
+        }
+        openModal("promotion");
+      });
+    }
+
+    var bsug = $("btn-ticket-suggestion");
+    if (bsug) {
+      bsug.addEventListener("click", function () {
+        var u0 = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+        if (!u0 || !u0.email) {
+          window.alert("개선 의견은 로그인한 뒤 보낼 수 있습니다.");
+          return;
+        }
+        openModal("suggestion");
+      });
+    }
 
     var bc = $("ticket-modal-close");
     var bx = $("ticket-modal-cancel");
@@ -259,4 +349,6 @@
       });
     }
   });
+
+  window.openHanlawTicketModal = openModal;
 })();

@@ -4,7 +4,9 @@ functions/node_modules/
 
 # Secrets (로컬만 유지)
 .env
+.env.*
 functions/.env
+functions/.env.*
 *.local
 
 # Logs & cache

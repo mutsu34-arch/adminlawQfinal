@@ -5,7 +5,8 @@
   window.APP_MEMBERSHIP = {
     tier: "free",
     paidUntil: null,
-    loading: false
+    loading: false,
+    payappRebillActive: false
   };
 
   function getDb() {
@@ -90,13 +91,19 @@
         untilEl.hidden = true;
       }
     }
+
+    var rebillWrap = $("dashboard-payapp-rebill-cancel-wrap");
+    if (rebillWrap) {
+      rebillWrap.hidden = !(m.payappRebillActive && tier === "paid");
+    }
   }
 
   function applySnapshot(docSnap) {
     var paidUntil = null;
     var tier = "free";
+    var d = null;
     if (docSnap.exists) {
-      var d = docSnap.data();
+      d = docSnap.data();
       tier = resolveTier(d);
       if (tier === "paid" && d.paidUntil && typeof d.paidUntil.toMillis === "function") {
         paidUntil = d.paidUntil;
@@ -104,14 +111,17 @@
     }
     // 관리자 계정은 항상 유료 권한으로 처리
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    var rebillActive = !!(d && d.payappRebillNo);
     if (isAdminEmail(u)) {
       tier = "paid";
       paidUntil = null;
+      rebillActive = false;
     }
     window.APP_MEMBERSHIP = {
       tier: tier,
       paidUntil: paidUntil,
-      loading: false
+      loading: false,
+      payappRebillActive: rebillActive
     };
     updateDom();
     window.dispatchEvent(
@@ -120,7 +130,7 @@
   }
 
   function resetMembership() {
-    window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false };
+    window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false, payappRebillActive: false };
     var badge = $("user-membership");
     if (badge) {
       badge.textContent = "";
@@ -138,6 +148,8 @@
       untilEl.textContent = "";
       untilEl.hidden = true;
     }
+    var rebillWrapReset = $("dashboard-payapp-rebill-cancel-wrap");
+    if (rebillWrapReset) rebillWrapReset.hidden = true;
     window.dispatchEvent(
       new CustomEvent("membership-updated", { detail: window.APP_MEMBERSHIP })
     );
@@ -159,7 +171,7 @@
 
     // 관리자 계정은 Firestore 문서와 무관하게 즉시 유료 적용
     if (isAdminEmail(user)) {
-      window.APP_MEMBERSHIP = { tier: "paid", paidUntil: null, loading: false };
+      window.APP_MEMBERSHIP = { tier: "paid", paidUntil: null, loading: false, payappRebillActive: false };
       updateDom();
       window.dispatchEvent(
         new CustomEvent("membership-updated", { detail: window.APP_MEMBERSHIP })
@@ -169,12 +181,12 @@
 
     var db = getDb();
     if (!db) {
-      window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false };
+      window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false, payappRebillActive: false };
       updateDom();
       return;
     }
 
-    window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: true };
+    window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: true, payappRebillActive: false };
     updateDom();
 
     unsub = db
@@ -182,7 +194,7 @@
       .doc(user.uid)
       .onSnapshot(applySnapshot, function (err) {
         console.warn("회원 등급 로드 실패:", err);
-        window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false };
+        window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false, payappRebillActive: false };
         updateDom();
       });
   }

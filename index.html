@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-font-step="1">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,13 +10,26 @@
         if (localStorage.getItem("hanlaw_theme") === "light") {
           document.documentElement.setAttribute("data-theme", "light");
         }
+        var KEY_V2 = "hanlaw_font_step_v2";
+        var KEY_LEG = "hanlaw_font_step";
+        var fs = localStorage.getItem(KEY_V2);
+        if (fs === null || fs === "") {
+          fs = localStorage.getItem(KEY_LEG);
+          if (fs !== null && /^[0-4]$/.test(fs)) {
+            var map = { "0": "0", "1": "1", "2": "2", "3": "3", "4": "1" };
+            fs = map[fs] != null ? map[fs] : "1";
+          }
+        }
+        if (fs !== null && fs !== "" && /^[0-5]$/.test(fs)) {
+          document.documentElement.setAttribute("data-font-step", fs);
+        }
       } catch (e) {}
     })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=20260412-dict-memo-canvas" />
 </head>
 <body>
   <div class="app">
@@ -84,7 +97,32 @@
     <div id="app-shell">
       <header class="header header--app">
         <div class="header__top">
-          <p class="header-quote" id="header-quote" aria-live="polite"></p>
+          <div class="header-quote-wrap">
+            <div class="header-quote-pin-wrap">
+              <button
+                type="button"
+                class="header-quote-pin-btn"
+                id="header-quote-pin-toggle"
+                aria-label="명언 고정하기"
+                aria-pressed="false"
+                title="이 명언만 계속 표시"
+              >
+                <span class="header-quote-pin-visual header-quote-pin-visual--idle" aria-hidden="true">
+                  <svg class="header-quote-pin-icon" viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+                    <circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                </span>
+                <span class="header-quote-pin-visual header-quote-pin-visual--active" aria-hidden="true">
+                  <svg class="header-quote-pin-icon" viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+                    <circle cx="12" cy="10" r="3" fill="var(--accent)" stroke="var(--accent)" stroke-width="2"/>
+                  </svg>
+                </span>
+              </button>
+            </div>
+            <p class="header-quote" id="header-quote" aria-live="polite"></p>
+          </div>
           <div class="user-bar user-bar--inline user-bar--guest" id="user-bar">
             <div class="notif-wrap" id="header-notif-wrap">
               <button type="button" class="btn btn--small btn--outline btn--notif" id="btn-header-notifications" aria-label="알림" title="알림">알림</button>
@@ -102,28 +140,39 @@
           </div>
         </div>
         <h1 class="title">행정법Q</h1>
-        <p class="subtitle">각종 시험 행정법 기출·유형을 바탕으로 한 진위형 연습</p>
-        <div class="header-theme-bar" role="presentation">
-          <span class="header-theme-bar__label">화면 테마</span>
-          <div class="theme-switch" role="group" aria-label="화면 테마">
-            <button type="button" class="theme-switch__btn" id="theme-btn-dark" aria-pressed="true">다크</button>
-            <button type="button" class="theme-switch__btn" id="theme-btn-light" aria-pressed="false">라이트</button>
-          </div>
-        </div>
+        <p class="subtitle">어려운 행정법, 기출 OX로 쉽고 명확하게 정리하기</p>
+        <div id="header-dday-list" class="header-dday-list" hidden aria-live="polite"></div>
         <p id="header-firebase-hint" class="header-firebase-hint" hidden role="status"></p>
       </header>
 
       <nav class="nav-main" id="nav-main" aria-label="주요 기능">
         <div class="nav-main__scroll">
           <button type="button" class="nav-main__btn nav-main__btn--active" data-panel="quiz" aria-current="page">퀴즈</button>
+          <button type="button" class="nav-main__btn" data-panel="qa">Q&amp;A</button>
           <button type="button" class="nav-main__btn" data-panel="dict">용어사전</button>
+          <button type="button" class="nav-main__btn" data-panel="statutes">조문사전</button>
           <button type="button" class="nav-main__btn" data-panel="cases">판례사전</button>
           <button type="button" class="nav-main__btn" data-panel="wrong">오답노트</button>
           <button type="button" class="nav-main__btn" data-panel="fav">찜노트</button>
+          <button type="button" class="nav-main__btn" data-panel="master">마스터 노트</button>
+          <button type="button" class="nav-main__btn" data-panel="trash">휴지통</button>
           <button type="button" class="nav-main__btn" data-panel="pricing">요금제</button>
           <button type="button" class="nav-main__btn" data-panel="dashboard">대시보드</button>
+          <button type="button" class="nav-main__btn nav-main__btn--promo" id="btn-ticket-promo" title="홍보 인증 신청">
+            홍보 인증 신청
+          </button>
+          <button type="button" class="nav-main__btn" data-panel="settings">설정</button>
           <button type="button" class="nav-main__btn nav-main__btn--admin" data-panel="admin" id="nav-btn-admin" hidden>
             관리자<span class="admin-nav-badge" id="admin-nav-badge" hidden aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="nav-main__mobile-bar" aria-label="모바일 메뉴 이동">
+          <button type="button" class="nav-main__rail-btn" id="nav-main-scroll-prev" aria-label="탭 목록을 왼쪽으로 이동">
+            ‹
+          </button>
+          <select id="nav-main-jump" class="nav-main__jump input" aria-label="화면 바로가기"></select>
+          <button type="button" class="nav-main__rail-btn" id="nav-main-scroll-next" aria-label="탭 목록을 오른쪽으로 이동">
+            ›
           </button>
         </div>
       </nav>
@@ -131,27 +180,79 @@
       <div class="sidebar-backdrop" id="sidebar-backdrop" hidden aria-hidden="true"></div>
 
       <div class="layout">
-        <aside class="sidebar" id="app-sidebar" aria-label="시험 종류 및 연도">
-          <p class="sidebar__heading">시험 종류</p>
-          <ul class="sidebar__exams" id="sidebar-exams" aria-label="시험 종류 목록"></ul>
-          <div class="sidebar__years-block" id="sidebar-years-wrap" hidden>
-            <p class="sidebar__heading sidebar__heading--sub">기출 연도</p>
-            <div class="sidebar__year-chips" id="sidebar-years"></div>
-          </div>
-          <p class="sidebar__scope" id="scope-summary">공부 범위: —</p>
-        </aside>
-
-        <div class="layout__main">
+        <div class="layout__main layout__main--full">
           <div id="panel-quiz" class="panel panel--active">
             <main class="main main--panel">
               <section id="screen-start" class="screen screen--active" aria-label="시작 화면">
                 <div class="card card--setup">
                   <h2 class="card__title">범위 설정</h2>
-                  <p class="scope-inline" id="scope-summary-quiz">—</p>
-                  <label class="field">
-                    <span class="field__label">단원·주제</span>
-                    <select id="filter-topic" class="select" aria-label="주제 필터"></select>
-                  </label>
+                  <div class="scope-favorites scope-favorites--quick" aria-labelledby="scope-favorites-list-title">
+                    <h3 id="scope-favorites-list-title" class="scope-favorites__title">범위 즐겨찾기</h3>
+                    <p class="scope-favorites__hint scope-favorites__hint--compact">
+                      저장된 항목을 누르면 해당 범위로 맞춘 뒤 <strong>바로 퀴즈</strong>가 시작됩니다.
+                    </p>
+                    <div id="scope-favorites-list" class="scope-favorites__list" role="list"></div>
+                  </div>
+                  <aside class="sidebar sidebar--in-setup" id="app-sidebar" aria-label="시험 종류 및 연도">
+                    <div class="sidebar__heading-row">
+                      <p class="sidebar__heading">시험 종류</p>
+                      <button type="button" class="sidebar__heading-all" id="btn-sidebar-exam-all" aria-pressed="false">ALL</button>
+                    </div>
+                    <ul class="sidebar__exams" id="sidebar-exams" aria-label="시험 종류 목록"></ul>
+                    <div class="sidebar__years-block" id="sidebar-years-wrap" hidden>
+                      <div class="sidebar__heading-row sidebar__heading-row--sub">
+                        <p class="sidebar__heading sidebar__heading--sub">기출 연도</p>
+                        <button type="button" class="sidebar__heading-all" id="btn-sidebar-years-all" aria-pressed="false">ALL</button>
+                      </div>
+                      <div class="sidebar__year-chips" id="sidebar-years"></div>
+                    </div>
+                    <p class="sidebar__scope" id="scope-summary">공부 범위: —</p>
+                  </aside>
+                  <div class="field field--topic-scope">
+                    <span class="field__label" id="filter-topic-label">단원·주제</span>
+                    <div class="field-topic-row">
+                      <select
+                        id="filter-topic"
+                        class="select field-topic-row__select"
+                        aria-labelledby="filter-topic-label"
+                        aria-label="주제 필터"
+                      ></select>
+                    </div>
+                    <label class="field field--topic-search-inner">
+                      <span class="field__label field__label--sub">주제 직접 입력 (포함 일치)</span>
+                      <input
+                        type="text"
+                        id="filter-topic-search"
+                        class="input"
+                        placeholder="비우면 위에서 고른 단원만 적용"
+                        maxlength="80"
+                        autocomplete="off"
+                        aria-label="주제 키워드 포함 검색"
+                      />
+                    </label>
+                  </div>
+
+                  <div class="field field--note-scope">
+                    <span class="field__label">노트로 범위 좁히기 (복수 선택)</span>
+                    <p class="field__hint field__hint--compact">
+                      선택한 노트에 <strong>포함된</strong> 문항만 출제합니다(여러 개면 합집합). 아무것도 고르지 않으면 노트로 제한하지 않습니다. 마스터에 넣은 문항은 일반 퀴즈에서 빠지지만, 여기서 마스터만 고르면 그 문항만 연습할 수 있습니다.
+                    </p>
+                    <div class="scope-note-toggles" role="group" aria-label="노트 범위">
+                      <label class="scope-note-toggles__item">
+                        <input type="checkbox" id="scope-note-wrong" />
+                        <span>오답노트</span>
+                      </label>
+                      <label class="scope-note-toggles__item">
+                        <input type="checkbox" id="scope-note-fav" />
+                        <span>찜노트</span>
+                      </label>
+                      <label class="scope-note-toggles__item">
+                        <input type="checkbox" id="scope-note-master" />
+                        <span>마스터노트</span>
+                      </label>
+                    </div>
+                  </div>
+
                   <label class="field">
                     <span class="field__label">한 세트당 문항 수</span>
                     <select id="question-count" class="select" aria-label="문항 수">
@@ -161,40 +262,91 @@
                     </select>
                   </label>
                   <fieldset class="field field--order">
-                    <legend class="field__label">문제 순서</legend>
-                    <div class="order-options" role="radiogroup" aria-label="문제 순서">
-                      <label class="field field--row field--row--radio">
-                        <input type="radio" name="opt-order" value="progress" />
-                        <span>진도별 (교과서 목차: 총론 → 행정작용·각론 → 구제 순, 같은 단원 안에서는 연도·시험 순)</span>
-                      </label>
-                      <label class="field field--row field--row--radio">
-                        <input type="radio" name="opt-order" value="random" checked />
-                        <span>랜덤</span>
-                      </label>
-                      <label class="field field--row field--row--radio">
-                        <input type="radio" name="opt-order" value="importance_desc" />
-                        <span>중요도별 — 높은 순 (미표기는 뒤로)</span>
-                      </label>
-                      <label class="field field--row field--row--radio">
-                        <input type="radio" name="opt-order" value="importance_asc" />
-                        <span>중요도별 — 낮은 순 (미표기는 뒤로)</span>
-                      </label>
-                      <label class="field field--row field--row--radio">
-                        <input type="radio" name="opt-order" value="difficulty_asc" />
-                        <span>난이도별 — 쉬운 순 (미표기는 뒤로)</span>
-                      </label>
-                      <label class="field field--row field--row--radio">
-                        <input type="radio" name="opt-order" value="difficulty_desc" />
-                        <span>난이도별 — 어려운 순 (미표기는 뒤로)</span>
-                      </label>
+                    <legend class="field__label">범위·문제 순서</legend>
+
+                    <div class="order-option-group">
+                      <p id="order-group-part" class="order-option-group__title">총론만 / 전부</p>
+                      <div class="order-option-group__radios" role="radiogroup" aria-labelledby="order-group-part">
+                        <label class="field field--row field--row--radio">
+                          <input type="radio" name="opt-part" value="general" />
+                          <span>총론만 (행정법 일반·비례원칙)</span>
+                        </label>
+                        <label class="field field--row field--row--radio">
+                          <input type="radio" name="opt-part" value="all" checked />
+                          <span>전부</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div
+                      class="order-options order-options--grouped"
+                      role="radiogroup"
+                      aria-label="문제 순서"
+                    >
+                      <div class="order-option-group">
+                        <p id="order-group-progress" class="order-option-group__title">진도별 / 랜덤</p>
+                        <div class="order-option-group__radios" aria-labelledby="order-group-progress">
+                          <label class="field field--row field--row--radio">
+                            <input type="radio" name="opt-order" value="progress" />
+                            <span>진도별 (교과 목차 순, 같은 단원 안에서는 연도·시험 순)</span>
+                          </label>
+                          <label class="field field--row field--row--radio">
+                            <input type="radio" name="opt-order" value="random" checked />
+                            <span>랜덤</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div class="order-option-group">
+                        <p id="order-group-importance" class="order-option-group__title">중요도 — 높은 것부터 / 낮은 것부터</p>
+                        <div class="order-option-group__radios" aria-labelledby="order-group-importance">
+                          <label class="field field--row field--row--radio">
+                            <input type="radio" name="opt-order" value="importance_desc" />
+                            <span>높은 것부터 (미표기는 뒤로)</span>
+                          </label>
+                          <label class="field field--row field--row--radio">
+                            <input type="radio" name="opt-order" value="importance_asc" />
+                            <span>낮은 것부터 (미표기는 뒤로)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div class="order-option-group">
+                        <p id="order-group-difficulty" class="order-option-group__title">난이도 — 높은 것부터 / 낮은 것부터</p>
+                        <div class="order-option-group__radios" aria-labelledby="order-group-difficulty">
+                          <label class="field field--row field--row--radio">
+                            <input type="radio" name="opt-order" value="difficulty_desc" />
+                            <span>높은 것부터 (미표기는 뒤로)</span>
+                          </label>
+                          <label class="field field--row field--row--radio">
+                            <input type="radio" name="opt-order" value="difficulty_asc" />
+                            <span>낮은 것부터 (미표기는 뒤로)</span>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </fieldset>
-                  <label class="field field--row">
-                    <input type="checkbox" id="opt-auto-review" />
-                    <span>자동 복습 모드 — 틀렸던 문항을 본 퀴즈 도중 팝업으로 다시 냅니다. 5문제를 풀 때마다 복습 1문항이 끼어듭니다.</span>
-                  </label>
+
+                  <div class="scope-favorites scope-favorites--save" aria-labelledby="scope-favorites-save-title">
+                    <h3 id="scope-favorites-save-title" class="scope-favorites__title">이 설정을 즐겨찾기에 저장</h3>
+                    <p class="scope-favorites__hint">
+                      왼쪽에서 시험·연도를 고른 뒤 위에서 주제·문항 수·순서까지 맞춘 다음, 이름을 붙여 저장할 수 있습니다.
+                    </p>
+                    <div class="scope-favorites__save-row">
+                      <input
+                        type="text"
+                        id="scope-favorite-name"
+                        class="input scope-favorites__name-input"
+                        maxlength="40"
+                        placeholder="예: 9급 최근 3개년 랜덤"
+                        autocomplete="off"
+                        aria-label="즐겨찾기 이름"
+                      />
+                      <button type="button" id="btn-scope-favorite-save" class="btn btn--outline">이 설정 저장</button>
+                    </div>
+                  </div>
+
                   <button type="button" id="btn-start" class="btn btn--primary">퀴즈 시작</button>
-                  <p class="hint">문항은 공개 기출·교재의 전형적 쟁점을 재구성한 학습용 예시입니다. 최신 법령은 별도 확인하세요.</p>
                 </div>
               </section>
 
@@ -203,9 +355,27 @@
                   <span id="quiz-progress" class="quiz-progress">1 / 10</span>
                   <span id="quiz-score" class="quiz-score">정답 0</span>
                 </div>
+                <div class="quiz-main-with-sides">
+                  <button
+                    type="button"
+                    class="quiz-nav-side quiz-nav-side--prev"
+                    id="btn-quiz-nav-prev"
+                    aria-label="이전 문제"
+                  >
+                    <span class="quiz-nav-side__icon" aria-hidden="true">‹</span>
+                  </button>
+                  <div class="quiz-main-column">
                 <div class="card card--question">
                   <p id="q-source" class="q-source"></p>
                   <p id="q-meta" class="q-meta"></p>
+                  <button
+                    type="button"
+                    id="btn-quiz-admin-edit"
+                    class="btn btn--small btn--outline btn--quiz-admin-edit"
+                    hidden
+                  >
+                    문항 수정
+                  </button>
                   <p id="q-text" class="q-text" role="heading" aria-level="2"></p>
                   <div id="q-actions" class="q-actions">
                     <button type="button" class="btn btn--ox btn--o" data-answer="true" aria-label="참(O)">O</button>
@@ -217,28 +387,146 @@
                   <p id="feedback-answer-key" class="feedback__kv" hidden></p>
                   <p id="feedback-importance-line" class="feedback__kv feedback__kv--stars"></p>
                   <p id="feedback-difficulty-line" class="feedback__kv feedback__kv--stars"></p>
-                  <p class="feedback__block-label">기본 해설</p>
-                  <p id="feedback-explain" class="feedback__block-body"></p>
-                  <p id="feedback-master" class="feedback-master" hidden role="status"></p>
-                  <p id="feedback-attendance-notify" class="feedback-attendance-notify" hidden role="status"></p>
-                  <p class="feedback__block-label">상세 해설</p>
-                  <div id="feedback-detail" class="feedback-detail feedback__block-body"></div>
-                  <p class="feedback__block-label">태그</p>
-                  <div class="feedback__tags feedback__block-body" id="feedback-tags"></div>
-                  <div class="quiz-ai-ask" id="quiz-ai-ask-block">
-                    <p class="quiz-ai-ask__remain" id="quiz-ai-remain" aria-live="polite"></p>
+                  <div id="feedback-guest-blur-wrap" class="feedback-guest-blur-wrap">
+                    <p class="feedback__block-label">기본 해설</p>
+                    <div id="feedback-explain" class="feedback__block-body"></div>
+                    <p id="feedback-master" class="feedback-master" hidden role="status"></p>
+                    <p id="feedback-attendance-notify" class="feedback-attendance-notify" hidden role="status"></p>
+                    <p class="feedback__block-label">상세 해설</p>
+                    <div id="feedback-detail" class="feedback-detail feedback__block-body"></div>
+                  </div>
+                  <p id="feedback-guest-hint" class="feedback-guest-hint" hidden>
+                    로그인하면 기본 해설까지 볼 수 있습니다. 상세 해설(법리·함정·판례)은 유료 회원에게 제공됩니다.
+                  </p>
+                  <div id="feedback-tags-section" class="feedback-tags-section">
+                    <p class="feedback__block-label">태그</p>
+                    <div class="feedback__tags feedback__block-body" id="feedback-tags"></div>
+                  </div>
+                  <div id="quiz-memo-section" class="quiz-memo">
                     <button
                       type="button"
-                      class="btn btn--secondary"
-                      id="btn-quiz-ai-toggle"
+                      id="quiz-memo-panel-toggle"
+                      class="btn btn--outline btn--small quiz-memo__panel-toggle"
                       aria-expanded="false"
-                      aria-controls="quiz-ai-panel"
+                      aria-controls="quiz-memo-body"
                     >
-                      AI 질문하기
+                      나의 메모 (암기·팁) 펼치기
                     </button>
+                    <div id="quiz-memo-body" class="quiz-memo__body" hidden>
+                    <p class="feedback__block-label quiz-memo__body-title">나의 메모 (암기·팁)</p>
+                    <p class="quiz-memo__subhead">텍스트</p>
+                    <div id="quiz-memo-text-wrap" class="quiz-memo__panel quiz-memo__panel--text">
+                      <textarea
+                        id="quiz-memo-text"
+                        class="input textarea quiz-memo__textarea"
+                        rows="3"
+                        maxlength="8000"
+                        placeholder="암기 팁, 함정, 직접 정리한 요점 등을 적어 보세요."
+                        aria-label="텍스트 메모"
+                      ></textarea>
+                    </div>
+                    <div id="quiz-memo-draw-wrap" class="quiz-memo__panel quiz-memo__panel--draw">
+                      <p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>
+                      <div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">
+                        <button
+                          type="button"
+                          class="btn btn--outline btn--small quiz-memo__split-actions-btn"
+                          id="quiz-memo-draw-settings-toggle"
+                          aria-expanded="false"
+                          aria-controls="quiz-memo-draw-settings"
+                        >
+                          펜·지우개 설정
+                        </button>
+                        <button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" id="quiz-memo-clear-canvas">
+                          전부 지우기
+                        </button>
+                      </div>
+                      <div id="quiz-memo-draw-settings" class="quiz-memo__draw-settings" hidden>
+                        <div class="quiz-memo__tool-row">
+                          <span class="quiz-memo__tool-label">도구</span>
+                          <div class="quiz-memo__tool-pills" role="group" aria-label="펜 또는 지우개">
+                            <button
+                              type="button"
+                              class="quiz-memo__tool-btn quiz-memo__tool-btn--active"
+                              id="quiz-memo-tool-pen"
+                              aria-pressed="true"
+                            >
+                              펜
+                            </button>
+                            <button type="button" class="quiz-memo__tool-btn" id="quiz-memo-tool-eraser" aria-pressed="false">
+                              지우개
+                            </button>
+                          </div>
+                        </div>
+                        <div class="quiz-memo__tool-row quiz-memo__tool-row--grow">
+                          <label class="quiz-memo__tool-field">
+                            <span class="quiz-memo__tool-field-label">색</span>
+                            <input type="color" id="quiz-memo-pen-color" class="quiz-memo__color-input" value="#cbd5e1" />
+                          </label>
+                          <label class="quiz-memo__tool-field">
+                            <span class="quiz-memo__tool-field-label">굵기</span>
+                            <select id="quiz-memo-pen-width" class="select quiz-memo__width-select">
+                              <option value="2">가늘게</option>
+                              <option value="4" selected>보통</option>
+                              <option value="7">굵게</option>
+                              <option value="12">아주 굵게</option>
+                            </select>
+                          </label>
+                        </div>
+                      </div>
+                      <p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>
+                      <canvas id="quiz-memo-canvas" class="quiz-memo__canvas" width="960" height="400"></canvas>
+                    </div>
+                    <div class="quiz-memo__save-row">
+                      <button type="button" class="btn btn--secondary btn--small" id="quiz-memo-save">메모 저장</button>
+                      <span id="quiz-memo-msg" class="quiz-memo__msg" hidden role="status"></span>
+                    </div>
+                    </div>
+                  </div>
+                  <div class="quiz-ai-ask" id="quiz-ai-ask-block">
+                    <p class="quiz-ai-ask__remain" id="quiz-ai-remain" aria-live="polite"></p>
+                    <div class="quiz-post-actions__toolbar" role="group" aria-label="문항 관련 동작">
+                      <button
+                        type="button"
+                        id="btn-quiz-favorite"
+                        class="btn btn--outline btn--quiz-fav"
+                        hidden
+                        aria-pressed="false"
+                      >
+                        찜하기
+                      </button>
+                      <button
+                        type="button"
+                        id="btn-quiz-master"
+                        class="btn btn--outline btn--quiz-master"
+                        hidden
+                        aria-pressed="false"
+                        title="이 문항을 일반 퀴즈 범위에서 제외합니다"
+                      >
+                        마스터
+                      </button>
+                      <button type="button" class="btn btn--ticket btn--ticket-report" id="btn-ticket-report">
+                        오류 신고하기
+                      </button>
+                      <button type="button" class="btn btn--ticket btn--ticket-suggestion" id="btn-ticket-suggestion">
+                        개선 의견 보내기
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--secondary"
+                        id="btn-quiz-ai-toggle"
+                        aria-expanded="false"
+                        aria-controls="quiz-ai-panel"
+                      >
+                        엘리에게 물어보기(AI)
+                      </button>
+                      <button type="button" class="btn btn--ticket btn--ticket-ask" id="btn-ticket-ask">
+                        변호사에게 물어보기
+                      </button>
+                    </div>
                     <div id="quiz-ai-panel" class="quiz-ai-panel" hidden>
                       <label class="field">
-                        <span class="field__label">Gemini에게 질문 (문항·해설 맥락이 함께 전달됩니다)</span>
+                        <span class="field__label">엘리(AI)에게 질문 (문항·해설 맥락이 함께 전달됩니다)</span>
                         <textarea
                           id="quiz-ai-question"
                           class="input textarea"
@@ -262,23 +550,22 @@
                       <div id="quiz-ai-answer" class="quiz-ai-answer" hidden role="region" aria-label="AI 답변"></div>
                     </div>
                   </div>
-                  <div class="feedback__fav-row">
-                    <button
-                      type="button"
-                      id="btn-quiz-favorite"
-                      class="btn btn--outline btn--quiz-fav"
-                      hidden
-                      aria-pressed="false"
-                    >
-                      찜하기
-                    </button>
-                  </div>
-                  <button type="button" id="btn-next" class="btn btn--primary">다음 문제</button>
                 </div>
-                <div class="quiz-ticket-row" id="quiz-ticket-row">
-                  <button type="button" class="btn btn--ticket btn--ticket-report" id="btn-ticket-report">오류 신고하기</button>
-                  <button type="button" class="btn btn--ticket btn--ticket-ask" id="btn-ticket-ask">질문하기</button>
-                  <button type="button" class="btn btn--ticket btn--ticket-ask" id="btn-ticket-promo">홍보 인증 신청</button>
+                  <div class="quiz-nav-bottom-row" role="group" aria-label="문제 이동" hidden>
+                    <button type="button" id="btn-quiz-prev-bottom" class="btn btn--secondary btn--quiz-bottom-nav">
+                      이전 문제
+                    </button>
+                    <button type="button" id="btn-next" class="btn btn--primary btn--quiz-bottom-nav">다음 문제</button>
+                  </div>
+                </div>
+                  <button
+                    type="button"
+                    class="quiz-nav-side quiz-nav-side--next"
+                    id="btn-quiz-nav-next"
+                    aria-label="다음 문제"
+                  >
+                    <span class="quiz-nav-side__icon" aria-hidden="true">›</span>
+                  </button>
                 </div>
               </section>
 
@@ -291,6 +578,40 @@
                 </div>
               </section>
             </main>
+          </div>
+
+          <div id="panel-qa" class="panel" hidden>
+            <div class="card card--qa">
+              <h2 class="card__title">Q&amp;A</h2>
+              <p class="dict-lead">
+                변호사에게 질문한 내용이 공개됩니다. 검색으로 다른 회원의 질문·답변 본문에 포함된 키워드를 찾을 수 있습니다.
+                항목을 누르면 변호사 답변을 확인할 수 있습니다. 다른 회원이 답변을
+                <strong>처음</strong> 열람할 때마다 질문을 올린 분에게 출석 포인트 500점이 지급됩니다.
+              </p>
+              <div class="public-qa-search">
+                <label class="field field--grow public-qa-search__field">
+                  <span class="field__label">질문·답변 검색</span>
+                  <input
+                    type="search"
+                    id="public-qa-search-input"
+                    class="input"
+                    placeholder="키워드 (질문 또는 답변 본문, 2글자 이상)"
+                    autocomplete="off"
+                    enterkeyhint="search"
+                  />
+                </label>
+                <button type="button" class="btn btn--primary" id="public-qa-search-btn">검색</button>
+                <button type="button" class="btn btn--outline btn--small" id="public-qa-search-clear" hidden>
+                  전체 목록
+                </button>
+              </div>
+              <p id="public-qa-search-status" class="public-qa-search-status" hidden aria-live="polite"></p>
+              <p id="public-qa-login-hint" class="public-qa-login-hint" hidden>
+                질문 목록은 누구나 볼 수 있습니다. 변호사 답변을 열람하려면 로그인해 주세요.
+              </p>
+              <div id="public-qa-list" class="public-qa-list" aria-live="polite"></div>
+              <p id="public-qa-empty" class="public-qa-empty" hidden>아직 공개된 질문이 없습니다.</p>
+            </div>
           </div>
 
           <div id="panel-dict" class="panel" hidden>
@@ -309,6 +630,271 @@
                 <p class="quiz-ai-loading__quote" id="dict-term-ai-loading-quote"></p>
               </div>
               <div id="dict-term-results" class="dict-results" aria-live="polite"></div>
+              <div class="dict-panel-foot quiz-ai-ask" id="dict-term-panel-foot">
+                <p class="quiz-ai-ask__remain dict-panel-ai-remain" id="dict-term-ai-remain" aria-live="polite"></p>
+                <div class="quiz-post-actions__toolbar dict-post-toolbar" role="group" aria-label="용어사전 항목 동작">
+                  <button
+                    type="button"
+                    class="btn btn--secondary"
+                    id="dict-term-eli-toggle"
+                    aria-expanded="false"
+                    aria-controls="dict-term-eli-panel"
+                  >
+                    엘리에게 물어보기(AI)
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-term-ticket-ask">
+                    변호사에게 물어보기
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-term-ticket-report">
+                    오류 신고하기
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-suggestion" id="dict-term-ticket-suggestion">
+                    개선하기
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--outline btn--small"
+                    id="dict-term-memo-toggle"
+                    aria-expanded="false"
+                    aria-controls="dict-term-memo-panel"
+                  >
+                    메모
+                  </button>
+                </div>
+                <div id="dict-term-eli-panel" class="quiz-ai-panel dict-ai-panel" hidden>
+                  <label class="field">
+                    <span class="field__label">엘리(AI)에게 질문 (현재 표시된 사전 항목 맥락이 함께 전달됩니다)</span>
+                    <textarea
+                      id="dict-term-eli-question"
+                      class="input textarea"
+                      rows="3"
+                      maxlength="800"
+                      placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다."
+                    ></textarea>
+                  </label>
+                  <button type="button" class="btn btn--primary" id="dict-term-eli-send">질문 보내기</button>
+                  <p id="dict-term-eli-error" class="admin-msg admin-msg--error quiz-ai-error" hidden></p>
+                  <div id="dict-term-eli-loading" class="quiz-ai-loading" hidden aria-live="polite" aria-busy="true">
+                    <p class="quiz-ai-loading__status">답변 생성 중…</p>
+                    <p class="quiz-ai-loading__quote" id="dict-term-eli-loading-quote"></p>
+                  </div>
+                  <div id="dict-term-eli-answer" class="quiz-ai-answer dict-ai-answer" hidden role="region" aria-label="AI 답변"></div>
+                </div>
+                <div id="dict-term-memo-panel" class="dict-memo-panel" hidden>
+                  <label class="field">
+                    <span class="field__label">텍스트 메모 (현재 표시된 항목에 연결)</span>
+                    <textarea
+                      id="dict-term-memo-text"
+                      class="input textarea"
+                      rows="4"
+                      maxlength="8000"
+                      placeholder="암기 팁·정리·의문점 등을 적어 보세요."
+                      autocomplete="off"
+                    ></textarea>
+                  </label>
+                  <div class="dict-memo-draw">
+                    <p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>
+                    <div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">
+                      <button
+                        type="button"
+                        class="btn btn--outline btn--small quiz-memo__split-actions-btn"
+                        id="dict-term-memo-draw-settings-toggle"
+                        aria-expanded="false"
+                        aria-controls="dict-term-memo-draw-settings"
+                      >
+                        펜·지우개 설정
+                      </button>
+                      <button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" id="dict-term-memo-clear-canvas">
+                        전부 지우기
+                      </button>
+                    </div>
+                    <div id="dict-term-memo-draw-settings" class="quiz-memo__draw-settings" hidden>
+                      <div class="quiz-memo__tool-row">
+                        <span class="quiz-memo__tool-label">도구</span>
+                        <div class="quiz-memo__tool-pills" role="group" aria-label="펜 또는 지우개">
+                          <button
+                            type="button"
+                            class="quiz-memo__tool-btn quiz-memo__tool-btn--active"
+                            id="dict-term-memo-tool-pen"
+                            aria-pressed="true"
+                          >
+                            펜
+                          </button>
+                          <button type="button" class="quiz-memo__tool-btn" id="dict-term-memo-tool-eraser" aria-pressed="false">
+                            지우개
+                          </button>
+                        </div>
+                      </div>
+                      <div class="quiz-memo__tool-row quiz-memo__tool-row--grow">
+                        <label class="quiz-memo__tool-field">
+                          <span class="quiz-memo__tool-field-label">색</span>
+                          <input type="color" id="dict-term-memo-pen-color" class="quiz-memo__color-input" value="#cbd5e1" />
+                        </label>
+                        <label class="quiz-memo__tool-field">
+                          <span class="quiz-memo__tool-field-label">굵기</span>
+                          <select id="dict-term-memo-pen-width" class="select quiz-memo__width-select">
+                            <option value="2">가늘게</option>
+                            <option value="4" selected>보통</option>
+                            <option value="7">굵게</option>
+                            <option value="12">아주 굵게</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                    <p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>
+                    <canvas id="dict-term-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="720" height="280"></canvas>
+                  </div>
+                  <div class="dict-memo-panel__actions">
+                    <button type="button" class="btn btn--secondary btn--small" id="dict-term-memo-save">메모 저장</button>
+                    <span id="dict-term-memo-msg" class="dict-memo-panel__msg" hidden role="status"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="panel-statutes" class="panel" hidden>
+            <div class="card card--dict">
+              <h2 class="card__title">조문사전</h2>
+              <p class="dict-lead">
+                법령명·조문번호·본문 키워드로 검색하면 앱에 수록된 조문 전문을 볼 수 있습니다. 시험 전에는
+                <a href="https://www.law.go.kr" target="_blank" rel="noopener noreferrer">국가법령정보센터</a>에서
+                현행 법령을 확인하세요.
+              </p>
+              <div class="dict-search-row">
+                <label class="field field--grow">
+                  <span class="field__label">법령·조문·키워드</span>
+                  <input
+                    type="search"
+                    id="statute-article-query"
+                    class="input"
+                    placeholder="예: 행정소송법 12조 · 원고적격 · 제소기간"
+                    autocomplete="off"
+                  />
+                </label>
+                <button type="button" class="btn btn--primary" id="statute-search-btn">조회</button>
+              </div>
+              <div id="statute-search-results" class="dict-results dict-results--statutes" aria-live="polite"></div>
+              <div class="dict-panel-foot quiz-ai-ask" id="dict-statute-panel-foot">
+                <p class="quiz-ai-ask__remain dict-panel-ai-remain" id="dict-statute-ai-remain" aria-live="polite"></p>
+                <div class="quiz-post-actions__toolbar dict-post-toolbar" role="group" aria-label="조문사전 항목 동작">
+                  <button
+                    type="button"
+                    class="btn btn--secondary"
+                    id="dict-statute-eli-toggle"
+                    aria-expanded="false"
+                    aria-controls="dict-statute-eli-panel"
+                  >
+                    엘리에게 물어보기(AI)
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-statute-ticket-ask">
+                    변호사에게 물어보기
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-statute-ticket-report">
+                    오류 신고하기
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-suggestion" id="dict-statute-ticket-suggestion">
+                    개선하기
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--outline btn--small"
+                    id="dict-statute-memo-toggle"
+                    aria-expanded="false"
+                    aria-controls="dict-statute-memo-panel"
+                  >
+                    메모
+                  </button>
+                </div>
+                <div id="dict-statute-eli-panel" class="quiz-ai-panel dict-ai-panel" hidden>
+                  <label class="field">
+                    <span class="field__label">엘리(AI)에게 질문 (현재 표시된 조문 맥락이 함께 전달됩니다)</span>
+                    <textarea
+                      id="dict-statute-eli-question"
+                      class="input textarea"
+                      rows="3"
+                      maxlength="800"
+                      placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다."
+                    ></textarea>
+                  </label>
+                  <button type="button" class="btn btn--primary" id="dict-statute-eli-send">질문 보내기</button>
+                  <p id="dict-statute-eli-error" class="admin-msg admin-msg--error quiz-ai-error" hidden></p>
+                  <div id="dict-statute-eli-loading" class="quiz-ai-loading" hidden aria-live="polite" aria-busy="true">
+                    <p class="quiz-ai-loading__status">답변 생성 중…</p>
+                    <p class="quiz-ai-loading__quote" id="dict-statute-eli-loading-quote"></p>
+                  </div>
+                  <div id="dict-statute-eli-answer" class="quiz-ai-answer dict-ai-answer" hidden role="region" aria-label="AI 답변"></div>
+                </div>
+                <div id="dict-statute-memo-panel" class="dict-memo-panel" hidden>
+                  <label class="field">
+                    <span class="field__label">텍스트 메모 (현재 표시된 항목에 연결)</span>
+                    <textarea
+                      id="dict-statute-memo-text"
+                      class="input textarea"
+                      rows="4"
+                      maxlength="8000"
+                      placeholder="암기 팁·정리·의문점 등을 적어 보세요."
+                      autocomplete="off"
+                    ></textarea>
+                  </label>
+                  <div class="dict-memo-draw">
+                    <p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>
+                    <div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">
+                      <button
+                        type="button"
+                        class="btn btn--outline btn--small quiz-memo__split-actions-btn"
+                        id="dict-statute-memo-draw-settings-toggle"
+                        aria-expanded="false"
+                        aria-controls="dict-statute-memo-draw-settings"
+                      >
+                        펜·지우개 설정
+                      </button>
+                      <button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" id="dict-statute-memo-clear-canvas">
+                        전부 지우기
+                      </button>
+                    </div>
+                    <div id="dict-statute-memo-draw-settings" class="quiz-memo__draw-settings" hidden>
+                      <div class="quiz-memo__tool-row">
+                        <span class="quiz-memo__tool-label">도구</span>
+                        <div class="quiz-memo__tool-pills" role="group" aria-label="펜 또는 지우개">
+                          <button
+                            type="button"
+                            class="quiz-memo__tool-btn quiz-memo__tool-btn--active"
+                            id="dict-statute-memo-tool-pen"
+                            aria-pressed="true"
+                          >
+                            펜
+                          </button>
+                          <button type="button" class="quiz-memo__tool-btn" id="dict-statute-memo-tool-eraser" aria-pressed="false">
+                            지우개
+                          </button>
+                        </div>
+                      </div>
+                      <div class="quiz-memo__tool-row quiz-memo__tool-row--grow">
+                        <label class="quiz-memo__tool-field">
+                          <span class="quiz-memo__tool-field-label">색</span>
+                          <input type="color" id="dict-statute-memo-pen-color" class="quiz-memo__color-input" value="#cbd5e1" />
+                        </label>
+                        <label class="quiz-memo__tool-field">
+                          <span class="quiz-memo__tool-field-label">굵기</span>
+                          <select id="dict-statute-memo-pen-width" class="select quiz-memo__width-select">
+                            <option value="2">가늘게</option>
+                            <option value="4" selected>보통</option>
+                            <option value="7">굵게</option>
+                            <option value="12">아주 굵게</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                    <p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>
+                    <canvas id="dict-statute-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="720" height="280"></canvas>
+                  </div>
+                  <div class="dict-memo-panel__actions">
+                    <button type="button" class="btn btn--secondary btn--small" id="dict-statute-memo-save">메모 저장</button>
+                    <span id="dict-statute-memo-msg" class="dict-memo-panel__msg" hidden role="status"></span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -324,13 +910,189 @@
                 <button type="button" class="btn btn--primary" id="case-search-btn">조회</button>
               </div>
               <div id="case-search-results" class="dict-results dict-results--cases" aria-live="polite"></div>
+              <div class="dict-panel-foot quiz-ai-ask" id="dict-case-panel-foot">
+                <p class="quiz-ai-ask__remain dict-panel-ai-remain" id="dict-case-ai-remain" aria-live="polite"></p>
+                <div class="quiz-post-actions__toolbar dict-post-toolbar" role="group" aria-label="판례사전 항목 동작">
+                  <button
+                    type="button"
+                    class="btn btn--secondary"
+                    id="dict-case-eli-toggle"
+                    aria-expanded="false"
+                    aria-controls="dict-case-eli-panel"
+                  >
+                    엘리에게 물어보기(AI)
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-case-ticket-ask">
+                    변호사에게 물어보기
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-case-ticket-report">
+                    오류 신고하기
+                  </button>
+                  <button type="button" class="btn btn--ticket btn--ticket-suggestion" id="dict-case-ticket-suggestion">
+                    개선하기
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--outline btn--small"
+                    id="dict-case-memo-toggle"
+                    aria-expanded="false"
+                    aria-controls="dict-case-memo-panel"
+                  >
+                    메모
+                  </button>
+                </div>
+                <div id="dict-case-eli-panel" class="quiz-ai-panel dict-ai-panel" hidden>
+                  <label class="field">
+                    <span class="field__label">엘리(AI)에게 질문 (현재 표시된 판례 요지 맥락이 함께 전달됩니다)</span>
+                    <textarea
+                      id="dict-case-eli-question"
+                      class="input textarea"
+                      rows="3"
+                      maxlength="800"
+                      placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다."
+                    ></textarea>
+                  </label>
+                  <button type="button" class="btn btn--primary" id="dict-case-eli-send">질문 보내기</button>
+                  <p id="dict-case-eli-error" class="admin-msg admin-msg--error quiz-ai-error" hidden></p>
+                  <div id="dict-case-eli-loading" class="quiz-ai-loading" hidden aria-live="polite" aria-busy="true">
+                    <p class="quiz-ai-loading__status">답변 생성 중…</p>
+                    <p class="quiz-ai-loading__quote" id="dict-case-eli-loading-quote"></p>
+                  </div>
+                  <div id="dict-case-eli-answer" class="quiz-ai-answer dict-ai-answer" hidden role="region" aria-label="AI 답변"></div>
+                </div>
+                <div id="dict-case-memo-panel" class="dict-memo-panel" hidden>
+                  <label class="field">
+                    <span class="field__label">텍스트 메모 (현재 표시된 항목에 연결)</span>
+                    <textarea
+                      id="dict-case-memo-text"
+                      class="input textarea"
+                      rows="4"
+                      maxlength="8000"
+                      placeholder="암기 팁·정리·의문점 등을 적어 보세요."
+                      autocomplete="off"
+                    ></textarea>
+                  </label>
+                  <div class="dict-memo-draw">
+                    <p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>
+                    <div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">
+                      <button
+                        type="button"
+                        class="btn btn--outline btn--small quiz-memo__split-actions-btn"
+                        id="dict-case-memo-draw-settings-toggle"
+                        aria-expanded="false"
+                        aria-controls="dict-case-memo-draw-settings"
+                      >
+                        펜·지우개 설정
+                      </button>
+                      <button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" id="dict-case-memo-clear-canvas">
+                        전부 지우기
+                      </button>
+                    </div>
+                    <div id="dict-case-memo-draw-settings" class="quiz-memo__draw-settings" hidden>
+                      <div class="quiz-memo__tool-row">
+                        <span class="quiz-memo__tool-label">도구</span>
+                        <div class="quiz-memo__tool-pills" role="group" aria-label="펜 또는 지우개">
+                          <button
+                            type="button"
+                            class="quiz-memo__tool-btn quiz-memo__tool-btn--active"
+                            id="dict-case-memo-tool-pen"
+                            aria-pressed="true"
+                          >
+                            펜
+                          </button>
+                          <button type="button" class="quiz-memo__tool-btn" id="dict-case-memo-tool-eraser" aria-pressed="false">
+                            지우개
+                          </button>
+                        </div>
+                      </div>
+                      <div class="quiz-memo__tool-row quiz-memo__tool-row--grow">
+                        <label class="quiz-memo__tool-field">
+                          <span class="quiz-memo__tool-field-label">색</span>
+                          <input type="color" id="dict-case-memo-pen-color" class="quiz-memo__color-input" value="#cbd5e1" />
+                        </label>
+                        <label class="quiz-memo__tool-field">
+                          <span class="quiz-memo__tool-field-label">굵기</span>
+                          <select id="dict-case-memo-pen-width" class="select quiz-memo__width-select">
+                            <option value="2">가늘게</option>
+                            <option value="4" selected>보통</option>
+                            <option value="7">굵게</option>
+                            <option value="12">아주 굵게</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                    <p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>
+                    <canvas id="dict-case-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="720" height="280"></canvas>
+                  </div>
+                  <div class="dict-memo-panel__actions">
+                    <button type="button" class="btn btn--secondary btn--small" id="dict-case-memo-save">메모 저장</button>
+                    <span id="dict-case-memo-msg" class="dict-memo-panel__msg" hidden role="status"></span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           <div id="panel-wrong" class="panel" hidden>
-            <div class="card card--placeholder">
+            <div class="card card--wrong-note">
               <h2 class="card__title">오답노트</h2>
-              <p class="placeholder-text">퀴즈에서 틀린 문항이 자동으로 쌓이는 공간입니다. 로그인 사용자 기준 저장 기능은 추후 연동할 수 있습니다.</p>
+              <p class="wrong-note-lead">
+                본 퀴즈에서 <strong>오답</strong>으로 제출한 문항이 자동으로 쌓입니다. 같은 문항을 다시 틀리면 목록 맨 위로 올라옵니다. 목록에서는 문제만 보이며, O/X를 고르면 정답·해설이 나옵니다. 무료 회원은 최근 100개만 표시되고(저장은 최대 1000개), 유료 회원은 최대 1000개까지 볼 수 있습니다. 데이터는 이 브라우저와 로그인 계정별로 저장됩니다.
+              </p>
+              <div class="note-panel-toolbar wrong-note-toolbar">
+                <div
+                  class="note-sort-bar"
+                  id="wrong-note-sort-bar"
+                  role="group"
+                  aria-label="오답 목록 정렬"
+                >
+                  <span class="note-sort-bar__label">정렬</span>
+                  <div class="note-sort-bar__btns">
+                    <button
+                      type="button"
+                      class="btn btn--small btn--primary note-sort-bar__btn"
+                      data-note-sort="timeDesc"
+                      aria-pressed="true"
+                      title="저장 순서: 최근 오답부터"
+                    >
+                      최신순
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="timeAsc"
+                      aria-pressed="false"
+                      title="저장 순서: 먼저 쌓인 오답부터"
+                    >
+                      오래된순
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="importanceDesc"
+                      aria-pressed="false"
+                      title="중요도 별 높은 문항부터"
+                    >
+                      중요도↑
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="difficultyDesc"
+                      aria-pressed="false"
+                      title="난이도 별 높은 문항부터"
+                    >
+                      난이도↑
+                    </button>
+                  </div>
+                </div>
+                <button type="button" class="btn btn--small btn--outline" id="wrong-note-clear">전체 비우기</button>
+              </div>
+              <p id="wrong-note-limit-banner" class="note-limit-banner" hidden role="status"></p>
+              <p id="wrong-note-empty" class="wrong-note-empty-msg">
+                아직 오답으로 저장된 문항이 없습니다. 퀴즈를 풀고 오답이면 여기에 표시됩니다.
+              </p>
+              <div id="wrong-note-list" class="wrong-note-list" aria-label="오답 문항 목록"></div>
             </div>
           </div>
 
@@ -338,11 +1100,58 @@
             <div class="card card--fav-note">
               <h2 class="card__title">찜노트</h2>
               <p class="fav-note-lead">
-                퀴즈에서 정답·해설을 확인한 뒤 찜하기로 모아 두면 여기서 복습할 수 있습니다. 데이터는 이 브라우저와 로그인 계정별로 저장됩니다.
+                퀴즈에서 해설을 본 뒤 찜하기로 모아 두면 여기서 다시 풀 수 있습니다. 목록에는 문제만 보이며, O/X 후 정답·해설이 나옵니다. 무료 회원은 최근 100개만 표시되고(저장은 최대 1000개), 유료 회원은 최대 1000개까지 열람할 수 있습니다. 데이터는 이 브라우저와 로그인 계정별로 저장됩니다.
               </p>
-              <div class="fav-note-toolbar">
+              <div class="note-panel-toolbar fav-note-toolbar">
+                <div
+                  class="note-sort-bar"
+                  id="fav-note-sort-bar"
+                  role="group"
+                  aria-label="찜 목록 정렬"
+                >
+                  <span class="note-sort-bar__label">정렬</span>
+                  <div class="note-sort-bar__btns">
+                    <button
+                      type="button"
+                      class="btn btn--small btn--primary note-sort-bar__btn"
+                      data-note-sort="timeDesc"
+                      aria-pressed="true"
+                      title="저장 순서: 최근 찜부터"
+                    >
+                      최신순
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="timeAsc"
+                      aria-pressed="false"
+                      title="저장 순서: 먼저 찜한 문항부터"
+                    >
+                      오래된순
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="importanceDesc"
+                      aria-pressed="false"
+                      title="중요도 별 높은 문항부터"
+                    >
+                      중요도↑
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="difficultyDesc"
+                      aria-pressed="false"
+                      title="난이도 별 높은 문항부터"
+                    >
+                      난이도↑
+                    </button>
+                  </div>
+                </div>
                 <button type="button" class="btn btn--small btn--outline" id="fav-note-clear">전체 비우기</button>
               </div>
+              <p id="fav-note-limit-banner" class="note-limit-banner" hidden role="status"></p>
               <p id="fav-note-empty" class="fav-note-empty-msg">
                 아직 찜한 문항이 없습니다. 퀴즈를 풀고 해설을 본 다음 찜하기를 눌러 보세요.
               </p>
@@ -350,59 +1159,161 @@
             </div>
           </div>
 
+          <div id="panel-master" class="panel" hidden>
+            <div class="card card--master-note">
+              <h2 class="card__title">마스터 노트</h2>
+              <p class="master-note-lead">
+                퀴즈에서 해설을 본 뒤 <strong>마스터</strong>로 표시한 문항은, 시험·연도·주제를 어떻게 고르든 <strong>일반 퀴즈 세트에 다시 나오지 않습니다</strong>. 여기서 목록을 확인하고 연습하거나 마스터를 해제할 수 있습니다. 무료 회원은 최근 100개만 표시되고(저장은 최대 1000개), 유료 회원은 최대 1000개까지 열람할 수 있습니다.
+              </p>
+              <div class="note-panel-toolbar master-note-toolbar">
+                <div
+                  class="note-sort-bar"
+                  id="master-note-sort-bar"
+                  role="group"
+                  aria-label="마스터 목록 정렬"
+                >
+                  <span class="note-sort-bar__label">정렬</span>
+                  <div class="note-sort-bar__btns">
+                    <button
+                      type="button"
+                      class="btn btn--small btn--primary note-sort-bar__btn"
+                      data-note-sort="timeDesc"
+                      aria-pressed="true"
+                      title="최근 마스터한 문항부터"
+                    >
+                      최신순
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="timeAsc"
+                      aria-pressed="false"
+                      title="먼저 마스터한 문항부터"
+                    >
+                      오래된순
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="importanceDesc"
+                      aria-pressed="false"
+                      title="중요도 별 높은 문항부터"
+                    >
+                      중요도↑
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--small btn--outline note-sort-bar__btn"
+                      data-note-sort="difficultyDesc"
+                      aria-pressed="false"
+                      title="난이도 별 높은 문항부터"
+                    >
+                      난이도↑
+                    </button>
+                  </div>
+                </div>
+                <button type="button" class="btn btn--small btn--outline" id="master-note-clear">전체 해제</button>
+              </div>
+              <p id="master-note-limit-banner" class="note-limit-banner" hidden role="status"></p>
+              <p id="master-note-empty" class="master-note-empty-msg">
+                아직 마스터한 문항이 없습니다. 퀴즈에서 해설을 본 뒤 마스터를 눌러 보세요.
+              </p>
+              <div id="master-note-list" class="master-note-list" aria-label="마스터한 문항 목록"></div>
+            </div>
+          </div>
+
+          <div id="panel-trash" class="panel" hidden>
+            <div class="card card--trash-note">
+              <h2 class="card__title">휴지통</h2>
+              <p class="trash-note-lead">
+                오답노트·찜노트에서 해제한 문항이 자동으로 보관됩니다. <strong>30일</strong>이 지나면 자동 삭제됩니다.
+              </p>
+              <div class="trash-note-toolbar">
+                <button type="button" class="btn btn--small btn--outline" id="trash-note-clear">휴지통 비우기</button>
+              </div>
+              <p id="trash-note-empty" class="trash-note-empty-msg">
+                휴지통이 비어 있습니다.
+              </p>
+              <div id="trash-note-list" class="trash-note-list" aria-label="휴지통 문항 목록"></div>
+            </div>
+          </div>
+
           <div id="panel-pricing" class="panel" hidden>
             <div class="card card--pricing-intro">
-              <h2 class="card__title">구독 요금제</h2>
+              <h2 class="card__title">요금제</h2>
               <p class="pricing-lead">
-                해외 결제는 <a href="https://creem.io" class="pricing-link" target="_blank" rel="noopener noreferrer">Creem</a>(USD),
-                국내 원화는 <strong>PayApp</strong>으로 선택할 수 있습니다. Creem 링크는 <code class="pricing-code">js/creem-config.js</code>,
-                PayApp 금액은 Functions <code class="pricing-code">PAYAPP_KRW_SUB_*</code> 와 맞춰 주세요.
+                자동 결제 없이 선택한 기간만큼만 이용할 수 있습니다. 이미 유료 이용 중이면 만료일 다음부터 이어서 적용됩니다.
+                1·3·6개월 금액은 Functions <code class="pricing-code">PAYAPP_KRW_NONRENEW_1M</code> ·
+                <code class="pricing-code">PAYAPP_KRW_NONRENEW_3M</code> · <code class="pricing-code">PAYAPP_KRW_NONRENEW_6M</code>,
+                1년·2년(일회 결제)은 <code class="pricing-code">PAYAPP_KRW_SUB_YEARLY</code> · <code class="pricing-code">PAYAPP_KRW_SUB_TWO_YEAR</code> 및
+                <code class="pricing-code">js/payapp-config.js</code> 와 맞춰 주세요.
               </p>
             </div>
             <div class="pricing-grid">
               <article class="pricing-card">
-                <h3 class="pricing-card__name">월 구독</h3>
-                <p class="pricing-card__prices-dual">
-                  <span class="pricing-card__price-part"
-                    ><span class="pricing-card__currency">$</span>7</span
-                  ><span class="pricing-card__price-sep" aria-hidden="true">·</span
-                  ><span class="pricing-card__price-part">₩10,000</span>
+                <h3 class="pricing-card__name">1개월</h3>
+                <p class="pricing-card__price-was pricing-card__price-was--empty" aria-hidden="true">
+                  <span class="pricing-card__price-was-ghost">₩00,000</span>
                 </p>
-                <p class="pricing-card__period">매월 · Creem(USD) 또는 PayApp(원)</p>
-                <p class="pricing-card__note">유연하게 이용 후 해지할 수 있습니다.</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩15,000</p>
+                <p class="pricing-card__discount-label pricing-card__discount-label--empty" aria-hidden="true">
+                  <span class="pricing-card__discount-ghost">정가 ₩00,000 대비 00% 할인</span>
+                </p>
+                <p class="pricing-card__period">1개월 · PayApp</p>
+                <p class="pricing-card__note">단기 집중 학습에 적합합니다.</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--creem" data-creem-tier="monthly">Creem에서 결제</button>
-                  <button type="button" class="btn btn--payapp" data-payapp-sub="monthly">PayApp으로 결제</button>
+                  <button type="button" class="btn btn--payapp" data-payapp-sub="nonrenew1m">PayApp으로 결제</button>
                 </div>
               </article>
               <article class="pricing-card">
-                <h3 class="pricing-card__name">연 구독</h3>
-                <p class="pricing-card__prices-dual">
-                  <span class="pricing-card__price-part"
-                    ><span class="pricing-card__currency">$</span>70</span
-                  ><span class="pricing-card__price-sep" aria-hidden="true">·</span
-                  ><span class="pricing-card__price-part">₩100,000</span>
-                </p>
-                <p class="pricing-card__period">1년 · Creem(USD) 또는 PayApp(원)</p>
-                <p class="pricing-card__note">월 환산 약 $5.83 — 월간 대비 절약.</p>
+                <span class="pricing-card__badge">5% 할인</span>
+                <h3 class="pricing-card__name">3개월</h3>
+                <p class="pricing-card__price-was" aria-hidden="true">₩45,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩42,750</p>
+                <p class="pricing-card__discount-label">정가 ₩45,000 대비 5% 할인</p>
+                <p class="pricing-card__period">3개월 · PayApp</p>
+                <p class="pricing-card__note">중기 플랜입니다.</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--creem" data-creem-tier="yearly">Creem에서 결제</button>
+                  <button type="button" class="btn btn--payapp" data-payapp-sub="nonrenew3m">PayApp으로 결제</button>
+                </div>
+              </article>
+              <article class="pricing-card pricing-card--featured">
+                <span class="pricing-card__badge">10% 할인</span>
+                <h3 class="pricing-card__name">6개월</h3>
+                <p class="pricing-card__price-was" aria-hidden="true">₩90,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩81,000</p>
+                <p class="pricing-card__discount-label">정가 ₩90,000 대비 10% 할인</p>
+                <p class="pricing-card__period">6개월 · PayApp</p>
+                <p class="pricing-card__note">장기 이용에 유리합니다.</p>
+                <div class="pricing-card__pay-actions">
+                  <button type="button" class="btn btn--payapp" data-payapp-sub="nonrenew6m">PayApp으로 결제</button>
+                </div>
+              </article>
+              <article class="pricing-card">
+                <span class="pricing-card__badge">약 44% 할인</span>
+                <h3 class="pricing-card__name">1년</h3>
+                <p class="pricing-card__price-was" aria-hidden="true">₩180,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩100,000</p>
+                <p class="pricing-card__discount-label">
+                  정가 ₩180,000(월 ₩15,000×12) 대비 약 44% 할인
+                </p>
+                <p class="pricing-card__period">1년 이용 · 결제 1회 · PayApp</p>
+                <p class="pricing-card__note">자동 갱신 없이 1년치 이용 기간이 부여됩니다.</p>
+                <div class="pricing-card__pay-actions">
                   <button type="button" class="btn btn--payapp" data-payapp-sub="yearly">PayApp으로 결제</button>
                 </div>
               </article>
               <article class="pricing-card pricing-card--featured">
-                <span class="pricing-card__badge">가성비</span>
-                <h3 class="pricing-card__name">2년 구독</h3>
-                <p class="pricing-card__prices-dual">
-                  <span class="pricing-card__price-part"
-                    ><span class="pricing-card__currency">$</span>100</span
-                  ><span class="pricing-card__price-sep" aria-hidden="true">·</span
-                  ><span class="pricing-card__price-part">₩150,000</span>
+                <span class="pricing-card__badge">약 58% 할인</span>
+                <h3 class="pricing-card__name">2년</h3>
+                <p class="pricing-card__price-was" aria-hidden="true">₩360,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩150,000</p>
+                <p class="pricing-card__discount-label">
+                  정가 ₩360,000(월 ₩15,000×24) 대비 약 58% 할인
                 </p>
-                <p class="pricing-card__period">2년 · Creem(USD) 또는 PayApp(원)</p>
-                <p class="pricing-card__note">월 환산 약 $4.17 — 장기 학습에 유리합니다.</p>
+                <p class="pricing-card__period">2년 이용 · 결제 1회 · PayApp</p>
+                <p class="pricing-card__note">자동 갱신 없이 2년치 이용 기간이 부여됩니다.</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--creem" data-creem-tier="twoYear">Creem에서 결제</button>
                   <button type="button" class="btn btn--payapp" data-payapp-sub="twoYear">PayApp으로 결제</button>
                 </div>
               </article>
@@ -412,11 +1323,9 @@
               <div class="card card--pricing-intro">
                 <h2 class="card__title">질문권</h2>
                 <p class="pricing-lead">
-                  문항에 대한 질문하기는 질문권 1건이 소모됩니다. 오류 신고는 질문권 없이 이용할 수 있습니다.
-                  해외 결제는 <a href="https://creem.io" class="pricing-link" target="_blank" rel="noopener noreferrer">Creem</a>(USD) 웹훅으로,
-                  국내 원화는 <strong>PayApp</strong> 결제 통보로 지갑에 반영됩니다. 로그인이 필요하며, 구매분은 결제일로부터 1년 유효입니다.
-                  Creem 설정: <code class="pricing-code">js/creem-config.js</code> · PayApp 금액:
-                  <code class="pricing-code">PAYAPP_KRW_Q1</code> · <code class="pricing-code">PAYAPP_KRW_Q10</code> 및
+                  변호사에게 물어보기는 질문권 1건이 소모됩니다. 오류 신고는 질문권 없이 이용할 수 있습니다.
+                  <strong>PayApp</strong> 결제 완료 후 서버 피드백으로 지갑에 반영됩니다. 로그인이 필요하며, 구매분은 결제일로부터 1년 유효입니다.
+                  금액은 Functions <code class="pricing-code">PAYAPP_KRW_Q1</code> · <code class="pricing-code">PAYAPP_KRW_Q10</code> 및
                   <code class="pricing-code">js/payapp-config.js</code> 표시 문구를 맞춰 주세요.
                   <a href="https://docs.payapp.kr/dev_center01.html" class="pricing-link" target="_blank" rel="noopener noreferrer">PayApp 개발자 매뉴얼</a>
                 </p>
@@ -424,32 +1333,20 @@
               <div class="pricing-grid">
                 <article class="pricing-card">
                   <h3 class="pricing-card__name">질문권 1건</h3>
-                  <p class="pricing-card__prices-dual">
-                    <span class="pricing-card__price-part"
-                      ><span class="pricing-card__currency">$</span>2</span
-                    ><span class="pricing-card__price-sep" aria-hidden="true">·</span
-                    ><span class="pricing-card__price-part" id="payapp-price-q1">₩3,000</span>
-                  </p>
-                  <p class="pricing-card__period">1회 · Creem(USD) 또는 PayApp(원)</p>
-                  <p class="pricing-card__note">로그인 후 구매 시 Creem 결제 링크에 UID가 붙습니다.</p>
+                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-q1">₩3,000</p>
+                  <p class="pricing-card__period">1회 · PayApp</p>
+                  <p class="pricing-card__note">로그인 후 결제 시 서버로 사용자 정보가 전달됩니다.</p>
                   <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--creem" data-creem-tier="q1">Creem에서 결제</button>
                     <button type="button" class="btn btn--payapp" data-payapp-pack="1">PayApp으로 결제</button>
                   </div>
                 </article>
                 <article class="pricing-card pricing-card--featured">
                   <span class="pricing-card__badge">추천</span>
                   <h3 class="pricing-card__name">질문권 10건</h3>
-                  <p class="pricing-card__prices-dual">
-                    <span class="pricing-card__price-part"
-                      ><span class="pricing-card__currency">$</span>10</span
-                    ><span class="pricing-card__price-sep" aria-hidden="true">·</span
-                    ><span class="pricing-card__price-part" id="payapp-price-q10">₩15,000</span>
-                  </p>
-                  <p class="pricing-card__period">10회 · Creem(USD) 또는 PayApp(원)</p>
-                  <p class="pricing-card__note">건당 $1 수준.</p>
+                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-q10">₩15,000</p>
+                  <p class="pricing-card__period">10회 · PayApp</p>
+                  <p class="pricing-card__note">건당 ₩1,500 수준.</p>
                   <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--creem" data-creem-tier="q10">Creem에서 결제</button>
                     <button type="button" class="btn btn--payapp" data-payapp-pack="10">PayApp으로 결제</button>
                   </div>
                 </article>
@@ -459,14 +1356,11 @@
             <div class="card card--pricing-support">
               <h3 class="pricing-subtitle pricing-subtitle--tight">구독 해지·환불</h3>
               <p class="pricing-lead">
-                <strong>Creem</strong> 결제는 Creem 고객 포털에서 해지할 수 있습니다.
-                <strong>PayApp</strong> 원화 구독은 페이앱·판매자 정책에 따라 처리되며, 환불·변경은 아래 문의로 연락해 주세요.
+                <strong>PayApp</strong> 원화 결제는 페이앱·판매자 정책에 따라 해지·환불이 처리됩니다. 아래에서 안내를 확인하거나 문의해 주세요.
               </p>
               <div class="pricing-support-actions">
-                <button type="button" class="btn btn--secondary" id="btn-creem-customer-portal">
-                  구독·주문 관리(해지)
-                </button>
-                <button type="button" class="btn btn--outline" id="btn-creem-refund-contact">
+                <button type="button" class="btn btn--secondary" id="btn-payapp-docs">페이앱 결제 안내</button>
+                <button type="button" class="btn btn--outline" id="btn-payapp-refund-contact">
                   환불·결제 문의
                 </button>
               </div>
@@ -476,6 +1370,10 @@
           <div id="panel-dashboard" class="panel" hidden>
             <div class="card card--dashboard">
               <h2 class="card__title">대시보드</h2>
+              <h3 class="dashboard-subtitle">알림</h3>
+              <p class="dashboard-lead">문의·신고에 대한 답변은 아래 알림에서 확인할 수 있습니다.</p>
+              <div id="dashboard-notifications" class="dashboard-notifications"></div>
+
               <h3 class="dashboard-subtitle">회원 유형</h3>
               <p id="dashboard-membership" class="dashboard-membership">—</p>
               <p id="dashboard-membership-until" class="dashboard-membership-until" hidden></p>
@@ -483,24 +1381,14 @@
                 상세 해설(법리·함정·판례)은 유료 구독 시 이용할 수 있습니다.
                 <button type="button" class="btn btn--link" id="dashboard-goto-pricing">요금제 보기</button>
               </p>
-
-              <div id="dashboard-nickname-block" class="dashboard-nickname-block" hidden>
-                <h3 class="dashboard-subtitle">닉네임</h3>
+              <div id="dashboard-payapp-rebill-cancel-wrap" class="dashboard-rebill-cancel" hidden>
                 <p class="dashboard-lead">
-                  AI 퀴즈 답변·사전 생성·관리자 답변에서 사용할 호칭입니다. (최대 24자, 한글·영문·숫자 등)
+                  월 구독(PayApp 정기결제) 중이면 아래에서 해지할 수 있습니다. 해지 후에는 <strong>다음 자동 결제부터</strong> 청구되지 않으며,
+                  이미 결제된 이용 기간까지는 유료 혜택이 유지됩니다.
                 </p>
-                <div class="dashboard-nickname-row">
-                  <input
-                    type="text"
-                    id="dashboard-nickname"
-                    class="input"
-                    maxlength="24"
-                    autocomplete="nickname"
-                    placeholder="예: 행정법9급"
-                  />
-                  <button type="button" class="btn btn--secondary" id="btn-dashboard-nickname-save">저장</button>
-                </div>
-                <p id="dashboard-nickname-msg" class="dashboard-nickname-msg" hidden role="status"></p>
+                <button type="button" class="btn btn--outline" id="dashboard-payapp-rebill-cancel">
+                  정기결제(월 구독) 해지
+                </button>
               </div>
 
               <div id="dashboard-learning" class="dashboard-learning">
@@ -521,10 +1409,6 @@
                       <span id="dashboard-attendance-points" class="dashboard-stat-card__value">—</span>
                       <span class="dashboard-stat-card__unit">점</span>
                       <p class="dashboard-stat-card__hint">퀴즈 1문제 이상 풀면 그날 출석으로 인정되며 하루 1회 포인트가 쌓입니다. 3,000점이 모이면 아래 버튼으로 질문권 1건으로 바꿀 수 있습니다(전환한 시점부터 1년 유효).</p>
-                      <button type="button" class="btn btn--secondary btn--small dashboard-attendance-convert" id="btn-dashboard-attendance-convert" disabled>
-                        질문권 1건으로 전환 (3,000점 차감)
-                      </button>
-                      <p id="dashboard-attendance-convert-msg" class="dashboard-attendance-convert-msg" hidden role="status"></p>
                     </div>
                     <div class="dashboard-stat-card">
                       <span class="dashboard-stat-card__label">오늘 학습 시간</span>
@@ -553,43 +1437,179 @@
               </div>
 
               <h3 class="dashboard-subtitle">나의 신고·질문</h3>
-              <p class="dashboard-lead dashboard-inquiry-lead">
-                제출한 오류 신고·질문 내역을 확인할 수 있습니다. 답변은 아래 알림에도 표시됩니다.
-              </p>
-              <div class="dashboard-inquiry-actions">
-                <button type="button" class="btn btn--outline" id="dashboard-my-reports">
-                  나의 신고내역
-                </button>
-                <div class="dashboard-inquiry-question-block">
-                  <button type="button" class="btn btn--outline" id="dashboard-my-questions">
-                    나의 질문내역
+              <div class="dashboard-inquiry">
+                <p class="dashboard-lead dashboard-inquiry-lead">
+                  제출한 오류 신고·질문 내역을 확인할 수 있습니다. 답변은 아래 알림에도 표시됩니다.
+                </p>
+                <div class="dashboard-inquiry-tabs" role="tablist" aria-label="신고·질문 유형">
+                  <button
+                    type="button"
+                    role="tab"
+                    class="dashboard-inquiry-tab"
+                    id="dashboard-my-reports"
+                    aria-selected="false"
+                    data-filter="report"
+                  >
+                    <span class="dashboard-inquiry-tab__label">오류 신고</span>
+                    <span class="dashboard-inquiry-tab__hint">버그·오탈자 등</span>
                   </button>
-                  <button type="button" class="btn btn--secondary" id="dashboard-buy-question-credits">
-                    질문권 구매
+                  <button
+                    type="button"
+                    role="tab"
+                    class="dashboard-inquiry-tab"
+                    id="dashboard-my-questions"
+                    aria-selected="false"
+                    data-filter="question"
+                  >
+                    <span class="dashboard-inquiry-tab__label">변호사 질문</span>
+                    <span class="dashboard-inquiry-tab__hint">질문권으로 접수</span>
                   </button>
                 </div>
-              </div>
-              <div id="dashboard-tickets-drawer" class="dashboard-tickets-drawer" hidden>
-                <div class="dashboard-tickets-drawer__head">
-                  <h4 id="dashboard-tickets-drawer-title" class="dashboard-tickets-drawer__title"></h4>
-                  <button type="button" class="btn btn--ghost btn--small" id="dashboard-tickets-drawer-close" aria-label="목록 닫기">
-                    닫기
-                  </button>
+                <div id="dashboard-tickets-drawer" class="dashboard-tickets-drawer" hidden>
+                  <div class="dashboard-tickets-drawer__head">
+                    <div class="dashboard-tickets-drawer__head-main">
+                      <h4 id="dashboard-tickets-drawer-title" class="dashboard-tickets-drawer__title"></h4>
+                      <div class="dashboard-tickets-drawer__search">
+                        <label class="dashboard-sr-only" for="dashboard-tickets-search">이 목록에서 검색</label>
+                        <input
+                          type="search"
+                          id="dashboard-tickets-search"
+                          class="input dashboard-tickets-search-input"
+                          placeholder="키워드 검색 (질문·답변·퀴즈 지문)"
+                          autocomplete="off"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--small dashboard-tickets-drawer__close"
+                      id="dashboard-tickets-drawer-close"
+                    >
+                      접기
+                    </button>
+                  </div>
+                  <div id="dashboard-tickets-drawer-list" class="dashboard-tickets-drawer__list" aria-live="polite"></div>
                 </div>
-                <div id="dashboard-tickets-drawer-list" class="dashboard-tickets-drawer__list" aria-live="polite"></div>
               </div>
 
               <h3 class="dashboard-subtitle">질문권</h3>
+              <p id="dashboard-question-credits-total" class="dashboard-question-credits">보유 질문권: —건</p>
               <p id="dashboard-question-credits" class="dashboard-question-credits">—</p>
               <p class="dashboard-lead dashboard-question-credits-hint">
                 유료 구독: 매월 4건(한국시간 월 단위, 매월 1일 기준으로 리셋). 추가 구매분은 결제일로부터 1년간 유효하며, 유료 회원도 구매할 수 있습니다.
               </p>
+              <div class="dashboard-question-actions">
+                <button type="button" class="btn btn--secondary btn--small dashboard-attendance-convert" id="btn-dashboard-attendance-convert" disabled>
+                  질문권 1건 전환 (3,000점 차감)
+                </button>
+                <button type="button" class="btn btn--outline btn--small" id="dashboard-buy-question-credits">
+                  질문권 구매
+                </button>
+              </div>
+              <p id="dashboard-attendance-convert-msg" class="dashboard-attendance-convert-msg" hidden role="status"></p>
               <p class="dashboard-lead">
                 <button type="button" class="btn btn--link" id="dashboard-goto-question-packs">질문권 구매(요금제)</button>
               </p>
-              <p class="dashboard-lead">문의·신고에 대한 답변은 아래 알림에서 확인할 수 있습니다.</p>
-              <h3 class="dashboard-subtitle">알림</h3>
-              <div id="dashboard-notifications" class="dashboard-notifications"></div>
+            </div>
+          </div>
+
+          <div id="panel-settings" class="panel" hidden>
+            <div class="card card--settings">
+              <h2 class="card__title">앱 설정</h2>
+
+              <section
+                id="settings-nickname-block"
+                class="settings-block settings-nickname-block"
+                aria-labelledby="settings-nickname-title"
+              >
+                <h3 id="settings-nickname-title" class="settings-block__title">닉네임</h3>
+                <p id="settings-nickname-guest-hint" class="settings-block__hint settings-nickname-guest-hint" hidden>
+                  <strong>로그인</strong>하면 여기에서 닉네임을 저장할 수 있습니다. (저장 전에는 상단 인사말이 <strong>사용자 님</strong>으로 표시됩니다.)
+                </p>
+                <p id="settings-nickname-hint-loggedin" class="settings-block__hint" hidden>
+                  상단 인사말·AI 퀴즈·사전·관리자 답변 등에서 사용할 호칭입니다. (최대 24자, 한글·영문·숫자 등)<br />
+                  <strong>변경</strong>: 입력 후 저장 · <strong>삭제</strong>: 현재 닉네임 오른쪽 휴지통 버튼. 없으면 <strong>사용자</strong>로 불립니다.
+                </p>
+                <div class="settings-nickname-row">
+                  <input
+                    type="text"
+                    id="settings-nickname"
+                    class="input"
+                    maxlength="24"
+                    autocomplete="nickname"
+                    placeholder="예: 행정법9급"
+                    disabled
+                  />
+                  <button type="button" class="btn btn--secondary" id="btn-settings-nickname-save" disabled>저장</button>
+                </div>
+                <div class="settings-nickname-current-row">
+                  <span class="settings-nickname-current-label">현재 닉네임</span>
+                  <strong id="settings-nickname-current" class="settings-nickname-current-value">사용자</strong>
+                  <button type="button" class="settings-nickname-remove-btn" id="btn-settings-nickname-remove" disabled aria-label="현재 닉네임 삭제">
+                    <svg class="settings-trash-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                  </button>
+                </div>
+                <p id="settings-nickname-msg" class="settings-nickname-msg" hidden role="status"></p>
+              </section>
+
+              <section class="settings-block" aria-labelledby="settings-font-title">
+                <h3 id="settings-font-title" class="settings-block__title">글자 크기</h3>
+                <p class="settings-block__hint">앱 전체의 기본 글자 크기입니다. 브라우저 확대와 함께 쓸 수 있습니다. (이전 「매우 크게」에 가까운 크기가 「기본」입니다.)</p>
+                <div class="font-step-switch" role="group" aria-label="글자 크기">
+                  <button type="button" class="font-step-switch__btn" data-font-step="0" id="font-step-0" aria-pressed="false">작게</button>
+                  <button type="button" class="font-step-switch__btn" data-font-step="1" id="font-step-1" aria-pressed="true">기본</button>
+                  <button type="button" class="font-step-switch__btn" data-font-step="2" id="font-step-2" aria-pressed="false">조금 크게</button>
+                  <button type="button" class="font-step-switch__btn" data-font-step="3" id="font-step-3" aria-pressed="false">크게</button>
+                  <button type="button" class="font-step-switch__btn" data-font-step="4" id="font-step-4" aria-pressed="false">매우 크게</button>
+                  <button type="button" class="font-step-switch__btn" data-font-step="5" id="font-step-5" aria-pressed="false">가장 크게</button>
+                </div>
+              </section>
+
+              <section class="settings-block" aria-labelledby="settings-theme-title">
+                <h3 id="settings-theme-title" class="settings-block__title">화면 테마</h3>
+                <p class="settings-block__hint">다크 모드와 라이트 모드를 선택합니다.</p>
+                <div class="theme-switch theme-switch--settings" role="group" aria-label="화면 테마">
+                  <button type="button" class="theme-switch__btn" id="theme-btn-dark" aria-pressed="true">다크</button>
+                  <button type="button" class="theme-switch__btn" id="theme-btn-light" aria-pressed="false">라이트</button>
+                </div>
+              </section>
+
+              <section class="settings-block" aria-labelledby="settings-dday-title">
+                <h3 id="settings-dday-title" class="settings-block__title">D-DAY</h3>
+                <p class="settings-block__hint">
+                  시험명과 날짜를 최대 3개까지 저장할 수 있으며, 앱 상단에 D-DAY가 계속 표시됩니다.
+                </p>
+                <div class="settings-dday-row">
+                  <input type="text" id="settings-dday-name" class="input settings-dday-name" maxlength="40" placeholder="시험명 (예: 9급 국가직)" aria-label="시험명" />
+                  <input type="date" id="settings-dday-date" class="input settings-dday-input" aria-label="시험 날짜" />
+                  <button type="button" class="btn btn--secondary" id="btn-settings-dday-save">추가</button>
+                </div>
+                <p id="settings-dday-msg" class="settings-dday-msg" hidden role="status"></p>
+                <div id="settings-dday-list" class="settings-dday-list" aria-label="저장된 D-DAY 목록"></div>
+              </section>
+
+              <section class="settings-block" aria-labelledby="settings-my-quote-title">
+                <h3 id="settings-my-quote-title" class="settings-block__title">나의 명언</h3>
+                <p class="settings-block__hint">
+                  나만의 동기부여 문구를 최대 3개까지 저장할 수 있으며, 상단 명언 영역에 더 자주 표시됩니다.
+                </p>
+                <label class="field">
+                  <span class="field__label">명언 문구</span>
+                  <textarea
+                    id="settings-my-quote"
+                    class="input textarea"
+                    rows="3"
+                    maxlength="180"
+                    placeholder="예: 오늘의 한 문제는 내일의 합격을 만든다."
+                  ></textarea>
+                </label>
+                <div class="settings-dday-row">
+                  <button type="button" class="btn btn--secondary" id="btn-settings-my-quote-save">추가</button>
+                  <button type="button" class="btn btn--outline" id="btn-settings-my-quote-clear">전체 삭제</button>
+                </div>
+                <p id="settings-my-quote-msg" class="settings-dday-msg" hidden role="status"></p>
+                <div id="settings-my-quote-list" class="settings-dday-list" aria-label="저장된 나의 명언 목록"></div>
+              </section>
             </div>
           </div>
 
@@ -601,12 +1621,14 @@
                 콘솔에서 Firestore를 켜고, 프로젝트 루트의 <code class="pricing-code">firestore.rules</code>를 배포하세요.
                 접속 계정은 <code class="pricing-code">firebase-config.js</code>의 <code class="pricing-code">ADMIN_EMAILS</code>와 규칙의 이메일 목록을 맞춰야 합니다.
               </p>
-              <div class="admin-tabs">
-                <button type="button" class="admin-tab admin-tab--active" id="admin-tab-single">한 건 등록</button>
-                <button type="button" class="admin-tab" id="admin-tab-json">JSON 업로드</button>
-                <button type="button" class="admin-tab" id="admin-tab-excel">엑셀 업로드</button>
-                <button type="button" class="admin-tab" id="admin-tab-library">자료실</button>
-                <button type="button" class="admin-tab" id="admin-tab-inbox">문의·신고</button>
+              <div class="admin-tabs" role="tablist" aria-label="관리자 하위 메뉴">
+                <button type="button" class="admin-tab admin-tab--active" id="admin-tab-single" role="tab">한 건 등록</button>
+                <button type="button" class="admin-tab" id="admin-tab-quotes" role="tab">명언</button>
+                <button type="button" class="admin-tab" id="admin-tab-json" role="tab">JSON 업로드</button>
+                <button type="button" class="admin-tab" id="admin-tab-excel" role="tab">엑셀 업로드</button>
+                <button type="button" class="admin-tab" id="admin-tab-review" role="tab">검수·승인</button>
+                <button type="button" class="admin-tab" id="admin-tab-library" role="tab">자료실</button>
+                <button type="button" class="admin-tab" id="admin-tab-inbox" role="tab">문의·신고</button>
               </div>
               <div id="admin-panel-single">
                 <form id="admin-form-single" class="admin-form">
@@ -671,6 +1693,52 @@
                   <button type="submit" class="btn btn--primary">Firestore에 저장</button>
                 </form>
               </div>
+              <div id="admin-panel-quotes" class="admin-panel-quotes" hidden>
+                <p class="admin-json-help">
+                  상단 헤더에 돌아가는 명언을 관리합니다. 검수 대기에 올린 뒤 <strong>승인·앱 반영</strong>하면
+                  <code class="pricing-code">hanlaw_header_quotes/published</code>에 저장되어 모든 사용자 화면에 반영됩니다.
+                  AI 생성은 서버(Gemini)에서 수행되므로 <code class="pricing-code">firebase deploy --only functions</code>와
+                  <code class="pricing-code">GEMINI_API_KEY</code>가 필요합니다.
+                </p>
+                <div class="admin-quote-tools">
+                  <label class="field">
+                    <span class="field__label">직접 입력 (한 줄)</span>
+                    <textarea
+                      id="admin-quote-manual-input"
+                      class="input textarea"
+                      rows="2"
+                      maxlength="400"
+                      placeholder="검수 대기에 올릴 명언을 입력하세요."
+                    ></textarea>
+                  </label>
+                  <div class="admin-quote-tools__row">
+                    <button type="button" class="btn btn--secondary" id="admin-quote-btn-add-staging">검수 대기에 추가</button>
+                    <button type="button" class="btn btn--outline" id="admin-quote-btn-ai">AI로 명언 생성 (약 8개)</button>
+                    <button type="button" class="btn btn--ghost btn--small" id="admin-quote-btn-refresh-staging">목록 새로고침</button>
+                  </div>
+                </div>
+                <p id="admin-quote-staging-msg" class="admin-msg" role="status" hidden></p>
+                <h3 class="admin-library-heading">검수 대기</h3>
+                <div id="admin-quote-staging-list" class="admin-quote-staging-list" aria-live="polite"></div>
+                <h3 class="admin-library-heading">앱에 반영된 명언 (줄마다 한 문장)</h3>
+                <p class="admin-json-help">
+                  아래는 앱에 노출 중인 명언입니다. 삭제 후 <strong>목록 저장·앱 반영</strong>을 눌러야 서버에 반영됩니다. 개별 승인으로 쌓인 내용을 한 번에 정리할 때도 사용하세요.
+                </p>
+                <div class="field">
+                  <span class="field__label" id="admin-quote-published-label">현재 노출 목록</span>
+                  <div
+                    id="admin-quote-published-list"
+                    class="admin-quote-published-list"
+                    role="list"
+                    aria-labelledby="admin-quote-published-label"
+                  ></div>
+                </div>
+                <p id="admin-quote-published-msg" class="admin-msg" role="status" hidden></p>
+                <div class="admin-quote-tools__row">
+                  <button type="button" class="btn btn--primary" id="admin-quote-btn-save-published">목록 저장·앱 반영</button>
+                  <button type="button" class="btn btn--outline" id="admin-quote-btn-reload-published">서버에서 다시 불러오기</button>
+                </div>
+              </div>
               <div id="admin-panel-json" hidden>
                 <p class="admin-json-help">
                   UTF-8 JSON 배열 또는 단일 객체. 각 항목에 id, examId, year, topic, statement, answer(true/false), explanation 필수.
@@ -707,12 +1775,130 @@
                   여기에 엑셀 파일을 끌어다 놓아도 업로드할 수 있습니다.
                 </div>
                 <p id="admin-msg-excel" class="admin-msg" role="status" hidden></p>
-                <button type="button" class="btn btn--primary" id="admin-btn-excel-upload">업로드·Firestore 반영</button>
+                <button type="button" class="btn btn--primary" id="admin-btn-excel-upload">업로드·검수대기 등록</button>
+              </div>
+              <div id="admin-panel-review" class="admin-panel-review" hidden>
+                <p class="admin-json-help">
+                  엑셀/수정으로 들어온 문항을 검수한 뒤 승인하면 실제 퀴즈 데이터에 반영됩니다.
+                </p>
+                <div class="admin-excel-actions">
+                  <button type="button" class="btn btn--secondary" id="admin-review-refresh">목록 새로고침</button>
+                  <button type="button" class="btn btn--outline" id="admin-review-type-quiz" aria-pressed="true">퀴즈</button>
+                  <button type="button" class="btn btn--outline" id="admin-review-type-term" aria-pressed="false">용어사전</button>
+                  <button type="button" class="btn btn--outline" id="admin-review-type-case" aria-pressed="false">판례사전</button>
+                </div>
+                <div class="admin-review-layout">
+                  <div id="admin-review-list" class="admin-review-list"></div>
+                  <div id="admin-review-detail" class="admin-review-detail" hidden>
+                    <p id="admin-review-meta" class="admin-inbox-meta"></p>
+                    <div id="admin-review-form-quiz">
+                    <label class="field">
+                      <span class="field__label">문제 본문</span>
+                      <textarea id="admin-review-statement" class="input textarea" rows="4"></textarea>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">해설</span>
+                      <textarea id="admin-review-explanation" class="input textarea" rows="4"></textarea>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">기본 해설 (선택)</span>
+                      <textarea id="admin-review-explanation-basic" class="input textarea" rows="2"></textarea>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">상세 해설 · 법리 근거 (선택)</span>
+                      <textarea id="admin-review-detail-legal" class="input textarea" rows="2"></textarea>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">상세 해설 · 함정 포인트 (선택)</span>
+                      <textarea id="admin-review-detail-trap" class="input textarea" rows="2"></textarea>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">상세 해설 · 판례 요지 (선택)</span>
+                      <textarea id="admin-review-detail-precedent" class="input textarea" rows="2"></textarea>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">주제</span>
+                      <input type="text" id="admin-review-topic" class="input" />
+                    </label>
+                    <label class="field">
+                      <span class="field__label">태그 (쉼표 구분, 선택)</span>
+                      <input type="text" id="admin-review-tags" class="input" />
+                    </label>
+                    <div class="admin-row-2">
+                      <label class="field">
+                        <span class="field__label">중요도 (1~5, 선택)</span>
+                        <input type="number" id="admin-review-importance" class="input" min="1" max="5" />
+                      </label>
+                      <label class="field">
+                        <span class="field__label">난이도 (1~5, 선택)</span>
+                        <input type="number" id="admin-review-difficulty" class="input" min="1" max="5" />
+                      </label>
+                    </div>
+                    <label class="field">
+                      <span class="field__label">정답</span>
+                      <select id="admin-review-answer" class="select">
+                        <option value="true">O(참)</option>
+                        <option value="false">X(거짓)</option>
+                      </select>
+                    </label>
+                    </div>
+                    <div id="admin-review-form-term" hidden>
+                      <label class="field">
+                        <span class="field__label">용어</span>
+                        <input type="text" id="admin-review-term" class="input" />
+                      </label>
+                      <label class="field">
+                        <span class="field__label">관련어 (쉼표 구분)</span>
+                        <input type="text" id="admin-review-aliases" class="input" />
+                      </label>
+                      <label class="field">
+                        <span class="field__label">정의/설명</span>
+                        <textarea id="admin-review-definition" class="input textarea" rows="8"></textarea>
+                      </label>
+                    </div>
+                    <div id="admin-review-form-case" hidden>
+                      <label class="field">
+                        <span class="field__label">사건 표기 (citation)</span>
+                        <input type="text" id="admin-review-citation" class="input" />
+                      </label>
+                      <label class="field">
+                        <span class="field__label">제목</span>
+                        <input type="text" id="admin-review-case-title" class="input" />
+                      </label>
+                      <label class="field">
+                        <span class="field__label">사실관계</span>
+                        <textarea id="admin-review-facts" class="input textarea" rows="4"></textarea>
+                      </label>
+                      <label class="field">
+                        <span class="field__label">쟁점</span>
+                        <textarea id="admin-review-issues" class="input textarea" rows="3"></textarea>
+                      </label>
+                      <label class="field">
+                        <span class="field__label">법적 판단</span>
+                        <textarea id="admin-review-judgment" class="input textarea" rows="4"></textarea>
+                      </label>
+                      <label class="field">
+                        <span class="field__label">검색키(searchKeys, 쉼표 구분)</span>
+                        <input type="text" id="admin-review-search-keys" class="input" />
+                      </label>
+                      <label class="field">
+                        <span class="field__label">주제 키워드(topicKeywords, 쉼표 구분)</span>
+                        <input type="text" id="admin-review-topic-keywords" class="input" />
+                      </label>
+                    </div>
+                    <div class="admin-excel-actions">
+                      <button type="button" class="btn btn--secondary" id="admin-review-save">수정 저장</button>
+                      <button type="button" class="btn btn--primary" id="admin-review-approve">승인·반영</button>
+                      <button type="button" class="btn btn--outline" id="admin-review-reject">반려</button>
+                    </div>
+                    <p id="admin-review-msg" class="admin-msg" hidden></p>
+                  </div>
+                </div>
               </div>
               <div id="admin-panel-library" class="admin-panel-library" hidden>
                 <p class="admin-json-help">
-                  행정법 교과서·기출 해설·법령 개정·판례 관련 PDF를 올리면 서버에서 텍스트를 추출해 벡터 DB(Pinecone)에 저장합니다.
-                  퀴즈 <strong>AI 질문하기</strong> 답변 시 관련 발췌를 참고합니다. Functions 환경변수:
+                  행정법 교과서·기출 해설·법령 개정·판례 관련 <strong>PDF</strong> 또는 <strong>Excel(.xlsx)</strong>를 올리면 서버에서 텍스트를 추출해 벡터 DB(Pinecone)에 저장합니다.
+                  퀴즈 <strong>엘리에게 물어보기(AI)</strong> 답변 시 관련 발췌를 참고합니다. Functions 환경변수:
                   <code class="pricing-code">GEMINI_API_KEY</code>,
                   <code class="pricing-code">PINECONE_API_KEY</code>,
                   <code class="pricing-code">PINECONE_INDEX_NAME</code>
@@ -738,11 +1924,23 @@
                     <textarea id="admin-lib-desc" class="input textarea" rows="2" maxlength="2000" placeholder="목록에서 구분용 메모"></textarea>
                   </label>
                   <label class="field">
-                    <span class="field__label">PDF 파일</span>
-                    <input type="file" id="admin-lib-file" class="input" accept=".pdf,application/pdf" multiple />
+                    <span class="field__label">PDF / Excel (.xlsx)</span>
+                    <input
+                      type="file"
+                      id="admin-lib-file"
+                      class="input"
+                      accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      multiple
+                    />
                   </label>
-                  <div id="admin-library-dropzone" class="admin-excel-dropzone" role="button" tabindex="0" aria-label="PDF 파일 드래그 앤 드롭 영역">
-                    여기에 PDF 파일을 끌어다 놓아도 업로드할 수 있습니다. (여러 파일 동시 선택 가능)
+                  <div
+                    id="admin-library-dropzone"
+                    class="admin-excel-dropzone"
+                    role="button"
+                    tabindex="0"
+                    aria-label="PDF 또는 Excel 파일 드래그 앤 드롭 영역"
+                  >
+                    여기에 PDF·xlsx 파일을 끌어다 놓아도 업로드할 수 있습니다. (여러 파일 동시 선택 가능)
                   </div>
                   <p id="admin-msg-library" class="admin-msg" role="status" hidden></p>
                   <button type="button" class="btn btn--primary" id="admin-btn-library-upload">업로드·벡터 학습 시작</button>
@@ -752,7 +1950,8 @@
               </div>
               <div id="admin-panel-inbox" class="admin-inbox" hidden>
                 <p class="admin-inbox-intro">
-                  사용자의 오류 신고·질문이 접수됩니다. AI 초안 생성 후 답변을 검토·수정하고 승인하면 사용자에게 알림이 전달됩니다.
+                  사용자의 오류 신고·질문·개선 의견이 접수됩니다. AI 초안 생성 후 답변을 검토·수정하고 승인하면 사용자에게 알림이 전달됩니다.
+                  <strong>개선 의견</strong>은 채택 시 출석 포인트를 지급할 수 있으며(기본 3,000점), 승인은 <code class="pricing-code">adminApproveSuggestionTicket</code> Cloud Function으로 처리됩니다.
                   AI 초안은 Google Gemini를 쓰도록 설계되어 있습니다. 로그인·DB는 Firebase 콘솔이고, Gemini API 키는 서버에만 두고 <code class="pricing-code">js/ai-config.js</code>의 <code class="pricing-code">AI_DRAFT_ENDPOINT</code>(HTTPS, 예: Cloud Functions)로 연결하세요.
                 </p>
                 <button type="button" class="btn btn--secondary" id="admin-inbox-refresh">목록 새로고침</button>
@@ -771,6 +1970,45 @@
                     </label>
                     <button type="button" class="btn btn--secondary" id="admin-btn-ai-draft">AI 초안 생성·저장</button>
                     <p id="admin-inbox-msg-ai" class="admin-msg" hidden></p>
+                    <div id="admin-inbox-suggestion-opts" class="admin-inbox-suggestion-opts" hidden>
+                      <p class="admin-inbox-suggestion-opts__hint">
+                        개선 의견 티켓입니다. 답변만 보내려면 채택을 끄고, 아이디어를 채택해 포인트를 주려면 아래를 켠 뒤 금액을 조정하세요(기본 3,000점).
+                      </p>
+                      <label class="field admin-inbox-suggestion-opts__row">
+                        <input type="checkbox" id="admin-inbox-suggestion-adopt" />
+                        <span>아이디어 채택 및 출석 포인트 지급</span>
+                      </label>
+                      <label class="field">
+                        <span class="field__label">지급 포인트 (채택 시)</span>
+                        <input
+                          type="number"
+                          id="admin-inbox-suggestion-points"
+                          class="input"
+                          min="0"
+                          max="100000"
+                          step="100"
+                          value="3000"
+                          disabled
+                          aria-describedby="admin-inbox-suggestion-points-hint"
+                        />
+                      </label>
+                      <p id="admin-inbox-suggestion-points-hint" class="admin-inbox-suggestion-opts__sub">
+                        채택에 체크한 경우에만 적용됩니다. 0으로 두면 채택만 표시하고 포인트는 지급하지 않습니다.
+                      </p>
+                    </div>
+                    <div id="admin-inbox-promo-reply-picks" class="admin-inbox-promo-picks" hidden>
+                      <p class="admin-inbox-promo-picks__hint">
+                        홍보 인증 티켓입니다. 승인 또는 불승인(보완) 중 해당하는 쪽을 누르면 아래 최종 답변란에 들어갑니다. 필요하면 문구를 고친 뒤 승인하세요.
+                      </p>
+                      <div class="admin-inbox-promo-picks__row">
+                        <button type="button" class="admin-inbox-promo-pick admin-inbox-promo-pick--approve" id="admin-inbox-promo-approve">
+                          승인 시 보낼 답변 넣기
+                        </button>
+                        <button type="button" class="admin-inbox-promo-pick admin-inbox-promo-pick--reject" id="admin-inbox-promo-reject">
+                          불승인·보완 안내 넣기
+                        </button>
+                      </div>
+                    </div>
                     <label class="field">
                       <span class="field__label">사용자에게 보낼 최종 답변</span>
                       <textarea id="admin-inbox-reply" class="input textarea" rows="5" placeholder="검토 후 수정한 뒤 승인하세요."></textarea>
@@ -787,9 +2025,6 @@
         </div>
       </div>
 
-      <footer class="footer">
-        <small>학습용 · 오답 해설을 꼭 읽어 보세요</small>
-      </footer>
     </div>
   </div>
 
@@ -823,74 +2058,149 @@
     </div>
   </div>
 
-  <div id="review-quiz-modal" class="modal" hidden aria-hidden="true" role="dialog" aria-labelledby="review-quiz-modal-title">
-    <div class="modal__panel card review-quiz-modal__panel">
+  <div
+    id="dict-term-edit-modal"
+    class="modal dict-term-edit-modal"
+    hidden
+    aria-hidden="true"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dict-term-edit-modal-title"
+  >
+    <div class="modal__panel card dict-term-edit-modal__panel">
       <div class="modal__head">
-        <h2 class="modal__title" id="review-quiz-modal-title">복습</h2>
-        <button type="button" class="modal__close" id="review-quiz-modal-close" aria-label="닫기">×</button>
+        <h2 class="modal__title" id="dict-term-edit-modal-title">용어 수정</h2>
+        <button type="button" class="modal__close" id="dict-term-edit-close" aria-label="닫기">×</button>
       </div>
-      <div id="review-quiz-history" class="review-quiz-modal__history" aria-live="polite"></div>
-      <div class="review-quiz-modal__q card card--question card--question--compact">
-        <p id="review-q-source" class="q-source"></p>
-        <p id="review-q-meta" class="q-meta"></p>
-        <p id="review-q-text" class="q-text" role="heading" aria-level="2"></p>
-        <div id="review-q-actions" class="q-actions">
-          <button type="button" class="btn btn--ox btn--o" data-review-answer="true" aria-label="참(O)">O</button>
-          <button type="button" class="btn btn--ox btn--x" data-review-answer="false" aria-label="거짓(X)">X</button>
+      <p id="dict-term-edit-msg" class="admin-msg dict-term-edit-msg" role="status" hidden></p>
+      <form id="dict-term-edit-form" class="dict-term-edit-form">
+        <label class="field">
+          <span class="field__label">표제어 (용어)</span>
+          <input type="text" id="dict-term-edit-term" class="input" required maxlength="200" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span class="field__label">관련어 (쉼표로 구분, 선택)</span>
+          <input type="text" id="dict-term-edit-aliases" class="input" autocomplete="off" placeholder="예: 별칭1, 별칭2" />
+        </label>
+        <label class="field">
+          <span class="field__label">정의·해설</span>
+          <textarea id="dict-term-edit-definition" class="input textarea dict-term-edit-definition" rows="14" required></textarea>
+        </label>
+        <div class="modal__actions dict-term-edit-actions">
+          <button type="button" class="btn btn--ghost" id="dict-term-edit-cancel">취소</button>
+          <button type="submit" class="btn btn--primary" id="dict-term-edit-save">저장</button>
         </div>
+      </form>
+    </div>
+  </div>
+
+  <div
+    id="dict-case-edit-modal"
+    class="modal dict-case-edit-modal"
+    hidden
+    aria-hidden="true"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dict-case-edit-modal-title"
+  >
+    <div class="modal__panel card dict-case-edit-modal__panel">
+      <div class="modal__head">
+        <h2 class="modal__title" id="dict-case-edit-modal-title">판례 수정</h2>
+        <button type="button" class="modal__close" id="dict-case-edit-close" aria-label="닫기">×</button>
       </div>
-      <div id="review-q-feedback" class="review-q-feedback" hidden>
-        <p id="review-q-result" class="feedback__result"></p>
-        <p id="review-q-answer-key" class="feedback__kv" hidden></p>
-        <p id="review-q-importance-line" class="feedback__kv feedback__kv--stars"></p>
-        <p id="review-q-difficulty-line" class="feedback__kv feedback__kv--stars"></p>
-        <p class="feedback__block-label">기본 해설</p>
-        <p id="review-q-explain" class="feedback__block-body"></p>
-        <p class="feedback__block-label">상세 해설</p>
-        <div id="review-q-detail" class="feedback-detail feedback__block-body"></div>
-        <p class="feedback__block-label">태그</p>
-        <div id="review-q-tags" class="feedback__tags feedback__block-body"></div>
-        <p id="review-q-master" class="review-q-master" hidden role="status"></p>
-        <p id="review-q-attendance-notify" class="feedback-attendance-notify" hidden role="status"></p>
-        <div class="quiz-ai-ask quiz-ai-ask--review" id="review-quiz-ai-ask-block">
-          <p class="quiz-ai-ask__remain" id="review-quiz-ai-remain" aria-live="polite"></p>
-          <button
-            type="button"
-            class="btn btn--secondary"
-            id="btn-review-quiz-ai-toggle"
-            aria-expanded="false"
-            aria-controls="review-quiz-ai-panel"
-          >
-            AI 질문하기
-          </button>
-          <div id="review-quiz-ai-panel" class="quiz-ai-panel" hidden>
-            <label class="field">
-              <span class="field__label">Gemini에게 질문</span>
-              <textarea
-                id="review-quiz-ai-question"
-                class="input textarea"
-                rows="3"
-                maxlength="800"
-                placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다."
-              ></textarea>
-            </label>
-            <button type="button" class="btn btn--primary" id="btn-review-quiz-ai-send">질문 보내기</button>
-            <p id="review-quiz-ai-error" class="admin-msg admin-msg--error quiz-ai-error" hidden></p>
-            <div
-              id="review-quiz-ai-loading"
-              class="quiz-ai-loading"
-              hidden
-              aria-live="polite"
-              aria-busy="true"
-            >
-              <p class="quiz-ai-loading__status">답변 생성 중…</p>
-              <p class="quiz-ai-loading__quote" id="review-quiz-ai-loading-quote"></p>
-            </div>
-            <div id="review-quiz-ai-answer" class="quiz-ai-answer" hidden role="region" aria-label="AI 답변"></div>
-          </div>
+      <p id="dict-case-edit-msg" class="admin-msg dict-case-edit-msg" role="status" hidden></p>
+      <form id="dict-case-edit-form" class="dict-case-edit-form">
+        <label class="field">
+          <span class="field__label">사건 표기 (citation) — 필수</span>
+          <input type="text" id="dict-case-edit-citation" class="input" required maxlength="400" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span class="field__label">제목</span>
+          <input type="text" id="dict-case-edit-title" class="input" maxlength="500" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span class="field__label">사실관계</span>
+          <textarea id="dict-case-edit-facts" class="input textarea dict-case-edit-textarea" rows="5"></textarea>
+        </label>
+        <label class="field">
+          <span class="field__label">쟁점</span>
+          <textarea id="dict-case-edit-issues" class="input textarea dict-case-edit-textarea" rows="4"></textarea>
+        </label>
+        <label class="field">
+          <span class="field__label">법적 판단</span>
+          <textarea id="dict-case-edit-judgment" class="input textarea dict-case-edit-textarea" rows="8"></textarea>
+        </label>
+        <label class="field">
+          <span class="field__label">검색키 (쉼표 구분)</span>
+          <input type="text" id="dict-case-edit-search-keys" class="input" autocomplete="off" placeholder="예: 징계, 해고" />
+        </label>
+        <label class="field">
+          <span class="field__label">주제 키워드 (쉼표 구분)</span>
+          <input type="text" id="dict-case-edit-topic-keywords" class="input" autocomplete="off" />
+        </label>
+        <details class="dict-case-edit-advanced">
+          <summary class="dict-case-edit-advanced__summary">링크·식별자 (선택)</summary>
+          <label class="field">
+            <span class="field__label">케이스노트 URL</span>
+            <input type="url" id="dict-case-edit-casenote-url" class="input" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="field__label">jisCntntsSrno (사법포털 등)</span>
+            <input type="text" id="dict-case-edit-jis-srno" class="input" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="field__label">사법정보공개포털 URL</span>
+            <input type="url" id="dict-case-edit-scourt-url" class="input" autocomplete="off" />
+          </label>
+        </details>
+        <div class="modal__actions dict-case-edit-actions">
+          <button type="button" class="btn btn--ghost" id="dict-case-edit-cancel">취소</button>
+          <button type="submit" class="btn btn--primary" id="dict-case-edit-save">저장</button>
         </div>
-        <button type="button" class="btn btn--primary" id="review-q-continue">계속하기</button>
+      </form>
+    </div>
+  </div>
+
+  <div
+    id="dict-statute-edit-modal"
+    class="modal dict-term-edit-modal"
+    hidden
+    aria-hidden="true"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dict-statute-edit-modal-title"
+  >
+    <div class="modal__panel card dict-term-edit-modal__panel">
+      <div class="modal__head">
+        <h2 class="modal__title" id="dict-statute-edit-modal-title">조문 수정</h2>
+        <button type="button" class="modal__close" id="dict-statute-edit-close" aria-label="닫기">×</button>
       </div>
+      <p id="dict-statute-edit-msg" class="admin-msg dict-term-edit-msg" role="status" hidden></p>
+      <p class="dict-statute-edit-hint">
+        정적 조문(js/statute-articles-static.js)에 대응하는 항목만 Firestore로 덮어씁니다. 로그인 사용자에게 반영됩니다.
+      </p>
+      <form id="dict-statute-edit-form" class="dict-term-edit-form">
+        <label class="field">
+          <span class="field__label">조문 키 (읽기 전용)</span>
+          <input type="text" id="dict-statute-edit-key" class="input" readonly autocomplete="off" />
+        </label>
+        <label class="field">
+          <span class="field__label">표제·조항 제목</span>
+          <input type="text" id="dict-statute-edit-heading" class="input" maxlength="500" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span class="field__label">본문</span>
+          <textarea id="dict-statute-edit-body" class="input textarea dict-term-edit-definition" rows="14"></textarea>
+        </label>
+        <label class="field">
+          <span class="field__label">출처·비고</span>
+          <input type="text" id="dict-statute-edit-source-note" class="input" maxlength="500" autocomplete="off" />
+        </label>
+        <div class="modal__actions dict-term-edit-actions">
+          <button type="button" class="btn btn--ghost" id="dict-statute-edit-cancel">취소</button>
+          <button type="submit" class="btn btn--primary" id="dict-statute-edit-save">저장</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -905,15 +2215,17 @@
     </div>
   </div>
 
-  <script src="js/header-quote.js?v=1"></script>
+  <script src="js/header-quote.js?v=8"></script>
+  <script src="js/app-settings.js?v=20260511"></script>
   <script src="js/theme-toggle.js"></script>
   <script src="js/exam-catalog.js"></script>
   <script src="js/scope.js"></script>
   <script src="js/legal-dictionary-data.js"></script>
   <script src="js/case-dictionary-data.js"></script>
   <script src="js/casenote-link.js"></script>
-  <script src="js/ai-answer-format.js"></script>
-  <script src="js/dict-panels.js?v=2"></script>
+  <script src="js/ai-answer-format.js?v=7"></script>
+  <script src="js/statute-articles-static.js"></script>
+  <script src="js/dict-panels.js?v=20"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -921,35 +2233,42 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="js/firebase-config.js?v=20260407"></script>
   <script src="js/auth-bridge.js"></script>
-  <script src="js/firestore-db.js"></script>
+  <script src="js/firestore-db.js?v=9"></script>
   <script src="js/ai-config.js"></script>
-  <script src="js/tickets-service.js"></script>
-  <script src="js/creem-config.js?v=4"></script>
-  <script src="js/creem-checkout.js?v=4"></script>
-  <script src="js/payapp-config.js?v=2"></script>
-  <script src="js/payapp-checkout.js?v=2"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/user-profile.js"></script>
-  <script src="js/dict-remote.js"></script>
+  <script src="js/tickets-service.js?v=11"></script>
+  <script src="js/payapp-config.js?v=6"></script>
+  <script src="js/payapp-checkout.js?v=5"></script>
+  <script src="js/auth.js?v=4"></script>
+  <script src="js/user-profile.js?v=20260419"></script>
+  <script src="js/dict-remote.js?v=2"></script>
   <script src="js/statute-tag.js"></script>
-  <script src="js/statute-articles-static.js"></script>
-  <script src="js/tag-dict-modal.js?v=2"></script>
+  <script src="js/tag-dict-modal.js?v=3"></script>
   <script src="js/member-tier.js?v=2"></script>
-  <script src="js/question-credits.js"></script>
-  <script src="js/quiz-ai-ask.js?v=5"></script>
-  <script src="js/dashboard-tickets.js"></script>
-  <script src="js/learning-stats.js"></script>
-  <script src="js/nav-layout.js"></script>
+  <script src="js/question-credits.js?v=3"></script>
+  <script src="js/quiz-ai-ask.js?v=10"></script>
   <script src="js/questions.js"></script>
-  <script src="js/quiz-review-store.js"></script>
-  <script src="js/app.js?v=2"></script>
-  <script src="js/quiz-favorites.js"></script>
-  <script src="js/ticket-modal.js?v=5"></script>
-  <script src="js/notifications-ui.js"></script>
-  <script src="js/admin-panel.js"></script>
-  <script src="js/admin-library.js?v=2"></script>
+  <script src="js/dashboard-tickets.js?v=4"></script>
+  <script src="js/learning-stats.js?v=2"></script>
+  <script src="js/nav-layout.js?v=6"></script>
+  <script src="js/public-qa.js?v=8"></script>
+  <script src="js/quiz-note-panel.js?v=8"></script>
+  <script src="js/quiz-question-memo.js?v=2"></script>
+  <script src="js/quiz-trash.js?v=3"></script>
+  <script src="js/quiz-wrong-note.js?v=5"></script>
+  <script src="js/quiz-master.js?v=2"></script>
+  <script src="js/quiz-favorites.js?v=6"></script>
+  <script src="js/app.js?v=27"></script>
+  <script src="js/scope-favorites.js?v=7"></script>
+  <script src="js/ticket-modal.js?v=10"></script>
+  <script src="js/dict-panel-actions.js?v=4"></script>
+  <script src="js/quiz-note-card-actions.js?v=1"></script>
+  <script src="js/notifications-ui.js?v=2"></script>
+  <script src="js/admin-panel.js?v=2"></script>
+  <script src="js/admin-review.js?v=4"></script>
+  <script src="js/admin-library.js?v=3"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/admin-excel.js?v=4"></script>
-  <script src="js/admin-tickets.js"></script>
+  <script src="js/admin-excel.js?v=6"></script>
+  <script src="js/admin-tickets.js?v=8"></script>
+  <script src="js/admin-quotes.js?v=5"></script>
 </body>
 </html>

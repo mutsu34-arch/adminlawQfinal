@@ -5,7 +5,7 @@ service firebase.storage {
     function isAdmin() {
       return request.auth != null
         && request.auth.token.email != null
-        && request.auth.token.email in ["mutsu34@gmail.com"];
+        && request.auth.token.email.lower() in ["mutsu34@gmail.com"];
     }
 
     match /ticket_images/{userId}/{ticketId}/{fileName} {
@@ -17,12 +17,16 @@ service firebase.storage {
       allow delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
-    // 행정법 자료실 PDF (관리자만 업로드·조회)
+    // 행정법 자료실 PDF·Excel (관리자만 업로드·조회)
     match /hanlaw_library/{libraryId}/{fileName} {
       allow read: if isAdmin();
       allow write: if isAdmin()
         && request.resource.size < 100 * 1024 * 1024
-        && request.resource.contentType == "application/pdf";
+        && (
+          request.resource.contentType == "application/pdf"
+          || request.resource.contentType
+            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
       allow delete: if isAdmin();
     }
   }

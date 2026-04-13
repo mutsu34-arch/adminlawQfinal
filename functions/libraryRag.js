@@ -1,13 +1,14 @@
 "use strict";
 
 /**
- * 자료실 PDF → 청크 → Gemini 임베딩 → Pinecone
+ * 자료실 PDF·Excel(xlsx) → 청크 → Gemini 임베딩 → Pinecone
  * 환경변수: GEMINI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME
  * 선택: PINECONE_HOST (서버리스 인덱스 URL), PINECONE_NAMESPACE (기본 hanlaw-library)
  * 임베딩: gemini-embedding-001 (차원은 outputDimensionality로 조정)
  */
 
 const pdfParse = require("pdf-parse");
+const XLSX = require("xlsx");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { Pinecone } = require("@pinecone-database/pinecone");
 const vision = require("@google-cloud/vision");
@@ -53,13 +54,16 @@ function getVisionClient() {
   return visionClient;
 }
 
-function chunkTextByLength(raw, numPages) {
+function chunkTextByLength(raw, numPages, emptyMessage) {
   const text = String(raw || "")
     .replace(/\s+/g, " ")
     .trim();
   const pages = Math.max(1, parseInt(numPages, 10) || 1);
   if (text.length < 5) {
-    throw new Error("PDF에서 추출한 텍스트가 거의 없습니다. 스캔 PDF는 OCR이 필요할 수 있습니다.");
+    throw new Error(
+      emptyMessage ||
+        "PDF에서 추출한 텍스트가 거의 없습니다. 스캔 PDF는 OCR이 필요할 수 있습니다."
+    );
   }
   const chunks = [];
   let offset = 0;
@@ -83,6 +87,32 @@ function chunkTextByLength(raw, numPages) {
 async function extractChunksFromPdf(buffer) {
   const data = await pdfParse(buffer);
   return chunkTextByLength(data.text || "", data.numpages);
+}
+
+/**
+ * Excel .xlsx 버퍼 → 시트별 CSV 형태로 이어붙인 뒤 청크 (page 메타는 시트 구간 근사)
+ */
+function extractChunksFromXlsx(buffer) {
+  const wb = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  const names = wb.SheetNames || [];
+  if (!names.length) {
+    throw new Error("엑셀 파일에 시트가 없습니다.");
+  }
+  const parts = [];
+  for (let i = 0; i < names.length; i++) {
+    const sn = names[i];
+    const ws = wb.Sheets[sn];
+    if (!ws) continue;
+    const csv = XLSX.utils.sheet_to_csv(ws, { FS: "\t", blankrows: false });
+    parts.push("=== 시트: " + sn + " ===\n" + csv);
+  }
+  const merged = parts.join("\n\n");
+  const sheetCount = names.length;
+  return chunkTextByLength(
+    merged,
+    sheetCount,
+    "엑셀에서 추출한 텍스트가 거의 없습니다. 빈 파일이거나 읽을 수 있는 셀이 없을 수 있습니다."
+  );
 }
 
 /**
@@ -256,6 +286,7 @@ async function retrieveLibraryContextForQuiz(userQuestion, quiz) {
 module.exports = {
   extractChunksFromPdf,
   extractChunksFromPdfByOcr,
+  extractChunksFromXlsx,
   upsertChunksToPinecone,
   deleteVectorsByFileId,
   retrieveLibraryContextForQuiz,

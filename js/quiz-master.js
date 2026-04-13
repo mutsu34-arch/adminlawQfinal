@@ -1,6 +1,6 @@
 (function () {
   var STORAGE_VER = "v1";
-  var LS_PREFIX = "hanlaw_quiz_favorites_";
+  var LS_PREFIX = "hanlaw_quiz_master_";
   var MAX_STORE = 1000;
 
   function normalizeId(id) {
@@ -17,7 +17,7 @@
     return LS_PREFIX + STORAGE_VER + "_local";
   }
 
-  function mergeFavLocalIntoUid(uid) {
+  function mergeMasterLocalIntoUid(uid) {
     var id = normalizeId(uid);
     if (!id) return;
     var keyLocal = LS_PREFIX + STORAGE_VER + "_local";
@@ -48,7 +48,7 @@
       localStorage.removeItem(keyLocal);
     } catch (e) {}
     try {
-      window.dispatchEvent(new CustomEvent("quiz-favorites-updated"));
+      window.dispatchEvent(new CustomEvent("quiz-master-updated"));
     } catch (e2) {}
   }
 
@@ -68,7 +68,9 @@
     try {
       localStorage.setItem(storageKey(), JSON.stringify(data));
     } catch (e) {}
-    window.dispatchEvent(new CustomEvent("quiz-favorites-updated"));
+    try {
+      window.dispatchEvent(new CustomEvent("quiz-master-updated"));
+    } catch (e2) {}
   }
 
   function findQuestionById(id) {
@@ -81,7 +83,7 @@
     return null;
   }
 
-  window.QuizFavorites = {
+  window.QuizMaster = {
     has: function (questionId) {
       var want = normalizeId(questionId);
       if (!want) return false;
@@ -91,6 +93,7 @@
       }
       return false;
     },
+    /** 이미 마스터면 제거, 아니면 추가 (퀴즈 일반 세트에서 제외) */
     toggle: function (questionId) {
       var id = normalizeId(questionId);
       if (!id) return false;
@@ -103,9 +106,6 @@
         }
       }
       if (idx >= 0) {
-        if (window.QuizTrash && typeof window.QuizTrash.add === "function") {
-          window.QuizTrash.add("fav", id);
-        }
         d.order.splice(idx, 1);
         writeRaw(d);
         return false;
@@ -118,9 +118,6 @@
     remove: function (questionId) {
       var id = normalizeId(questionId);
       if (!id) return;
-      if (window.QuizTrash && typeof window.QuizTrash.add === "function") {
-        window.QuizTrash.add("fav", id);
-      }
       var d = readRaw();
       d.order = d.order.filter(function (x) {
         return normalizeId(x) !== id;
@@ -128,13 +125,6 @@
       writeRaw(d);
     },
     clear: function () {
-      var d0 = readRaw();
-      if (window.QuizTrash && typeof window.QuizTrash.add === "function") {
-        d0.order.forEach(function (id) {
-          var qid = normalizeId(id);
-          if (qid) window.QuizTrash.add("fav", qid);
-        });
-      }
       writeRaw({ order: [] });
     },
     getOrderedIds: function () {
@@ -142,8 +132,8 @@
     }
   };
 
-  window.refreshQuizFavoriteButton = function () {
-    var btn = document.getElementById("btn-quiz-favorite");
+  window.refreshQuizMasterButton = function () {
+    var btn = document.getElementById("btn-quiz-master");
     if (!btn) return;
     var ctx = window.__QUIZ_QUESTION_CONTEXT;
     if (!ctx || !ctx.questionId) {
@@ -151,33 +141,33 @@
       return;
     }
     btn.hidden = false;
-    var on = window.QuizFavorites.has(ctx.questionId);
-    btn.textContent = on ? "찜함 · 취소" : "찜하기";
-    btn.classList.toggle("btn--quiz-fav--on", on);
+    var on = window.QuizMaster.has(ctx.questionId);
+    btn.textContent = on ? "마스터됨 · 취소" : "마스터";
+    btn.classList.toggle("btn--quiz-master--on", on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
     if (window.HanlawNoteQuizChrome && typeof window.HanlawNoteQuizChrome.refreshAllAnsweredCards === "function") {
       window.HanlawNoteQuizChrome.refreshAllAnsweredCards();
     }
   };
 
-  function renderFavoritesPanel() {
+  function renderMasterPanel() {
     var UI = window.HanlawNoteQuizUi;
-    var listEl = document.getElementById("fav-note-list");
-    var emptyEl = document.getElementById("fav-note-empty");
-    var bannerEl = document.getElementById("fav-note-limit-banner");
+    var listEl = document.getElementById("master-note-list");
+    var emptyEl = document.getElementById("master-note-empty");
+    var bannerEl = document.getElementById("master-note-limit-banner");
     if (!listEl || !emptyEl) return;
     if (!UI || typeof UI.buildCard !== "function" || typeof UI.getDisplaySlice !== "function") {
       return;
     }
 
-    var sortBar = document.getElementById("fav-note-sort-bar");
+    var sortBar = document.getElementById("master-note-sort-bar");
     var sortMode =
-      typeof UI.getNoteSortMode === "function" ? UI.getNoteSortMode("fav") : "timeDesc";
+      typeof UI.getNoteSortMode === "function" ? UI.getNoteSortMode("master") : "timeDesc";
     if (typeof UI.syncNoteSortBarUI === "function") {
       UI.syncNoteSortBarUI(sortBar, sortMode);
     }
 
-    var ids = window.QuizFavorites.getOrderedIds();
+    var ids = window.QuizMaster.getOrderedIds();
     if (typeof UI.sortNoteIds === "function") {
       ids = UI.sortNoteIds(ids, sortMode, findQuestionById);
     }
@@ -202,10 +192,10 @@
       var q = findQuestionById(id);
       if (!q) {
         var article = document.createElement("article");
-        article.className = "fav-note-card";
+        article.className = "master-note-card";
         article.setAttribute("data-qid", id);
         var miss = document.createElement("p");
-        miss.className = "fav-note-card__missing";
+        miss.className = "master-note-card__missing";
         miss.appendChild(document.createTextNode("문항 ID "));
         var code = document.createElement("code");
         code.textContent = id;
@@ -214,7 +204,7 @@
           document.createTextNode(" 는 현재 문항 목록에 없습니다. (삭제되었거나 아직 불러오지 못했습니다.)")
         );
         var head = document.createElement("div");
-        head.className = "fav-note-card__head fav-note-card__head--indexed";
+        head.className = "master-note-card__head master-note-card__head--indexed";
         var numEl = document.createElement("span");
         numEl.className = "note-card__index";
         numEl.setAttribute("aria-hidden", "true");
@@ -224,42 +214,42 @@
         article.appendChild(head);
         var rmMiss = document.createElement("button");
         rmMiss.type = "button";
-        rmMiss.className = "btn btn--small btn--outline fav-note-remove";
+        rmMiss.className = "btn btn--small btn--outline master-note-remove";
         rmMiss.setAttribute("data-qid", id);
-        rmMiss.textContent = "찜 목록에서 제거";
+        rmMiss.textContent = "마스터 목록에서 제거";
         article.appendChild(rmMiss);
         listEl.appendChild(article);
         continue;
       }
-      listEl.appendChild(UI.buildCard(q, idx1, "fav"));
+      listEl.appendChild(UI.buildCard(q, idx1, "master"));
     }
   }
 
-  function onFavButtonClick() {
+  function onMasterButtonClick() {
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     if (!u || !u.email) {
-      window.alert("찜하기는 로그인 후 이용할 수 있습니다.");
+      window.alert("마스터는 로그인 후 이용할 수 있습니다.");
       return;
     }
     var ctx = window.__QUIZ_QUESTION_CONTEXT;
     if (!ctx || !ctx.questionId) return;
-    window.QuizFavorites.toggle(ctx.questionId);
-    window.refreshQuizFavoriteButton();
+    window.QuizMaster.toggle(ctx.questionId);
+    window.refreshQuizMasterButton();
   }
 
   function bind() {
     var UI = window.HanlawNoteQuizUi;
-    var btn = document.getElementById("btn-quiz-favorite");
-    if (btn) btn.addEventListener("click", onFavButtonClick);
+    var btn = document.getElementById("btn-quiz-master");
+    if (btn) btn.addEventListener("click", onMasterButtonClick);
 
-    var list = document.getElementById("fav-note-list");
+    var list = document.getElementById("master-note-list");
     if (list) {
       if (UI && typeof UI.attachListInteractions === "function") {
         UI.attachListInteractions(list, {
           findQuestion: findQuestionById,
-          removeSelector: ".fav-note-remove",
+          removeSelector: ".master-note-remove",
           onRemove: function (rid) {
-            window.QuizFavorites.remove(rid);
+            window.QuizMaster.remove(rid);
           },
           onAnswered: function (q, userTrue, ok) {
             if (window.LearningStats && typeof window.LearningStats.recordQuizAnswer === "function") {
@@ -278,61 +268,64 @@
       }
     }
 
-    var clearBtn = document.getElementById("fav-note-clear");
+    var clearBtn = document.getElementById("master-note-clear");
     if (clearBtn) {
       clearBtn.addEventListener("click", function () {
-        if (!window.QuizFavorites.getOrderedIds().length) return;
-        if (window.confirm("찜한 문항을 모두 삭제할까요?")) {
-          window.QuizFavorites.clear();
+        if (!window.QuizMaster.getOrderedIds().length) return;
+        if (window.confirm("마스터로 표시한 문항을 모두 해제할까요? 일반 퀴즈 범위에 다시 나올 수 있습니다.")) {
+          window.QuizMaster.clear();
         }
       });
     }
 
-    var sortBar = document.getElementById("fav-note-sort-bar");
+    var sortBar = document.getElementById("master-note-sort-bar");
     if (sortBar && UI && typeof UI.setNoteSortMode === "function" && !sortBar._hanlawSortBound) {
       sortBar._hanlawSortBound = true;
       sortBar.addEventListener("click", function (e) {
         var btnSort = e.target.closest("[data-note-sort]");
         if (!btnSort || !sortBar.contains(btnSort)) return;
-        var mode = UI.setNoteSortMode("fav", btnSort.getAttribute("data-note-sort"));
+        var mode = UI.setNoteSortMode("master", btnSort.getAttribute("data-note-sort"));
         if (typeof UI.syncNoteSortBarUI === "function") {
           UI.syncNoteSortBarUI(sortBar, mode);
         }
-        renderFavoritesPanel();
+        renderMasterPanel();
       });
     }
 
-    window.addEventListener("quiz-favorites-updated", function () {
-      renderFavoritesPanel();
-      if (typeof window.refreshQuizFavoriteButton === "function") {
-        window.refreshQuizFavoriteButton();
+    window.addEventListener("quiz-master-updated", function () {
+      renderMasterPanel();
+      if (typeof window.refreshQuizMasterButton === "function") {
+        window.refreshQuizMasterButton();
       }
+      try {
+        window.dispatchEvent(new CustomEvent("study-scope-change"));
+      } catch (e) {}
     });
 
-    window.addEventListener("question-bank-updated", renderFavoritesPanel);
-    window.addEventListener("membership-updated", renderFavoritesPanel);
+    window.addEventListener("question-bank-updated", renderMasterPanel);
+    window.addEventListener("membership-updated", renderMasterPanel);
     window.addEventListener("app-auth", function (e) {
       var u = e && e.detail && e.detail.user;
-      if (u && u.uid) mergeFavLocalIntoUid(u.uid);
-      renderFavoritesPanel();
-      if (typeof window.refreshQuizFavoriteButton === "function") {
-        window.refreshQuizFavoriteButton();
+      if (u && u.uid) mergeMasterLocalIntoUid(u.uid);
+      renderMasterPanel();
+      if (typeof window.refreshQuizMasterButton === "function") {
+        window.refreshQuizMasterButton();
       }
     });
 
     try {
       if (typeof firebase !== "undefined" && firebase.auth) {
         firebase.auth().onAuthStateChanged(function (user) {
-          if (user && user.uid) mergeFavLocalIntoUid(user.uid);
-          renderFavoritesPanel();
-          if (typeof window.refreshQuizFavoriteButton === "function") {
-            window.refreshQuizFavoriteButton();
+          if (user && user.uid) mergeMasterLocalIntoUid(user.uid);
+          renderMasterPanel();
+          if (typeof window.refreshQuizMasterButton === "function") {
+            window.refreshQuizMasterButton();
           }
         });
       }
     } catch (e) {}
 
-    renderFavoritesPanel();
+    renderMasterPanel();
   }
 
   if (document.readyState === "loading") {
