@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "hanlaw_qa_public",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "communityVisible", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

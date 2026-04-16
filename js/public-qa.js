@@ -391,6 +391,7 @@
 
     unsub = d
       .collection(COLL)
+      .where("communityVisible", "==", true)
       .orderBy("publishedAt", "desc")
       .limit(100)
       .onSnapshot(

@@ -104,6 +104,14 @@
       err.textContent = "";
       err.hidden = true;
     }
+    var qaPrivacyRow = $("ticket-modal-qa-privacy-row");
+    var qaCommunityCb = $("ticket-modal-qa-community");
+    if (qaPrivacyRow) {
+      qaPrivacyRow.hidden = currentType !== "question";
+    }
+    if (qaCommunityCb) {
+      qaCommunityCb.checked = false;
+    }
     var qHint = $("ticket-modal-question-hint");
     if (qHint) {
       if (currentType === "question") {
@@ -211,13 +219,18 @@
 
     chain
       .then(function () {
-        return window.createSupportTicket({
+        var opts = {
           type: currentType,
           message: body.trim(),
           links: links,
           files: files,
           quizContext: window.__QUIZ_QUESTION_CONTEXT || null
-        });
+        };
+        if (currentType === "question") {
+          var cb = $("ticket-modal-qa-community");
+          opts.qaAllowFutureCommunity = !!(cb && cb.checked);
+        }
+        return window.createSupportTicket(opts);
       })
       .then(function () {
         closeModal();

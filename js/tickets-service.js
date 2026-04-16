@@ -101,7 +101,7 @@
     return window
       .uploadTicketImages(authUser.uid, ticketId, files)
       .then(function (urls) {
-        return ticketRef.set({
+        var doc = {
           id: ticketId,
           userId: authUser.uid,
           userEmail: authUser.email || "",
@@ -117,7 +117,11 @@
           reviewedBy: null,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        };
+        if (type === "question") {
+          doc.qaAllowFutureCommunity = opts.qaAllowFutureCommunity === true;
+        }
+        return ticketRef.set(doc);
       })
       .then(function () {
         window.dispatchEvent(
@@ -157,7 +161,7 @@
       ", 안녕하세요.\n\n" +
       "제출해 주신 홍보 활동을 확인했습니다. 앱을 알려 주시느라 시간과 노력을 들여 주셔서 진심으로 감사합니다.\n\n" +
       "앞으로도 열심히 학습하시어 목표하시는 결과를 이루시길 응원합니다.\n\n" +
-      "— 한국행정법 퀴즈 드림";
+      "— 행정법Q 드림";
 
     var rejectLabeled =
       "【보완·포인트 미지급 쪽 예시】 (기준 미달·확인 불가·허위 의심 등으로 이번에는 지급이 어려울 때)\n\n" +
@@ -169,14 +173,14 @@
       "· (보완 요청 1)\n" +
       "· (보완 요청 2)\n\n" +
       "앞으로도 공부에 힘쓰시어 좋은 결과 얻으시길 바랍니다.\n\n" +
-      "— 한국행정법 퀴즈 드림";
+      "— 행정법Q 드림";
 
     var approveReply =
       call +
       ", 안녕하세요.\n\n" +
       "제출해 주신 홍보 활동을 확인했습니다. 앱을 알려 주시느라 시간과 노력을 들여 주셔서 진심으로 감사합니다.\n\n" +
       "앞으로도 열심히 학습하시어 목표하시는 결과를 이루시길 응원합니다.\n\n" +
-      "— 한국행정법 퀴즈 드림";
+      "— 행정법Q 드림";
 
     var rejectReply =
       call +
@@ -187,7 +191,7 @@
       "· (보완 요청 1)\n" +
       "· (보완 요청 2)\n\n" +
       "앞으로도 공부에 힘쓰시어 좋은 결과 얻으시길 바랍니다.\n\n" +
-      "— 한국행정법 퀴즈 드림";
+      "— 행정법Q 드림";
 
     var combinedDraft =
       "[데모 초안] 홍보 인증 신청에 대한 관리자 회신 초안입니다. (질문 답변이 아니라, 인증 결과를 안내하는 톤입니다.)\n\n" +
@@ -406,13 +410,17 @@
           return res && res.data ? res.data : { ok: true };
         });
       }
+      var approvePatch = {
+        adminReply: reply,
+        status: "approved",
+        reviewedBy: adminEmail || "",
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if (t.type === "question") {
+        approvePatch.qaCommunityPublished = false;
+      }
       return tref
-        .update({
-          adminReply: reply,
-          status: "approved",
-          reviewedBy: adminEmail || "",
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        })
+        .update(approvePatch)
         .then(function () {
           return d.collection(NOTIFS).add({
             userId: t.userId,
@@ -445,6 +453,9 @@
           if (ticketType !== "question" || !t.userId) {
             return Promise.resolve();
           }
+          if (t.qaAllowFutureCommunity === false) {
+            return Promise.resolve();
+          }
           var qmsg = String(t.message || "").trim();
           if (!qmsg) {
             return Promise.resolve();
@@ -453,7 +464,8 @@
             ticketId: ticketId,
             questionMessage: qmsg.slice(0, 8000),
             askerUserId: t.userId,
-            publishedAt: firebase.firestore.FieldValue.serverTimestamp()
+            publishedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            communityVisible: false
           };
           var qctx = t.quizContext && typeof t.quizContext === "object" ? t.quizContext : {};
           var qtopic = qctx.topic != null ? String(qctx.topic).trim() : "";
@@ -527,7 +539,6 @@
     return d
       .collection(NOTIFS)
       .where("userId", "==", userId)
-      .orderBy("createdAt", "desc")
       .limit(30)
       .onSnapshot(
         function (snap) {
@@ -549,7 +560,10 @@
           });
           callback(list);
         },
-        function () {
+        function (err) {
+          try {
+            console.warn("subscribeUserNotifications failed", err && (err.code || err.message || err));
+          } catch (_) {}
           callback([]);
         }
       );

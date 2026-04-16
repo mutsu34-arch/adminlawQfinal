@@ -344,6 +344,19 @@
       }
     }
 
+    if (String(t.type || "").toLowerCase() === "question" && !(t.adminReply && String(t.adminReply).trim())) {
+      var qaBoxPending = document.createElement("div");
+      qaBoxPending.className = "dashboard-ticket-item__qa-community";
+      var allowFuturePending = t.qaAllowFutureCommunity !== false;
+      var pendingMsg = document.createElement("p");
+      pendingMsg.className = "dashboard-ticket-item__qa-hint";
+      pendingMsg.textContent = allowFuturePending
+        ? "변호사 답변이 등록되면 여기에서 Q&A 공개 여부를 최종 결정할 수 있습니다."
+        : "접수 시 Q&A 게시판 공개를 선택하지 않았습니다. 이 질문은 답변 후에도 공개 버튼이 나타나지 않습니다.";
+      qaBoxPending.appendChild(pendingMsg);
+      art.appendChild(qaBoxPending);
+    }
+
     if (t.adminReply && String(t.adminReply).trim()) {
       var rep = document.createElement("div");
       rep.className = "dashboard-ticket-item__reply";
@@ -361,6 +374,112 @@
       }
       rep.appendChild(body);
       art.appendChild(rep);
+
+      if (String(t.type || "").toLowerCase() === "question") {
+        var ticketIdForQa = t.id || t._docId || "";
+        var pubState = t.qaCommunityPublished;
+        var allowFuture = t.qaAllowFutureCommunity !== false;
+        var isPublished = pubState === true;
+        var showPublishBtn = !isPublished && allowFuture;
+
+        var qaBox = document.createElement("div");
+        qaBox.className = "dashboard-ticket-item__qa-community";
+
+        if (!isPublished && !allowFuture) {
+          var declinedP = document.createElement("p");
+          declinedP.className = "dashboard-ticket-item__qa-declined";
+          declinedP.textContent =
+            "접수 시 Q&A 게시판 공개를 선택하지 않아, 이 질문은 목록에 올리지 않습니다.";
+          qaBox.appendChild(declinedP);
+        } else if (showPublishBtn) {
+          var hintP = document.createElement("p");
+          hintP.className = "dashboard-ticket-item__qa-hint";
+          hintP.textContent =
+            "공개하면 다른 회원이 Q&A에서 이 질문과 답변을 열람할 수 있습니다. 다른 사람이 처음으로 답변을 펼쳐 볼 때 질문자에게 출석 포인트가 적립될 수 있습니다.";
+          qaBox.appendChild(hintP);
+
+          var pubBtn = document.createElement("button");
+          pubBtn.type = "button";
+          pubBtn.className = "btn btn--secondary btn--small dashboard-ticket-item__qa-publish-btn";
+          pubBtn.textContent = "질문답변 공개하기";
+          pubBtn.addEventListener("click", function () {
+            if (!requireUser()) return;
+            if (!ticketIdForQa) {
+              window.alert("티켓 정보를 찾을 수 없습니다.");
+              return;
+            }
+            if (typeof firebase === "undefined" || !firebase.functions) {
+              window.alert("Cloud Functions를 사용할 수 없습니다.");
+              return;
+            }
+            pubBtn.disabled = true;
+            var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+            firebase
+              .app()
+              .functions(region)
+              .httpsCallable("publishLawyerQaCommunity")({ ticketId: ticketIdForQa })
+              .then(function () {
+                try {
+                  window.dispatchEvent(new CustomEvent("hanlaw-public-qa-refresh"));
+                } catch (e) {}
+                if (typeof window.refreshHanlawPublicQa === "function") {
+                  window.refreshHanlawPublicQa();
+                }
+              })
+              .catch(function (err) {
+                window.alert((err && err.message) || "공개 처리에 실패했습니다.");
+              })
+              .then(function () {
+                pubBtn.disabled = false;
+              });
+          });
+          qaBox.appendChild(pubBtn);
+        } else {
+          var doneP = document.createElement("p");
+          doneP.className = "dashboard-ticket-item__qa-done";
+          doneP.textContent = "이 질문과 답변은 Q&A에 공개된 상태입니다.";
+          qaBox.appendChild(doneP);
+
+          var unpubBtn = document.createElement("button");
+          unpubBtn.type = "button";
+          unpubBtn.className = "btn btn--outline btn--small dashboard-ticket-item__qa-publish-btn";
+          unpubBtn.textContent = "비공개로 전환하기";
+          unpubBtn.addEventListener("click", function () {
+            if (!requireUser()) return;
+            if (!ticketIdForQa) {
+              window.alert("티켓 정보를 찾을 수 없습니다.");
+              return;
+            }
+            if (typeof firebase === "undefined" || !firebase.functions) {
+              window.alert("Cloud Functions를 사용할 수 없습니다.");
+              return;
+            }
+            unpubBtn.disabled = true;
+            var region2 = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+            firebase
+              .app()
+              .functions(region2)
+              .httpsCallable("unpublishLawyerQaCommunity")({ ticketId: ticketIdForQa })
+              .then(function () {
+                try {
+                  window.dispatchEvent(new CustomEvent("hanlaw-public-qa-refresh"));
+                } catch (e) {}
+                if (typeof window.refreshHanlawPublicQa === "function") {
+                  window.refreshHanlawPublicQa();
+                }
+              })
+              .catch(function (err) {
+                window.alert((err && err.message) || "비공개 전환에 실패했습니다.");
+              })
+              .then(function () {
+                unpubBtn.disabled = false;
+              });
+          });
+          qaBox.appendChild(unpubBtn);
+        }
+
+        art.appendChild(qaBox);
+      }
     }
 
     return art;

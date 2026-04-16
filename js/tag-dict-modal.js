@@ -194,6 +194,8 @@
     }
   }
 
+  window.closeTagDictModal = closeModal;
+
   window.resolveTagDictionaryEntry = function (tag) {
     if (
       typeof firebase === "undefined" ||

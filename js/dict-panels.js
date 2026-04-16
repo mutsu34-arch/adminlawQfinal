@@ -1273,6 +1273,24 @@
       });
     }
 
+    document.body.addEventListener("click", function (e) {
+      var el = eventTargetElement(e);
+      if (!el || !el.closest("#tag-dict-modal")) return;
+      var bc = el.closest("[data-admin-edit-case]");
+      if (bc && bc._case) {
+        if (typeof window.saveCaseEntryToFirestore !== "function") {
+          window.alert("저장 함수를 찾지 못했습니다.");
+          return;
+        }
+        openDictCaseEditModal(bc._case);
+        return;
+      }
+      var bt = el.closest("[data-admin-edit-term]");
+      if (bt && bt._term) {
+        openDictTermEditModal(bt._term);
+      }
+    });
+
     var btnC = $("case-search-btn");
     var inpC = $("case-number-query");
     var outC = $("case-search-results");

@@ -43,6 +43,9 @@
       var t = document.createElement("strong");
       t.className = "notif-item__title";
       t.textContent = n.title || "알림";
+      var hint = document.createElement("p");
+      hint.className = "notif-item__hint";
+      hint.textContent = "눌러서 상세 답변 보기";
       var b = document.createElement("p");
       b.className = "notif-item__body";
       var bodyRaw = n.body || "";
@@ -58,8 +61,38 @@
       } else {
         b.textContent = bodyRaw;
       }
+      var canToggle = !isAdminPending && !!String(bodyRaw || "").trim();
+      if (canToggle) {
+        b.hidden = true;
+        row.classList.add("notif-item--collapsible");
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        row.setAttribute("aria-expanded", "false");
+      }
       row.appendChild(t);
+      if (canToggle) row.appendChild(hint);
       row.appendChild(b);
+      if (canToggle) {
+        var toggleBody = function () {
+          var open = row.getAttribute("aria-expanded") === "true";
+          var next = !open;
+          row.setAttribute("aria-expanded", next ? "true" : "false");
+          b.hidden = !next;
+          hint.textContent = next ? "접어서 숨기기" : "눌러서 상세 답변 보기";
+          if (next && n._docId && n.read === false && typeof window.markNotificationRead === "function") {
+            window.markNotificationRead(n._docId).then(function () {});
+          }
+        };
+        row.addEventListener("click", function () {
+          toggleBody();
+        });
+        row.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleBody();
+          }
+        });
+      }
       if (n._docId && n.read === false && !isAdminPending) {
         var btn = document.createElement("button");
         btn.type = "button";

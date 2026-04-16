@@ -120,10 +120,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // 변호사 질문 공개 목록(질문 본문만). 답변은 Cloud Functions로만 제공.
-    // 목록 조회는 로그인 여부와 무관하게 허용(규칙 미배포·토큰 불일치 시 permission-denied 방지). 쓰기는 관리자만.
+    // 변호사 질문 공개 목록(질문 본문). communityVisible==false 이면 질문자·관리자만 읽기(타인은 Q&A 미노출).
     match /hanlaw_qa_public/{ticketId} {
-      allow read: if true;
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.askerUserId == request.auth.uid)
+        || resource.data.communityVisible == true
+        || !("communityVisible" in resource.data);
       allow create, update, delete: if isAdmin();
     }
 

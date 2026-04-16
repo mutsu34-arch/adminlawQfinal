@@ -626,6 +626,9 @@
       if (!k) return;
       e.preventDefault();
       goBackToDictList(k);
+      if (b.closest && b.closest("#tag-dict-modal") && typeof window.closeTagDictModal === "function") {
+        window.closeTagDictModal();
+      }
     });
   }
 

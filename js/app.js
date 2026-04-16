@@ -1337,7 +1337,7 @@
       el.quizTimerPanel.setAttribute("aria-hidden", "true");
       el.quizTimerPanel.classList.remove("quiz-timer-panel--warn");
     }
-    if (el.quizTimerArcadeFill) el.quizTimerArcadeFill.style.width = "100%";
+    if (el.quizTimerArcadeFill) el.quizTimerArcadeFill.style.clipPath = "inset(0 0 0 0)";
     if (el.quizTimerMeta) el.quizTimerMeta.textContent = "—";
     if (el.quizTimerBarTrack) el.quizTimerBarTrack.setAttribute("aria-valuenow", "100");
   }
@@ -1371,7 +1371,9 @@
 
   function updateQuizTimerUi(msLeft, totalMs, remainingSec) {
     var pct = totalMs > 0 ? Math.max(0, Math.min(100, (msLeft / totalMs) * 100)) : 0;
-    if (el.quizTimerArcadeFill) el.quizTimerArcadeFill.style.width = pct + "%";
+    if (el.quizTimerArcadeFill) {
+      el.quizTimerArcadeFill.style.clipPath = "inset(0 0 0 " + (100 - pct) + "%)";
+    }
     if (el.quizTimerBarTrack) {
       var maxSec = Math.max(1, Math.round(totalMs / 1000));
       el.quizTimerBarTrack.setAttribute("aria-valuemax", String(maxSec));

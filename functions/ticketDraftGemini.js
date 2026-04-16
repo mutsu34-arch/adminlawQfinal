@@ -30,6 +30,17 @@ function clampStr(v, max) {
 }
 
 /**
+ * 모델이 학습 데이터의 구 앱명을 출력하는 경우 서버에서 강제로 정규화합니다.
+ */
+function normalizeAppBrandInDraft(text) {
+  let out = String(text || "");
+  if (!out) return out;
+  out = out.replace(/한국\s*행정법\s*퀴즈/g, "행정법Q");
+  out = out.replace(/한국행정법퀴즈/g, "행정법Q");
+  return out;
+}
+
+/**
  * 자료실 Pinecone 검색용: quizAskGemini와 동일 retrieveLibraryContextForQuiz(userQuestion, quiz)
  */
 function buildRagQueryForTicket(ticket) {
@@ -76,10 +87,11 @@ function buildPrompt(ticket) {
 
   if (type === "suggestion") {
     return [
-      "당신은 '한국행정법 퀴즈' 웹앱 운영팀이 사용자에게 보낼 답장 초안을 작성합니다.",
+      "당신은 '행정법Q' 웹앱 운영팀이 사용자에게 보낼 답장 초안을 작성합니다.",
       "아래는 사용자가 제출한 서비스 개선 의견입니다.",
       "",
       "요구사항:",
+      "- 앱 이름 표기는 반드시 '행정법Q'로 통일합니다. (다른 앱명 금지)",
       "- 한국어로 정중하고 따뜻한 톤입니다.",
       "- 의견에 감사를 표하고, 내부 검토 후 검토 결과(반영 가능 여부 등)를 안내하는 문장으로 구성합니다. '반드시 반영' 같은 단정적 약속은 피합니다.",
       "- 2~5개의 짧은 문단. 관리자가 약간 수정해 바로 보낼 수 있게 합니다.",
@@ -97,10 +109,11 @@ function buildPrompt(ticket) {
 
   if (type === "promotion") {
     return [
-      "당신은 '한국행정법 퀴즈' 웹앱 운영팀이 홍보·인증 신청에 답하는 초안을 작성합니다.",
+      "당신은 '행정법Q' 웹앱 운영팀이 홍보·인증 신청에 답하는 초안을 작성합니다.",
       "아래는 사용자가 제출한 홍보 활동 요약과 링크입니다.",
       "",
       "요구사항:",
+      "- 앱 이름 표기는 반드시 '행정법Q'로 통일합니다. (다른 앱명 금지)",
       "- 한국어, 정중한 톤.",
       "- 검토했음을 알리고, 인증 기준에 따라 승인·보완 요청 중 어떤 쪽에 해당할 수 있는지 중립적으로 안내하는 초안(아직 결과를 단정하지 않음).",
       "- 2~4문단. 맨 앞 라벨·메타 문구 없이 본문만.",
@@ -124,10 +137,11 @@ function buildPrompt(ticket) {
       "지문 일부: " + clampStr(ctx.statement || "", 1200)
     ].join("\n");
     return [
-      "당신은 한국 행정법 학습 앱의 질문 답변을 돕는 조교입니다.",
+      "당신은 '행정법Q' 웹앱에서 학습자 질문 답변을 돕는 조교입니다.",
       "아래는 유료 질문권으로 제출된 학습자 질문과 문항 맥락입니다.",
       "",
       "요구사항:",
+      "- 앱·서비스 이름은 반드시 '행정법Q'로만 표기합니다. (예: '한국행정법 퀴즈' 등 다른 이름 금지)",
       "- 한국어로 명확하고 수험에 도움이 되게 답하세요.",
       "- 앱에 제시된 문항·정답·해설과 모순되지 않게 하세요. 불확실하면 불확실하다고 하세요.",
       "- 2~6문단. 맨 앞 [초안] 같은 라벨은 넣지 마세요.",
@@ -145,9 +159,10 @@ function buildPrompt(ticket) {
 
   // report (오류 신고 등)
   return [
-    "당신은 '한국행정법 퀴즈' 웹앱 운영팀이 오류·문의 신고에 답하는 초안을 작성합니다.",
+    "당신은 '행정법Q' 웹앱 운영팀이 오류·문의 신고에 답하는 초안을 작성합니다.",
     "",
     "요구사항:",
+    "- 앱 이름 표기는 반드시 '행정법Q'로 통일합니다. (다른 앱명 금지)",
     "- 한국어, 정중한 톤.",
     "- 접수·검토 중임을 알리고, 재현이 필요하면 안내하는 수준의 초안. 원인 단정은 피합니다.",
     "- 2~4문단. 라벨 없이 본문만.",
@@ -238,7 +253,8 @@ const adminDraftTicketAi = onCall({ region: "asia-northeast3" }, async (request)
   const modelId = effectiveGeminiModelId();
 
   try {
-    const draft = await generateDraftPlain(apiKey, modelId, prompt);
+    const draftRaw = await generateDraftPlain(apiKey, modelId, prompt);
+    const draft = normalizeAppBrandInDraft(draftRaw);
     return { ok: true, draft, usedLibraryRag: !!ragContext };
   } catch (e) {
     console.error("adminDraftTicketAi", e);

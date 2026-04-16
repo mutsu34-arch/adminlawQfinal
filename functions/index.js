@@ -23,7 +23,7 @@ if (_envProjectId) {
  *
  * 출석 포인트→변호사 질문권: convertAttendancePointsToQuestionCredit · 엘리 질문권: convertAttendancePointsToEllyCredit (대시보드)
  * 개선의견 채택: adminApproveSuggestionTicket (관리자, 출석 포인트 지급)
- * 공개 Q&A: publishLawyerQaPublic(관리자), searchLawyerQa, revealLawyerQaAnswer — 답변 열람 시 질문자 출석 포인트(다른 사용자 최초 1회)
+ * 공개 Q&A: publishLawyerQaPublic(관리자, 비공개 스텁), publishLawyerQaCommunity(질문자 옵트인), searchLawyerQa, revealLawyerQaAnswer, adminBackfillLawyerQaCommunityVisible(관리자 1회)
  * 배포: 프로젝트 루트에서 firebase deploy --only functions,firestore:rules
  *
  * 사전·퀴즈 AI: GEMINI_API_KEY, 선택 GEMINI_MODEL (기본 gemini-2.0-flash, 구형 gemini-1.5-flash-latest 는 1.5-flash 로 치환)
@@ -81,10 +81,20 @@ exports.getPayAppSubscriptionCheckout = getPayAppSubscriptionCheckout;
 exports.cancelPayAppRebill = cancelPayAppRebill;
 exports.payappQuestionFeedback = payappQuestionFeedback;
 
-const { revealLawyerQaAnswer, publishLawyerQaPublic, searchLawyerQa } = require("./publicQa");
+const {
+  revealLawyerQaAnswer,
+  publishLawyerQaPublic,
+  searchLawyerQa,
+  publishLawyerQaCommunity,
+  unpublishLawyerQaCommunity,
+  adminBackfillLawyerQaCommunityVisible
+} = require("./publicQa");
 exports.revealLawyerQaAnswer = revealLawyerQaAnswer;
 exports.publishLawyerQaPublic = publishLawyerQaPublic;
 exports.searchLawyerQa = searchLawyerQa;
+exports.publishLawyerQaCommunity = publishLawyerQaCommunity;
+exports.unpublishLawyerQaCommunity = unpublishLawyerQaCommunity;
+exports.adminBackfillLawyerQaCommunityVisible = adminBackfillLawyerQaCommunityVisible;
 
 const MONTHLY_FREE_FOR_PAID = 4;
 const BATCH_VALID_MS = 365 * 24 * 60 * 60 * 1000;

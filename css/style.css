@@ -2616,7 +2616,7 @@ body {
   color: var(--danger);
 }
 
-/* 오락실 가로 에너지 게이지 (왼쪽에서 오른쪽으로 줄어듦) */
+/* 오락실 가로 에너지 게이지: 트랙 전체 그라데이션 + clip-path로 왼쪽(녹)부터 잘림, 빨강은 마지막까지 */
 .quiz-timer-arcade {
   display: flex;
   flex-direction: row;
@@ -2674,11 +2674,14 @@ body {
   top: 0;
   bottom: 0;
   left: 0;
+  right: 0;
   width: 100%;
   height: 100%;
   border-radius: 2px;
-  transform-origin: left center;
-  transition: width 0.1s linear;
+  box-sizing: border-box;
+  /* clip-path inset(0 0 0 L): L만큼 왼쪽을 잘라 오른쪽(녹→빨) 중 남은 비율만 표시 → 녹색 먼저 소멸 */
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.1s linear;
   background:
     repeating-linear-gradient(
       90deg,
@@ -4325,6 +4328,16 @@ button.feedback-tag--link:hover {
   border-bottom: 1px solid var(--border);
 }
 
+.notif-item--collapsible {
+  cursor: pointer;
+}
+
+.notif-item--collapsible:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .notif-item:last-child {
   border-bottom: none;
 }
@@ -4337,6 +4350,12 @@ button.feedback-tag--link:hover {
   display: block;
   font-size: 0.85rem;
   margin-bottom: 0.25rem;
+}
+
+.notif-item__hint {
+  margin: 0 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.74rem;
 }
 
 .notif-item__body {
@@ -4441,6 +4460,26 @@ button.feedback-tag--link:hover {
   background: color-mix(in srgb, var(--accent) 6%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
   border-radius: 8px;
+}
+
+.ticket-modal-qa-privacy {
+  margin: 0 0 0.85rem;
+}
+
+.ticket-modal-qa-privacy__label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ticket-modal-qa-privacy__label input {
+  margin: 0.2rem 0 0;
+  flex-shrink: 0;
 }
 
 .modal__actions {
@@ -5065,6 +5104,38 @@ button.feedback-tag--link:hover {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.dashboard-ticket-item__qa-community {
+  margin: 0.65rem 0 0;
+  padding: 0.5rem 0.62rem;
+  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--muted) 45%, var(--border));
+  background: color-mix(in srgb, var(--surface) 92%, var(--muted));
+}
+
+.dashboard-ticket-item__qa-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.dashboard-ticket-item__qa-declined {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.dashboard-ticket-item__qa-done {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.dashboard-ticket-item__qa-publish-btn {
+  margin-top: 0.15rem;
 }
 
 .dashboard-ticket-empty {

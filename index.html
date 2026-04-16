@@ -29,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=20260416-memo-pan-mode" />
+  <link rel="stylesheet" href="css/style.css?v=20260416-timer-clip-ltr" />
 </head>
 <body>
   <div class="app">
@@ -371,11 +371,7 @@
                     >
                       <div class="quiz-timer-arcade__glass">
                         <div class="quiz-timer-arcade__track">
-                          <div
-                            id="quiz-timer-arcade-fill"
-                            class="quiz-timer-arcade__fill"
-                            style="width: 100%"
-                          ></div>
+                          <div id="quiz-timer-arcade-fill" class="quiz-timer-arcade__fill"></div>
                         </div>
                       </div>
                     </div>
@@ -651,9 +647,9 @@
             <div class="card card--qa">
               <h2 class="card__title">Q&amp;A</h2>
               <p class="dict-lead">
-                변호사에게 질문한 내용이 공개됩니다. 검색으로 다른 회원의 질문·답변 본문에 포함된 키워드를 찾을 수 있습니다.
-                항목을 누르면 변호사 답변을 확인할 수 있습니다. 다른 회원이 답변을
-                <strong>처음</strong> 열람할 때마다 질문을 올린 분에게 출석 포인트 500점이 지급됩니다.
+                이 목록에는 <strong>질문자가 Q&A 공개를 허용하고, 답변 후 대시보드에서 「공개하기」를 누른</strong> 질문만 나타납니다.
+                검색으로 다른 회원의 질문·답변 본문에 포함된 키워드를 찾을 수 있습니다. 항목을 누르면 변호사 답변을 확인할 수 있습니다.
+                다른 회원이 답변을 <strong>처음</strong> 열람할 때 질문을 올린 분에게 출석 포인트 500점이 지급될 수 있습니다.
               </p>
               <div class="public-qa-search">
                 <label class="field field--grow public-qa-search__field">
@@ -674,7 +670,7 @@
               </div>
               <p id="public-qa-search-status" class="public-qa-search-status" hidden aria-live="polite"></p>
               <p id="public-qa-login-hint" class="public-qa-login-hint" hidden>
-                질문 목록은 누구나 볼 수 있습니다. 변호사 답변을 열람하려면 로그인해 주세요.
+                공개된 질문 목록은 누구나 볼 수 있습니다. 변호사 답변을 열람하려면 로그인해 주세요.
               </p>
               <div id="public-qa-list" class="public-qa-list" aria-live="polite"></div>
               <p id="public-qa-empty" class="public-qa-empty" hidden>아직 공개된 질문이 없습니다.</p>
@@ -2333,6 +2329,14 @@
       </div>
       <pre class="modal__context" id="ticket-modal-context" hidden></pre>
       <p id="ticket-modal-question-hint" class="modal__hint" hidden></p>
+      <div class="field ticket-modal-qa-privacy" id="ticket-modal-qa-privacy-row" hidden>
+        <label class="ticket-modal-qa-privacy__label">
+          <input type="checkbox" id="ticket-modal-qa-community" />
+          <span>
+            답변을 받은 뒤 Q&A 게시판에 올릴 수 있도록 허용합니다. 실제 공개는 대시보드 「나의 질문내역」에서 최종 선택합니다.
+          </span>
+        </label>
+      </div>
       <label class="field">
         <span class="field__label" id="ticket-modal-body-label">내용</span>
         <textarea id="ticket-modal-body" class="input textarea" rows="5" placeholder="유형에 맞게 입력해 주세요."></textarea>
@@ -2522,7 +2526,7 @@
   <script src="js/casenote-link.js"></script>
   <script src="js/ai-answer-format.js?v=7"></script>
   <script src="js/statute-articles-static.js"></script>
-  <script src="js/dict-panels.js?v=20"></script>
+  <script src="js/dict-panels.js?v=21"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -2532,34 +2536,34 @@
   <script src="js/auth-bridge.js"></script>
   <script src="js/firestore-db.js?v=9"></script>
   <script src="js/ai-config.js"></script>
-  <script src="js/tickets-service.js?v=12"></script>
+  <script src="js/tickets-service.js?v=14"></script>
   <script src="js/payapp-config.js?v=6"></script>
   <script src="js/payapp-checkout.js?v=5"></script>
   <script src="js/auth.js?v=5"></script>
   <script src="js/user-profile.js?v=20260419"></script>
   <script src="js/dict-remote.js?v=2"></script>
   <script src="js/statute-tag.js"></script>
-  <script src="js/tag-dict-modal.js?v=3"></script>
+  <script src="js/tag-dict-modal.js?v=4"></script>
   <script src="js/member-tier.js?v=2"></script>
   <script src="js/question-credits.js?v=6"></script>
   <script src="js/quiz-ai-ask.js?v=14"></script>
   <script src="js/questions.js"></script>
-  <script src="js/dashboard-tickets.js?v=5"></script>
+  <script src="js/dashboard-tickets.js?v=9"></script>
   <script src="js/learning-stats.js?v=3"></script>
   <script src="js/nav-layout.js?v=6"></script>
-  <script src="js/public-qa.js?v=8"></script>
+  <script src="js/public-qa.js?v=9"></script>
   <script src="js/quiz-note-panel.js?v=8"></script>
   <script src="js/quiz-question-memo.js?v=2"></script>
   <script src="js/quiz-trash.js?v=4"></script>
   <script src="js/quiz-wrong-note.js?v=5"></script>
   <script src="js/quiz-master.js?v=2"></script>
   <script src="js/quiz-favorites.js?v=6"></script>
-  <script src="js/app.js?v=34"></script>
+  <script src="js/app.js?v=36"></script>
   <script src="js/scope-favorites.js?v=8"></script>
-  <script src="js/ticket-modal.js?v=11"></script>
-  <script src="js/dict-panel-actions.js?v=6"></script>
+  <script src="js/ticket-modal.js?v=12"></script>
+  <script src="js/dict-panel-actions.js?v=7"></script>
   <script src="js/quiz-note-card-actions.js?v=6"></script>
-  <script src="js/notifications-ui.js?v=2"></script>
+  <script src="js/notifications-ui.js?v=3"></script>
   <script src="js/admin-panel.js?v=2"></script>
   <script src="js/admin-review.js?v=4"></script>
   <script src="js/admin-library.js?v=3"></script>
