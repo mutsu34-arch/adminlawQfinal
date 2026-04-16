@@ -17,7 +17,7 @@
   function packPrices() {
     return typeof window.getQuestionPackPricesDisplay === "function"
       ? window.getQuestionPackPricesDisplay()
-      : "1건 ₩3,000 · 10건 ₩15,000";
+      : "1건 ₩5,000 · 10건 ₩30,000";
   }
 
   function openModal(type) {
@@ -33,7 +33,7 @@
     if (title) {
       title.textContent =
         currentType === "question"
-          ? "변호사에게 물어보기"
+          ? "변호사에게 질문하기"
           : currentType === "promotion"
             ? "홍보 인증 신청"
             : currentType === "suggestion"
@@ -109,7 +109,7 @@
       if (currentType === "question") {
         var pp = packPrices();
         qHint.innerHTML =
-          "변호사에게 물어보기는 질문권 <strong>1건</strong>이 차감됩니다. 추가 질문권은 <strong>요금제</strong>에서 구매할 수 있습니다(" +
+          "변호사에게 질문하기는 질문권 <strong>1건</strong>이 차감됩니다. 추가 질문권은 <strong>요금제</strong>에서 구매할 수 있습니다(" +
           pp +
           ", 구매일로부터 1년 유효). 오류 신고는 질문권이 필요하지 않습니다.";
         qHint.hidden = false;
@@ -287,7 +287,7 @@
       bq.addEventListener("click", function () {
         var u0 = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
         if (!u0 || !u0.email) {
-          window.alert("변호사에게 물어보기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
+          window.alert("변호사에게 질문하기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
           return;
         }
         if (typeof window.waitForQuestionCreditState !== "function") {
@@ -300,13 +300,17 @@
             return;
           }
           if ((state.total || 0) < 1) {
-            window.alert(
-              "질문권이 없습니다.\n\n" +
-                "· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n" +
-                "· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
-                packPrices() +
-                ", 구매일로부터 1년 유효)."
-            );
+            if (typeof window.showLawyerCreditsNeededModal === "function") {
+              window.showLawyerCreditsNeededModal();
+            } else {
+              window.alert(
+                "질문권이 없습니다.\n\n" +
+                  "· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n" +
+                  "· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
+                  packPrices() +
+                  ", 구매일로부터 1년 유효)."
+              );
+            }
             return;
           }
           openModal("question");

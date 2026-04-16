@@ -123,10 +123,42 @@
       })
       .catch(function (err) {
         console.warn("Firestore 문항 로드 실패:", err);
-        window.QUESTION_BANK_REMOTE = [];
+        // 저장 직후 재조회 실패 시 원격 캐시를 비우면 방금 반영한 수정이 사라짐 → 기존 REMOTE 유지
         mergeBanks();
       });
   };
+
+  /** 클라이언트 병합용: 방금 저장한 문항을 REMOTE에 넣어 정적 문항을 덮어씀(재조회 실패·지연 대비) */
+  function cloneQuestionForLocalBank(q, opts) {
+    opts = opts || {};
+    var o = {};
+    Object.keys(q || {}).forEach(function (k) {
+      if (k === "createdAt" || k === "updatedAt") return;
+      o[k] = q[k];
+    });
+    if (opts.clearDetail) {
+      delete o.detail;
+    }
+    return o;
+  }
+
+  function upsertRemoteQuestionLocal(q, opts) {
+    if (!q || q.id == null || String(q.id).trim() === "") return;
+    var copy = cloneQuestionForLocalBank(q, opts);
+    var list = window.QUESTION_BANK_REMOTE || [];
+    window.QUESTION_BANK_REMOTE = list;
+    var id = copy.id;
+    var idx = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx >= 0) list[idx] = copy;
+    else list.push(copy);
+    mergeBanks();
+  }
 
   window.saveQuestionToFirestore = function (question, opts) {
     opts = opts || {};
@@ -138,7 +170,7 @@
       payload.detail = fv.delete();
     } else if (payload.detail && typeof payload.detail.body === "string" && payload.detail.body.trim()) {
       payload.detail = {
-        body: payload.detail.body.trim(),
+        body: String(payload.detail.body).replace(/\r\n/g, "\n"),
         legal: fv.delete(),
         trap: fv.delete(),
         precedent: fv.delete()
@@ -154,6 +186,7 @@
         { merge: true }
       )
       .then(function () {
+        upsertRemoteQuestionLocal(question, opts);
         return window.loadRemoteQuestions();
       });
   };

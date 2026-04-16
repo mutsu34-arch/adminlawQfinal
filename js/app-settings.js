@@ -14,6 +14,133 @@
   var DDAY_MAX = 3;
   var ddayTimer = null;
 
+  var QUIZ_TIMER_KEY = "hanlaw_quiz_timer_v1";
+  /** localStorage 불가(사설 모드 등)일 때만 app.js와 공유하는 세션 폴백 */
+  var QUIZ_TIMER_FALLBACK = "__HANLAW_QUIZ_TIMER_FALLBACK";
+
+  function clampQuizTimerSeconds(n) {
+    var x = parseInt(n, 10);
+    if (!Number.isFinite(x)) return 15;
+    return Math.min(600, Math.max(10, x));
+  }
+
+  function defaultQuizTimer() {
+    return { enabled: false, seconds: 15 };
+  }
+
+  function readQuizTimerFallback() {
+    try {
+      var w = window[QUIZ_TIMER_FALLBACK];
+      if (!w || typeof w !== "object") return null;
+      return {
+        enabled: !!w.enabled,
+        seconds: clampQuizTimerSeconds(w.seconds != null ? w.seconds : w.s)
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeQuizTimerFallback(cfg) {
+    try {
+      window[QUIZ_TIMER_FALLBACK] = {
+        enabled: !!cfg.enabled,
+        seconds: clampQuizTimerSeconds(cfg.seconds)
+      };
+    } catch (e2) {}
+  }
+
+  function loadQuizTimer() {
+    try {
+      var s = localStorage.getItem(QUIZ_TIMER_KEY);
+      if (s) {
+        var o = JSON.parse(s);
+        if (o && typeof o === "object") {
+          var out = {
+            enabled: !!o.e,
+            seconds: clampQuizTimerSeconds(o.s)
+          };
+          writeQuizTimerFallback(out);
+          return out;
+        }
+      }
+    } catch (e) {}
+    var fb = readQuizTimerFallback();
+    if (fb) return fb;
+    return defaultQuizTimer();
+  }
+
+  function saveQuizTimer(cfg) {
+    var out = {
+      enabled: !!cfg.enabled,
+      seconds: clampQuizTimerSeconds(cfg.seconds)
+    };
+    writeQuizTimerFallback(out);
+    try {
+      localStorage.setItem(
+        QUIZ_TIMER_KEY,
+        JSON.stringify({
+          e: out.enabled,
+          s: out.seconds
+        })
+      );
+    } catch (e) {}
+    try {
+      window.dispatchEvent(
+        new CustomEvent("hanlaw-quiz-timer-saved", {
+          detail: out
+        })
+      );
+    } catch (e3) {}
+  }
+
+  function syncQuizTimerControls() {
+    var c = loadQuizTimer();
+    var en = document.getElementById("settings-quiz-timer-enabled");
+    var sec = document.getElementById("settings-quiz-timer-seconds");
+    if (en) en.checked = !!c.enabled;
+    if (sec) sec.value = String(c.seconds);
+  }
+
+  function setQuizTimerMsg(text) {
+    var el = document.getElementById("settings-quiz-timer-msg");
+    if (!el) return;
+    el.textContent = text || "";
+    el.hidden = !text;
+  }
+
+  function bindQuizTimerSettings() {
+    var en = document.getElementById("settings-quiz-timer-enabled");
+    var sec = document.getElementById("settings-quiz-timer-seconds");
+    var btn = document.getElementById("btn-settings-quiz-timer-save");
+    if (!en || !sec) return;
+
+    function readFromForm() {
+      var seconds = clampQuizTimerSeconds(sec.value);
+      sec.value = String(seconds);
+      return { enabled: en.checked, seconds: seconds };
+    }
+
+    function applySave() {
+      var cfg = readFromForm();
+      saveQuizTimer(cfg);
+      setQuizTimerMsg(
+        cfg.enabled
+          ? "저장했습니다. 이후 퀴즈 문항마다 상단에 " +
+              cfg.seconds +
+              "초 타이머가 표시됩니다."
+          : "저장했습니다. 퀴즈 제한 시간을 사용하지 않습니다."
+      );
+    }
+
+    if (btn) {
+      btn.addEventListener("click", applySave);
+    }
+    syncQuizTimerControls();
+  }
+
+  window.getHanlawQuizTimerConfig = loadQuizTimer;
+
   function migrateLegacyIfNeeded() {
     try {
       var v2 = localStorage.getItem(KEY);
@@ -417,6 +544,7 @@
     renderSettingsDdayList();
     bindDdayControls();
     bindMyQuoteControls();
+    bindQuizTimerSettings();
     renderHeaderDday();
     if (ddayTimer) window.clearInterval(ddayTimer);
     ddayTimer = window.setInterval(renderHeaderDday, 60 * 1000);

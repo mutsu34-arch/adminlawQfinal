@@ -21,13 +21,14 @@ if (_envProjectId) {
  * 질문권 PAYAPP_KRW_Q1, PAYAPP_KRW_Q10 · 구독 PAYAPP_KRW_SUB_MONTHLY/YEARLY/TWO_YEAR · 비갱신 PAYAPP_KRW_NONRENEW_1M/3M/6M
  * getPayAppQuestionPackCheckout, getPayAppSubscriptionCheckout, cancelPayAppRebill, payappQuestionFeedback
  *
- * 출석 포인트→질문권: convertAttendancePointsToQuestionCredit (대시보드 버튼)
+ * 출석 포인트→변호사 질문권: convertAttendancePointsToQuestionCredit · 엘리 질문권: convertAttendancePointsToEllyCredit (대시보드)
  * 개선의견 채택: adminApproveSuggestionTicket (관리자, 출석 포인트 지급)
  * 공개 Q&A: publishLawyerQaPublic(관리자), searchLawyerQa, revealLawyerQaAnswer — 답변 열람 시 질문자 출석 포인트(다른 사용자 최초 1회)
  * 배포: 프로젝트 루트에서 firebase deploy --only functions,firestore:rules
  *
  * 사전·퀴즈 AI: GEMINI_API_KEY, 선택 GEMINI_MODEL (기본 gemini-2.0-flash, 구형 gemini-1.5-flash-latest 는 1.5-flash 로 치환)
- * 퀴즈 AI: quizAskGemini — 한국시간 기준 1일 4회 (hanlaw_quiz_ai_usage)
+ * 퀴즈 AI: quizAskGemini — 무료 1일 4회(hanlaw_quiz_ai_usage) + 엘리 질문권(hanlaw_quiz_ai_wallet); 기존 구매분 ellyUnlimitedUntil은 서버에서 계속 인정
+ * 페이앱 엘리: PAYAPP_KRW_EQ10/EQ50/EQ100 — getPayAppEllyQuestionPackCheckout (무제한 1개월 결제는 UI 제거, 웹훅·Callable은 유지 가능)
  * 관리자 문의함 AI 초안: adminDraftTicketAi — GEMINI_API_KEY, 관리자만, 선택 자료실 RAG(PINECONE·quizAskGemini와 동일 retrieveLibraryContextForQuiz)
  * 자료실 RAG: GEMINI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME, 선택 PINECONE_HOST, PINECONE_NAMESPACE, GEMINI_EMBED_MODEL, GEMINI_EMBED_DIM
  * Storage 자료실 트리거 버킷: HANLAW_STORAGE_BUCKET — PDF·xlsx 업로드 시 청크·임베딩 (libraryPipeline)
@@ -38,6 +39,8 @@ if (_envProjectId) {
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { consumeOneFromBatches } = require("./walletBatches");
+const { appendPointLog, REASON } = require("./attendancePointLedger");
 
 initializeApp();
 const db = getFirestore();
@@ -65,11 +68,15 @@ exports.onLibraryPdfUploaded = onLibraryPdfUploaded;
 
 const {
   getPayAppQuestionPackCheckout,
+  getPayAppEllyQuestionPackCheckout,
+  getPayAppEllyUnlimitedPassCheckout,
   getPayAppSubscriptionCheckout,
   cancelPayAppRebill,
   payappQuestionFeedback
 } = require("./payappPayments");
 exports.getPayAppQuestionPackCheckout = getPayAppQuestionPackCheckout;
+exports.getPayAppEllyQuestionPackCheckout = getPayAppEllyQuestionPackCheckout;
+exports.getPayAppEllyUnlimitedPassCheckout = getPayAppEllyUnlimitedPassCheckout;
 exports.getPayAppSubscriptionCheckout = getPayAppSubscriptionCheckout;
 exports.cancelPayAppRebill = cancelPayAppRebill;
 exports.payappQuestionFeedback = payappQuestionFeedback;
@@ -85,12 +92,14 @@ const BATCH_VALID_MS = 365 * 24 * 60 * 60 * 1000;
 /** 질문권 부족 시 안내(원화, 페이앱 기본과 맞출 것) */
 const QUESTION_PACK_PRICE_HINT_KO =
   process.env.QUESTION_PACK_PRICE_HINT_KO ||
-  "요금제에서 추가 구매: 1건 ₩3,000 · 10건 ₩15,000(구매일로부터 1년 유효).";
+  "요금제에서 추가 구매: 1건 ₩5,000 · 10건 ₩30,000(구매일로부터 1년 유효).";
 
 /** 한국시간 기준 하루 1회, 퀴즈 1문제 이상 풀이 시 지급되는 출석 포인트 */
 const ATTENDANCE_POINTS_PER_DAY = 100;
-/** 출석 포인트를 질문권 1건으로 바꿀 때 차감하는 점수(수동 전환, convertAttendancePointsToQuestionCredit) */
-const ATTENDANCE_POINTS_PER_CREDIT = 3000;
+/** 출석 포인트를 변호사 질문권 1건으로 바꿀 때 차감(수동 전환, convertAttendancePointsToQuestionCredit) — 질문권 단가(₩5,000)에 맞춤 */
+const ATTENDANCE_POINTS_PER_CREDIT = 5000;
+/** 출석 포인트를 엘리(AI) 질문권 1건으로 바꿀 때 차감(convertAttendancePointsToEllyCredit) — 엘리 10건 팩 건당 약 ₩500 수준 */
+const ATTENDANCE_POINTS_PER_ELLY_CREDIT = 500;
 /** 앱 홍보 인증(관리자 승인 시) 지급 포인트 */
 const PROMOTION_REWARD_POINTS = 9000;
 /** 개선의견 채택 시 기본 지급 출석 포인트(관리자가 Callable에서 가감 가능) */
@@ -159,36 +168,6 @@ function sumPurchasedCredits(batches, nowMs) {
     n += Math.max(0, parseInt(b.amount, 10) || 0);
   }
   return n;
-}
-
-function consumeOneFromBatches(batches, nowMs) {
-  const sorted = batches
-    .map((b, i) => ({ b, i }))
-    .filter((x) => {
-      const exp = x.b.expiresAt;
-      const expMs = exp && typeof exp.toMillis === "function" ? exp.toMillis() : 0;
-      return expMs >= nowMs && (parseInt(x.b.amount, 10) || 0) > 0;
-    })
-    .sort((a, b) => {
-      const am = a.b.expiresAt.toMillis();
-      const bm = b.b.expiresAt.toMillis();
-      return am - bm;
-    });
-
-  if (!sorted.length) return null;
-
-  const first = sorted[0].b;
-  const idx = batches.indexOf(first);
-  if (idx < 0) return null;
-
-  const amt = parseInt(first.amount, 10) || 0;
-  const next = batches.slice();
-  if (amt <= 1) {
-    next.splice(idx, 1);
-  } else {
-    next[idx] = Object.assign({}, first, { amount: amt - 1 });
-  }
-  return next;
 }
 
 exports.consumeQuestionCredit = onCall(
@@ -294,6 +273,12 @@ exports.recordQuizAttendance = onCall({ region: "asia-northeast3" }, async (requ
       },
       { merge: true }
     );
+    appendPointLog(t, attRef, {
+      delta: ATTENDANCE_POINTS_PER_DAY,
+      reason: REASON.QUIZ_DAILY,
+      balanceAfter: points,
+      meta: { ymd: todayYmd }
+    });
 
     return {
       ok: true,
@@ -308,7 +293,7 @@ exports.recordQuizAttendance = onCall({ region: "asia-northeast3" }, async (requ
 });
 
 /**
- * 출석 포인트 3,000점을 차감하고 질문권 1건(구매 배치와 동일, 1년 유효)을 지급합니다.
+ * 출석 포인트를 차감하고 변호사 질문권 1건(구매 배치와 동일, 1년 유효)을 지급합니다.
  */
 exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
@@ -329,7 +314,7 @@ exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northea
     if (points < ATTENDANCE_POINTS_PER_CREDIT) {
       throw new HttpsError(
         "failed-precondition",
-        `질문권으로 바꾸려면 출석 포인트가 ${ATTENDANCE_POINTS_PER_CREDIT.toLocaleString("ko-KR")}점 이상이어야 합니다.`
+        `변호사 질문권으로 바꾸려면 출석 포인트가 ${ATTENDANCE_POINTS_PER_CREDIT.toLocaleString("ko-KR")}점 이상이어야 합니다.`
       );
     }
     points -= ATTENDANCE_POINTS_PER_CREDIT;
@@ -352,6 +337,11 @@ exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northea
       },
       { merge: true }
     );
+    appendPointLog(t, attRef, {
+      delta: -ATTENDANCE_POINTS_PER_CREDIT,
+      reason: REASON.CONVERT_LAWYER,
+      balanceAfter: points
+    });
     t.set(
       walletRef,
       {
@@ -367,6 +357,71 @@ exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northea
       ok: true,
       attendancePoints: points,
       creditsAdded: 1
+    };
+  });
+});
+
+/**
+ * 출석 포인트를 차감하고 엘리(AI) 질문권 1건(PayApp 엘리 팩과 동일한 배치, 1년 유효)을 지급합니다.
+ */
+exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3" }, async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const uid = request.auth.uid;
+  const attRef = db.collection("hanlaw_attendance_rewards").doc(uid);
+  const walletRef = db.collection("hanlaw_quiz_ai_wallet").doc(uid);
+  const exp = Timestamp.fromMillis(Date.now() + BATCH_VALID_MS);
+
+  return db.runTransaction(async (t) => {
+    const attSnap = await t.get(attRef);
+    let points = Math.max(
+      0,
+      parseInt(attSnap.exists ? attSnap.data().attendancePoints : 0, 10) || 0
+    );
+    if (points < ATTENDANCE_POINTS_PER_ELLY_CREDIT) {
+      throw new HttpsError(
+        "failed-precondition",
+        `엘리(AI) 질문권으로 바꾸려면 출석 포인트가 ${ATTENDANCE_POINTS_PER_ELLY_CREDIT.toLocaleString("ko-KR")}점 이상이어야 합니다.`
+      );
+    }
+    points -= ATTENDANCE_POINTS_PER_ELLY_CREDIT;
+
+    const walletSnap = await t.get(walletRef);
+    const data = walletSnap.exists ? walletSnap.data() : {};
+    const batches = Array.isArray(data.batches) ? data.batches.slice() : [];
+    batches.push({
+      amount: 1,
+      expiresAt: exp,
+      purchasedAt: Timestamp.now()
+    });
+
+    t.set(
+      attRef,
+      {
+        attendancePoints: points,
+        updatedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+    appendPointLog(t, attRef, {
+      delta: -ATTENDANCE_POINTS_PER_ELLY_CREDIT,
+      reason: REASON.CONVERT_ELLY,
+      balanceAfter: points
+    });
+    t.set(
+      walletRef,
+      {
+        batches,
+        updatedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    return {
+      ok: true,
+      attendancePoints: points,
+      ellyCreditsAdded: 1
     };
   });
 });
@@ -421,6 +476,12 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
       },
       { merge: true }
     );
+    appendPointLog(t, attRef, {
+      delta: PROMOTION_REWARD_POINTS,
+      reason: REASON.PROMOTION,
+      balanceAfter: points,
+      meta: { ticketId }
+    });
 
     t.update(ticketRef, {
       adminReply,
@@ -514,6 +575,12 @@ exports.adminApproveSuggestionTicket = onCall({ region: "asia-northeast3" }, asy
         },
         { merge: true }
       );
+      appendPointLog(t, attRef, {
+        delta: awardPts,
+        reason: REASON.SUGGESTION,
+        balanceAfter: pts,
+        meta: { ticketId }
+      });
     }
 
     t.update(ticketRef, {
@@ -593,7 +660,7 @@ function sanitizeQuizPayload(raw) {
   if (src.detail && typeof src.detail === "object") {
     const detail = {};
     if (src.detail.body != null && String(src.detail.body).trim()) {
-      detail.body = String(src.detail.body).trim();
+      detail.body = String(src.detail.body).replace(/\r\n/g, "\n");
     }
     if (src.detail.legal != null && String(src.detail.legal).trim()) detail.legal = String(src.detail.legal).trim();
     if (src.detail.trap != null && String(src.detail.trap).trim()) detail.trap = String(src.detail.trap).trim();

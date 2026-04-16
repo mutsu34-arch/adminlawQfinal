@@ -50,11 +50,29 @@ service cloud.firestore {
     match /hanlaw_attendance_rewards/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow create, update, delete: if false;
+
+      // 포인트 내역(대시보드). append는 Cloud Functions만.
+      match /point_log/{entryId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create, update, delete: if false;
+      }
     }
 
     // 퀴즈 AI 질문 일일 횟수(Functions만 쓰기). 본인 읽기 허용(남은 횟수 표시용).
     match /hanlaw_quiz_ai_usage/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update, delete: if false;
+    }
+
+    // 엘리(AI) 질문권 지갑. 지급·차감은 Cloud Functions만.
+    match /hanlaw_quiz_ai_wallet/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update, delete: if false;
+    }
+
+    // 엘리(AI) 질문 내역(대시보드). 쓰기는 Functions만, 본인 읽기.
+    match /hanlaw_quiz_ai_asks/{askId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create, update, delete: if false;
     }
 

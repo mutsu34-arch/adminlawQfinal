@@ -39,6 +39,7 @@
     var adminEditBtn = ensureQuizAdminEditButton();
     var adminOn = isAdminUser();
     if (adminEditBtn) adminEditBtn.hidden = !adminOn;
+    if (el.btnQuizAdminEditFeedback) el.btnQuizAdminEditFeedback.hidden = !adminOn;
     if (el.quizAdminEditor && !adminOn) el.quizAdminEditor.hidden = true;
   }
 
@@ -57,6 +58,10 @@
     questionCount: document.getElementById("question-count"),
     btnStart: document.getElementById("btn-start"),
     progress: document.getElementById("quiz-progress"),
+    quizTimerPanel: document.getElementById("quiz-timer-panel"),
+    quizTimerArcadeFill: document.getElementById("quiz-timer-arcade-fill"),
+    quizTimerBarTrack: document.getElementById("quiz-timer-bar-track"),
+    quizTimerMeta: document.getElementById("quiz-timer-meta"),
     score: document.getElementById("quiz-score"),
     qSource: document.getElementById("q-source"),
     qMeta: document.getElementById("q-meta"),
@@ -85,6 +90,7 @@
     feedbackGuestHint: document.getElementById("feedback-guest-hint"),
     feedbackTagsSection: document.getElementById("feedback-tags-section"),
     btnQuizAdminEdit: document.getElementById("btn-quiz-admin-edit"),
+    btnQuizAdminEditFeedback: document.getElementById("btn-quiz-admin-edit-feedback"),
     quizAdminEditor: null,
     quizMemoSection: document.getElementById("quiz-memo-section"),
     quizMemoBody: document.getElementById("quiz-memo-body"),
@@ -95,16 +101,23 @@
     quizMemoDrawWrap: document.getElementById("quiz-memo-draw-wrap"),
     quizMemoSave: document.getElementById("quiz-memo-save"),
     quizMemoMsg: document.getElementById("quiz-memo-msg"),
-    quizMemoClearCanvas: document.getElementById("quiz-memo-clear-canvas")
+    quizMemoClearCanvas: document.getElementById("quiz-memo-clear-canvas"),
+    quizMemoPanToggle: document.getElementById("quiz-memo-pan-toggle"),
+    quizMemoEditDraw: document.getElementById("quiz-memo-edit-draw")
   };
 
   var quizMemoCanvasCtl = null;
+  var quizMemoPanMode = false;
+  var quizQuestionTimerId = null;
+  var quizTimerTotalMs = 0;
 
   /** 상세 해설: detail.body 우선, 없으면 구버전 legal/trap/precedent를 한 덩어리로 편집용 병합 */
   function mergeLegacyDetailToText(d) {
     if (!d || typeof d !== "object") return "";
-    var b = String(d.body != null ? d.body : "").trim();
-    if (b) return b;
+    if (d.body != null) {
+      var b = String(d.body).replace(/\r\n/g, "\n");
+      if (b.trim()) return b;
+    }
     var parts = [];
     if (String(d.legal || "").trim()) parts.push("법리 근거: " + String(d.legal).trim());
     if (String(d.trap || "").trim()) parts.push("함정 포인트: " + String(d.trap).trim());
@@ -112,7 +125,7 @@
     return parts.join("\n\n");
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 2;
+  var QUIZ_ADMIN_EDITOR_VER = 4;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -144,7 +157,13 @@
       '<label class="field"><span class="field__label">태그(쉼표 구분)</span><input id="quiz-admin-tags" type="text" class="input" /></label>' +
       '<div class="quiz-admin-editor__actions"><button type="button" id="quiz-admin-save" class="btn btn--secondary btn--small">저장</button><button type="button" id="quiz-admin-cancel" class="btn btn--outline btn--small">닫기</button></div>' +
       '<p id="quiz-admin-msg" class="settings-dday-msg" hidden role="status"></p>';
-    el.qMeta.parentNode.insertBefore(editor, btn.nextSibling);
+    var insertAnchor =
+      btn.parentNode &&
+      btn.parentNode.classList &&
+      btn.parentNode.classList.contains("quiz-admin-edit-toolbar")
+        ? btn.parentNode
+        : btn;
+    el.qMeta.parentNode.insertBefore(editor, insertAnchor.nextSibling);
     el.quizAdminEditor = editor;
     window.__hanlawQuizAdminEditInited = true;
     window.__hanlawQuizAdminEditorVer = QUIZ_ADMIN_EDITOR_VER;
@@ -174,12 +193,25 @@
       setEditorMsg("", false);
     }
 
-    btn.addEventListener("click", function () {
+    function openQuizAdminEditor() {
       var q = state.list[state.index];
       if (!q || !isAdminUser()) return;
       fillEditorFromQuestion(q);
       editor.hidden = false;
-    });
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          try {
+            editor.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+          } catch (err) {
+            editor.scrollIntoView(true);
+          }
+        });
+      });
+    }
+    btn.addEventListener("click", openQuizAdminEditor);
+    if (el.btnQuizAdminEditFeedback) {
+      el.btnQuizAdminEditFeedback.addEventListener("click", openQuizAdminEditor);
+    }
     var btnCancel = document.getElementById("quiz-admin-cancel");
     if (btnCancel) {
       btnCancel.addEventListener("click", function () {
@@ -199,10 +231,13 @@
         var explanation = String(document.getElementById("quiz-admin-explanation").value || "").trim();
         var explanationBasic = String(
           document.getElementById("quiz-admin-explanation-basic").value || ""
-        ).trim();
-        var detailBody = String(
+        )
+          .replace(/\r\n/g, "\n")
+          .trim();
+        var detailBodyRaw = String(
           document.getElementById("quiz-admin-detail-body").value || ""
-        ).trim();
+        ).replace(/\r\n/g, "\n");
+        var detailBodyHas = detailBodyRaw.trim().length > 0;
         if (!statement || !explanation) {
           setEditorMsg("문제 본문과 해설은 필수입니다.", true);
           return;
@@ -229,8 +264,8 @@
           answer: document.getElementById("quiz-admin-answer").value === "true"
         });
         delete payload.detail;
-        if (detailBody) payload.detail = { body: detailBody };
-        var saveOpts = { clearDetail: !detailBody };
+        if (detailBodyHas) payload.detail = { body: detailBodyRaw };
+        var saveOpts = { clearDetail: !detailBodyHas };
         if (impRaw) payload.importance = parseInt(impRaw, 10);
         else delete payload.importance;
         if (diffRaw) payload.difficulty = parseInt(diffRaw, 10);
@@ -241,14 +276,7 @@
         window
           .saveQuestionToFirestore(payload, saveOpts)
           .then(function () {
-            q.statement = payload.statement;
-            q.explanation = payload.explanation;
-            q.explanationBasic = payload.explanationBasic;
-            q.detail = detailBody ? { body: detailBody } : undefined;
-            q.answer = payload.answer;
-            q.importance = payload.importance;
-            q.difficulty = payload.difficulty;
-            q.tags = payload.tags;
+            resyncCurrentQuestionRefFromBank();
             setEditorMsg("저장되었습니다.", false);
             editor.hidden = true;
             renderQuestion();
@@ -274,6 +302,20 @@
     /** index → { userTrue } — 뒤로 가기 시 해설 복원용 */
     sessionAnswers: {}
   };
+
+  /** 저장 후 mergeBanks로 QUESTION_BANK가 바뀌면 state.list 참조가 옛 객체를 가리킬 수 있음 → 동기 id로 교체 */
+  function resyncCurrentQuestionRefFromBank() {
+    var cur = state.list[state.index];
+    if (!cur || cur.id == null || String(cur.id).trim() === "") return;
+    var id = cur.id;
+    var bank = getBank();
+    for (var i = 0; i < bank.length; i++) {
+      if (bank[i].id === id) {
+        state.list[state.index] = bank[i];
+        return;
+      }
+    }
+  }
 
   function matchesScope(q) {
     var exams = window.APP_SCOPE && window.APP_SCOPE.examIds;
@@ -693,6 +735,9 @@
   }
 
   function showScreen(name) {
+    if (name !== "quiz") {
+      clearQuizQuestionTimer();
+    }
     el.start.classList.remove("screen--active");
     el.quiz.classList.remove("screen--active");
     el.result.classList.remove("screen--active");
@@ -732,7 +777,9 @@
     });
   }
 
-  function applyOxReveal(container, userTrue, correctTrue) {
+  function applyOxReveal(container, userTrue, correctTrue, revealOpts) {
+    revealOpts = revealOpts || {};
+    var timeout = revealOpts.timeout === true;
     if (!container) return;
     container.classList.add("q-actions--revealed");
     container.querySelectorAll(".btn--ox").forEach(function (b) {
@@ -742,7 +789,7 @@
       var isUserBtn = isTrue === userTrue;
       if (isCorrectBtn) {
         b.classList.add("btn--ox-reveal-correct");
-      } else if (isUserBtn) {
+      } else if (!timeout && isUserBtn) {
         b.classList.add("btn--ox-reveal-wrong");
       } else {
         b.classList.add("btn--ox-reveal-dim");
@@ -941,6 +988,55 @@
     el.quizMemoMsg.classList.toggle("quiz-memo__msg--error", !!isError);
   }
 
+  function applyQuizMemoPanMode(on) {
+    quizMemoPanMode = !!on;
+    if (!el.quizMemoCanvas) return;
+    var scrollWrap = document.getElementById("quiz-memo-canvas-scroll");
+    if (scrollWrap) {
+      scrollWrap.classList.toggle("quiz-memo__canvas-scroll--pan", quizMemoPanMode);
+    }
+    el.quizMemoCanvas.classList.toggle("quiz-memo__canvas--pan", quizMemoPanMode);
+    if (el.quizMemoPanToggle) {
+      el.quizMemoPanToggle.setAttribute("aria-pressed", quizMemoPanMode ? "true" : "false");
+      el.quizMemoPanToggle.classList.toggle("quiz-memo__split-actions-btn--active", quizMemoPanMode);
+      el.quizMemoPanToggle.textContent = quizMemoPanMode ? "그리기" : "이동";
+    }
+    if (quizMemoCanvasCtl && typeof quizMemoCanvasCtl.setDrawingEnabled === "function") {
+      var locked = el.quizMemoCanvas.classList.contains("quiz-memo__canvas--locked");
+      quizMemoCanvasCtl.setDrawingEnabled(!quizMemoPanMode && !locked);
+    }
+  }
+
+  function applyQuizMemoDrawingLock(locked) {
+    if (!el.quizMemoCanvas || !quizMemoCanvasCtl) return;
+    el.quizMemoCanvas.classList.toggle("quiz-memo__canvas--locked", !!locked);
+    if (el.quizMemoEditDraw) {
+      el.quizMemoEditDraw.hidden = !locked;
+    }
+    var toolIds = [
+      "quiz-memo-draw-settings-toggle",
+      "quiz-memo-clear-canvas",
+      "quiz-memo-tool-pen",
+      "quiz-memo-tool-eraser",
+      "quiz-memo-pen-color",
+      "quiz-memo-pen-width"
+    ];
+    var ti;
+    for (ti = 0; ti < toolIds.length; ti++) {
+      var node = document.getElementById(toolIds[ti]);
+      if (node) node.disabled = !!locked;
+    }
+    if (locked) {
+      var settingsPanel = document.getElementById("quiz-memo-draw-settings");
+      var settingsToggle = document.getElementById("quiz-memo-draw-settings-toggle");
+      if (settingsPanel) settingsPanel.hidden = true;
+      if (settingsToggle) settingsToggle.setAttribute("aria-expanded", "false");
+    } else {
+      updateQuizMemoToolUi();
+    }
+    applyQuizMemoPanMode(quizMemoPanMode);
+  }
+
   function clearQuizMemoDraft() {
     if (el.quizMemoText) el.quizMemoText.value = "";
     if (quizMemoCanvasCtl && typeof quizMemoCanvasCtl.clear === "function") quizMemoCanvasCtl.clear();
@@ -948,7 +1044,8 @@
       quizMemoCanvasCtl.setEraser(false);
     }
     setQuizMemoMsg("", false);
-    updateQuizMemoToolUi();
+    applyQuizMemoPanMode(false);
+    applyQuizMemoDrawingLock(false);
   }
 
   function setQuizMemoPanelOpen(open) {
@@ -972,11 +1069,13 @@
     if (!qid) return;
     var m = window.QuizQuestionMemo.get(qid);
     if (el.quizMemoText) el.quizMemoText.value = m && m.text ? m.text : "";
+    var hasDrawing = false;
     if (quizMemoCanvasCtl) {
       if (typeof quizMemoCanvasCtl.setEraser === "function") {
         quizMemoCanvasCtl.setEraser(false);
       }
       if (m && m.drawing && String(m.drawing).indexOf("data:image") === 0) {
+        hasDrawing = true;
         quizMemoCanvasCtl.loadDataUrl(m.drawing);
       } else if (typeof quizMemoCanvasCtl.clear === "function") {
         quizMemoCanvasCtl.clear();
@@ -984,6 +1083,7 @@
     }
     setQuizMemoMsg("", false);
     updateQuizMemoToolUi();
+    applyQuizMemoDrawingLock(hasDrawing);
     setQuizMemoPanelOpen(false);
   }
 
@@ -1139,11 +1239,28 @@
         if (!txt && !drawing) {
           window.QuizQuestionMemo.remove(qid);
           setQuizMemoMsg("메모를 비웠습니다.", false);
+          applyQuizMemoDrawingLock(false);
           return;
         }
         window.QuizQuestionMemo.set(qid, { text: txt, drawing: drawing });
         setQuizMemoMsg("저장했습니다.", false);
+        if (drawing) {
+          applyQuizMemoDrawingLock(true);
+        } else {
+          applyQuizMemoDrawingLock(false);
+        }
       });
+    }
+    if (el.quizMemoEditDraw) {
+      el.quizMemoEditDraw.addEventListener("click", function () {
+        applyQuizMemoDrawingLock(false);
+      });
+    }
+    if (el.quizMemoPanToggle) {
+      el.quizMemoPanToggle.addEventListener("click", function () {
+        applyQuizMemoPanMode(!quizMemoPanMode);
+      });
+      applyQuizMemoPanMode(false);
     }
   }
 
@@ -1159,7 +1276,7 @@
     var det = "";
     if (q.detail && typeof q.detail === "object") {
       if (q.detail.body != null && String(q.detail.body).trim()) {
-        det = String(q.detail.body).trim() + "\n\n";
+        det = String(q.detail.body).replace(/\r\n/g, "\n") + "\n\n";
       } else {
         var keys = ["legal", "trap", "precedent"];
         var titles = { legal: "법리 근거", trap: "함정 포인트", precedent: "판례" };
@@ -1178,6 +1295,7 @@
     return {
       statement: stmt,
       topic: String(q.topic || "").slice(0, 200),
+      questionId: q.id != null && String(q.id).trim() ? String(q.id).trim().slice(0, 120) : "",
       correctAnswer: q.answer === true,
       userAnsweredTrue: userTrue === true,
       explanationBasic: exB,
@@ -1208,13 +1326,137 @@
     return examPart;
   }
 
-  function paintAnsweredFeedback(q, userTrue) {
+  function clearQuizQuestionTimer() {
+    if (quizQuestionTimerId != null) {
+      window.clearInterval(quizQuestionTimerId);
+      quizQuestionTimerId = null;
+    }
+    quizTimerTotalMs = 0;
+    if (el.quizTimerPanel) {
+      el.quizTimerPanel.hidden = true;
+      el.quizTimerPanel.setAttribute("aria-hidden", "true");
+      el.quizTimerPanel.classList.remove("quiz-timer-panel--warn");
+    }
+    if (el.quizTimerArcadeFill) el.quizTimerArcadeFill.style.width = "100%";
+    if (el.quizTimerMeta) el.quizTimerMeta.textContent = "—";
+    if (el.quizTimerBarTrack) el.quizTimerBarTrack.setAttribute("aria-valuenow", "100");
+  }
+
+  function getQuizTimerCfg() {
+    if (typeof window.getHanlawQuizTimerConfig === "function") {
+      try {
+        var c = window.getHanlawQuizTimerConfig();
+        if (c && typeof c === "object") {
+          var sec = parseInt(c.seconds, 10);
+          if (!Number.isFinite(sec)) sec = 15;
+          sec = Math.min(600, Math.max(10, sec));
+          return { enabled: !!c.enabled, seconds: sec };
+        }
+      } catch (e1) {}
+    }
+    try {
+      var raw = localStorage.getItem("hanlaw_quiz_timer_v1");
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o && typeof o === "object") {
+          var s2 = parseInt(o.s, 10);
+          if (!Number.isFinite(s2)) s2 = 15;
+          s2 = Math.min(600, Math.max(10, s2));
+          return { enabled: !!o.e, seconds: s2 };
+        }
+      }
+    } catch (e2) {}
+    return { enabled: false, seconds: 15 };
+  }
+
+  function updateQuizTimerUi(msLeft, totalMs, remainingSec) {
+    var pct = totalMs > 0 ? Math.max(0, Math.min(100, (msLeft / totalMs) * 100)) : 0;
+    if (el.quizTimerArcadeFill) el.quizTimerArcadeFill.style.width = pct + "%";
+    if (el.quizTimerBarTrack) {
+      var maxSec = Math.max(1, Math.round(totalMs / 1000));
+      el.quizTimerBarTrack.setAttribute("aria-valuemax", String(maxSec));
+      el.quizTimerBarTrack.setAttribute("aria-valuenow", String(Math.max(0, remainingSec)));
+    }
+    if (el.quizTimerMeta) {
+      el.quizTimerMeta.textContent =
+        "제한 시간 · 남은 " + remainingSec + "초 (문항당 " + Math.round(totalMs / 1000) + "초)";
+    }
+    if (el.quizTimerPanel) {
+      el.quizTimerPanel.classList.toggle("quiz-timer-panel--warn", remainingSec <= 10);
+    }
+  }
+
+  function startQuizQuestionTimerIfNeeded() {
+    clearQuizQuestionTimer();
+    var cfg = getQuizTimerCfg();
+    if (!cfg.enabled || !(cfg.seconds > 0)) return;
+    quizTimerTotalMs = cfg.seconds * 1000;
+    var totalMs = quizTimerTotalMs;
+    var deadline = Date.now() + totalMs;
+    if (el.quizTimerPanel) {
+      el.quizTimerPanel.hidden = false;
+      el.quizTimerPanel.setAttribute("aria-hidden", "false");
+    }
+    updateQuizTimerUi(totalMs, totalMs, Math.ceil(totalMs / 1000));
+    quizQuestionTimerId = window.setInterval(function () {
+      var ms = deadline - Date.now();
+      if (ms <= 0) {
+        clearQuizQuestionTimer();
+        onAnswerTimeout();
+        return;
+      }
+      var rs = Math.ceil(ms / 1000);
+      updateQuizTimerUi(ms, totalMs, rs);
+    }, 120);
+  }
+
+  function scheduleQuizQuestionTimerIfNeeded() {
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        startQuizQuestionTimerIfNeeded();
+      });
+    });
+  }
+
+  function onAnswerTimeout() {
+    var q = state.list[state.index];
+    if (!q) return;
+    if (state.sessionAnswers[state.index] != null) return;
+    var userTrue = !q.answer;
+    state.sessionAnswers[state.index] = { userTrue: userTrue, timeout: true };
+    paintAnsweredFeedback(q, userTrue, { timeout: true });
+    el.score.textContent = "정답 " + state.correct;
+    if (window.LearningStats && typeof window.LearningStats.recordQuizAnswer === "function") {
+      window.LearningStats.recordQuizAnswer(q.topic, false);
+    }
+    if (!isViewerLoggedIn()) {
+      if (el.feedbackMaster) el.feedbackMaster.hidden = true;
+      if (el.feedbackAttendanceNotify) el.feedbackAttendanceNotify.hidden = true;
+    }
+    if (
+      String(q.id != null ? q.id : "").trim() &&
+      window.QuizWrongNote &&
+      typeof window.QuizWrongNote.record === "function"
+    ) {
+      window.QuizWrongNote.record(q.id);
+    }
+    updateQuizNavButtons();
+    afterQuizAnswerTryAttendance();
+  }
+
+  function paintAnsweredFeedback(q, userTrue, fbOpts) {
+    fbOpts = fbOpts || {};
+    var timeout = fbOpts.timeout === true;
     var ok = userTrue === q.answer;
     el.feedback.hidden = false;
-    el.feedbackResult.textContent = ok ? "정답입니다." : "오답입니다.";
+    el.feedbackResult.textContent = timeout
+      ? "시간이 초과되어 오답 처리되었습니다."
+      : ok
+        ? "정답입니다."
+        : "오답입니다.";
     el.feedbackResult.classList.remove("is-correct", "is-wrong");
     el.feedbackResult.classList.add(ok ? "is-correct" : "is-wrong");
-    applyOxReveal(el.qActions, userTrue, q.answer);
+    applyOxReveal(el.qActions, userTrue, q.answer, { timeout: timeout });
     fillExplainPanel(
       {
         answerKey: el.feedbackAnswerKey,
@@ -1294,7 +1536,8 @@
 
     var saved = state.sessionAnswers[state.index];
     if (saved != null) {
-      paintAnsweredFeedback(q, saved.userTrue);
+      clearQuizQuestionTimer();
+      paintAnsweredFeedback(q, saved.userTrue, { timeout: saved.timeout === true });
       if (el.feedbackMaster) {
         el.feedbackMaster.textContent = "";
         el.feedbackMaster.hidden = true;
@@ -1312,6 +1555,7 @@
       if (el.btnQuizFavorite) el.btnQuizFavorite.hidden = true;
       if (el.btnQuizMaster) el.btnQuizMaster.hidden = true;
       setOxDisabled(false);
+      scheduleQuizQuestionTimerIfNeeded();
     }
     updateQuizNavButtons();
   }
@@ -1330,31 +1574,22 @@
       return t;
     }
 
+    /** 상세 본문(detail.body): 줄바꿈·빈 줄을 그대로 둠(구버전 normalizedText의 \s*가 빈 줄을 삼켰음) */
+    function normalizeDetailBodyRaw(raw) {
+      return String(raw || "").replace(/\r\n/g, "\n");
+    }
+
+    /** 구버전 legal/trap/precedent만 합친 문자열용(간단 정리) */
     function normalizedText(raw) {
-      var s = String(raw || "").trim();
-      if (!s) return "";
-      // 라벨 표기를 통일
-      s = s.replace(/법리\s*근거\s*[:：-]?\s*/gi, "법리 근거: ");
-      s = s.replace(/함정\s*포인트\s*[:：-]?\s*/gi, "함정 포인트: ");
-      s = s.replace(/판례\s*요지\s*[:：-]?\s*/gi, "판례: ");
-      s = s.replace(/판례\s*[:：-]?\s*/gi, "판례: ");
-      // 라벨 중복 제거 (예: "법리 근거: 법리 근거:")
-      s = s.replace(/(법리 근거:\s*){2,}/gi, "법리 근거: ");
-      s = s.replace(/(함정 포인트:\s*){2,}/gi, "함정 포인트: ");
-      s = s.replace(/(판례:\s*){2,}/gi, "판례: ");
-      // 각 라벨 앞에는 문단 경계를 강제
-      s = s.replace(/\s*(법리 근거:\s*)/gi, "\n\n$1");
-      s = s.replace(/\s*(함정 포인트:\s*)/gi, "\n\n$1");
-      s = s.replace(/\s*(판례:\s*)/gi, "\n\n$1");
-      return s.replace(/^\s+/, "").trim();
+      return String(raw || "").replace(/\r\n/g, "\n").trim();
     }
 
     var merged = "";
     if (typeof detail === "string") {
-      merged = normalizedText(detail);
+      merged = normalizeDetailBodyRaw(detail);
     } else if (typeof detail === "object") {
       if (detail.body != null && String(detail.body).trim()) {
-        merged = normalizedText(String(detail.body));
+        merged = normalizeDetailBodyRaw(String(detail.body));
       } else {
         var parts = [];
         if (detail.legal != null && String(detail.legal).trim()) {
@@ -1380,17 +1615,15 @@
     }
     if (!merged) return;
 
-    var wrap = document.createElement("div");
-    wrap.className = "feedback-detail__block";
-    var p = document.createElement("p");
-    p.className = "feedback-detail__text quiz-ai-answer";
+    /* <p> 안에 불릿용 <div>가 들어가면 HTML이 깨져 스타일·줄간격이 무너짐 → div 루트만 사용, quiz-ai-answer 박스 미적용 */
+    var root = document.createElement("div");
+    root.className = "feedback-detail__rich-html";
     if (typeof window.formatHanlawAiAnswerHtml === "function") {
-      p.innerHTML = window.formatHanlawAiAnswerHtml(merged);
+      root.innerHTML = window.formatHanlawAiAnswerHtml(merged);
     } else {
-      p.textContent = merged;
+      root.textContent = merged;
     }
-    wrap.appendChild(p);
-    container.appendChild(wrap);
+    container.appendChild(root);
   }
 
   function renderTags(container, tags) {
@@ -1440,6 +1673,7 @@
   }
 
   function onAnswer(userTrue) {
+    clearQuizQuestionTimer();
     var q = state.list[state.index];
     state.sessionAnswers[state.index] = { userTrue: userTrue };
     var ok = userTrue === q.answer;

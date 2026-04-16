@@ -37,7 +37,7 @@
     var det = "";
     if (q.detail && typeof q.detail === "object") {
       if (q.detail.body != null && String(q.detail.body).trim()) {
-        det = String(q.detail.body).trim() + "\n\n";
+        det = String(q.detail.body).replace(/\r\n/g, "\n") + "\n\n";
       } else {
         var keys = ["legal", "trap", "precedent"];
         var titles = { legal: "법리 근거", trap: "함정 포인트", precedent: "판례" };
@@ -56,6 +56,7 @@
     return {
       statement: stmt,
       topic: String(q.topic || "").slice(0, 200),
+      questionId: q.id != null && String(q.id).trim() ? String(q.id).trim().slice(0, 120) : "",
       correctAnswer: q.answer === true,
       userAnsweredTrue: userTrue === true,
       explanationBasic: exB,
@@ -139,8 +140,16 @@
     if (ctl) {
       if (typeof ctl.setEraser === "function") ctl.setEraser(false);
       if (m && m.drawing && String(m.drawing).indexOf("data:image") === 0) {
-        ctl.loadDataUrl(m.drawing);
-      } else if (typeof ctl.clear === "function") ctl.clear();
+        applyNoteCardMemoDrawingLock(article, true);
+        ctl.loadDataUrl(m.drawing, function (ok) {
+          if (!ok) applyNoteCardMemoDrawingLock(article, false);
+        });
+      } else if (typeof ctl.clear === "function") {
+        ctl.clear();
+        applyNoteCardMemoDrawingLock(article, false);
+      }
+    } else {
+      applyNoteCardMemoDrawingLock(article, false);
     }
     if (msg) {
       msg.textContent = "";
@@ -155,6 +164,60 @@
     msg.textContent = text || "";
     msg.hidden = !text;
     msg.classList.toggle("quiz-memo__msg--error", !!isError);
+  }
+
+  function applyNoteCardMemoPanMode(article, on) {
+    var wrap = article.querySelector(".note-quiz-memo");
+    if (!wrap) return;
+    var pan = !!on;
+    article._hanlawNoteMemoPanMode = pan;
+    var canvas = wrap.querySelector(".quiz-memo__canvas");
+    var scrollWrap = wrap.querySelector(".quiz-memo__canvas-scroll");
+    if (canvas) canvas.classList.toggle("quiz-memo__canvas--pan", pan);
+    if (scrollWrap) scrollWrap.classList.toggle("quiz-memo__canvas-scroll--pan", pan);
+    var panBtn = wrap.querySelector("[data-note-memo-pan-toggle]");
+    if (panBtn) {
+      panBtn.setAttribute("aria-pressed", pan ? "true" : "false");
+      panBtn.classList.toggle("quiz-memo__split-actions-btn--active", pan);
+      panBtn.textContent = pan ? "그리기" : "이동";
+    }
+    var ctl = article._hanlawNoteMemoCtl;
+    if (ctl && typeof ctl.setDrawingEnabled === "function") {
+      var locked = canvas && canvas.classList.contains("quiz-memo__canvas--locked");
+      ctl.setDrawingEnabled(!pan && !locked);
+    }
+  }
+
+  function applyNoteCardMemoDrawingLock(article, locked) {
+    var ctl = article._hanlawNoteMemoCtl;
+    var wrap = article.querySelector(".note-quiz-memo");
+    if (!wrap) return;
+    var canvas = wrap.querySelector(".quiz-memo__canvas");
+    if (ctl && typeof ctl.setDrawingEnabled === "function") {
+      ctl.setDrawingEnabled(!locked);
+    }
+    if (canvas) canvas.classList.toggle("quiz-memo__canvas--locked", !!locked);
+    var editBtn = wrap.querySelector("[data-note-memo-edit-draw]");
+    if (editBtn) editBtn.hidden = !locked;
+    var settingsToggle = wrap.querySelector("[data-note-memo-draw-settings-toggle]");
+    var clearBtn = wrap.querySelector("[data-note-memo-clear-canvas]");
+    if (settingsToggle) settingsToggle.disabled = !!locked;
+    if (clearBtn) clearBtn.disabled = !!locked;
+    wrap.querySelectorAll(".quiz-memo__tool-btn[data-note-memo-tool]").forEach(function (b) {
+      b.disabled = !!locked;
+    });
+    var colorIn = wrap.querySelector(".quiz-memo__color-input");
+    var widthSel = wrap.querySelector(".quiz-memo__width-select");
+    if (colorIn) colorIn.disabled = !!locked;
+    if (widthSel) widthSel.disabled = !!locked;
+    if (locked) {
+      var settingsPanel = wrap.querySelector("[data-note-memo-draw-settings]");
+      if (settingsPanel) settingsPanel.hidden = true;
+      if (settingsToggle) settingsToggle.setAttribute("aria-expanded", "false");
+    } else {
+      updateMemoToolUi(article);
+    }
+    applyNoteCardMemoPanMode(article, !!article._hanlawNoteMemoPanMode);
   }
 
   function updateMemoToolUi(article) {
@@ -279,6 +342,19 @@
         if (typeof ctl.clear === "function") ctl.clear();
       });
     }
+    var editDrawBtn = wrap.querySelector("[data-note-memo-edit-draw]");
+    if (editDrawBtn) {
+      editDrawBtn.addEventListener("click", function () {
+        applyNoteCardMemoDrawingLock(article, false);
+      });
+    }
+    var panBtn = wrap.querySelector("[data-note-memo-pan-toggle]");
+    if (panBtn) {
+      panBtn.addEventListener("click", function () {
+        applyNoteCardMemoPanMode(article, !article._hanlawNoteMemoPanMode);
+      });
+      applyNoteCardMemoPanMode(article, false);
+    }
     if (saveBtn) {
       saveBtn.addEventListener("click", function () {
         var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
@@ -309,10 +385,16 @@
         if (!txt && !drawing) {
           window.QuizQuestionMemo.remove(qid);
           setMemoMsg(article, "메모를 비웠습니다.", false);
+          applyNoteCardMemoDrawingLock(article, false);
           return;
         }
         window.QuizQuestionMemo.set(qid, { text: txt, drawing: drawing });
         setMemoMsg(article, "저장했습니다.", false);
+        if (drawing) {
+          applyNoteCardMemoDrawingLock(article, true);
+        } else {
+          applyNoteCardMemoDrawingLock(article, false);
+        }
       });
     }
   }
@@ -403,6 +485,8 @@
       suid +
       '-drawset">펜·지우개 설정</button>' +
       '<button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" data-note-memo-clear-canvas="1">전부 지우기</button>' +
+      '<button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" data-note-memo-pan-toggle="1" aria-pressed="false">이동</button>' +
+      '<button type="button" class="btn btn--secondary btn--small quiz-memo__split-actions-btn" data-note-memo-edit-draw="1" hidden>손글씨 수정</button>' +
       "</div>" +
       '<div class="quiz-memo__draw-settings" data-note-memo-draw-settings="1" id="' +
       suid +
@@ -419,8 +503,9 @@
       '<select class="select quiz-memo__width-select">' +
       '<option value="2">가늘게</option><option value="4" selected>보통</option>' +
       '<option value="7">굵게</option><option value="12">아주 굵게</option></select></label></div></div>' +
-      '<p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>' +
-      '<canvas class="quiz-memo__canvas" width="960" height="400"></canvas></div>' +
+      '<p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요. 넓은 판은 가로·세로로 스크롤하여 이용할 수 있습니다. 저장한 뒤에는 덧그리지 않도록 잠기며, 바꾸려면 「손글씨 수정」을 누르세요.</p>' +
+      '<div class="quiz-memo__canvas-scroll" tabindex="0" aria-label="손글씨 그리기 영역 (스크롤하여 이동)">' +
+      '<canvas class="quiz-memo__canvas" width="1800" height="1350"></canvas></div></div>' +
       '<div class="quiz-memo__save-row">' +
       '<button type="button" class="btn btn--secondary btn--small" data-note-memo-save="1">메모 저장</button>' +
       '<span class="quiz-memo__msg" data-note-memo-msg="1" hidden role="status"></span></div></div>';
@@ -434,8 +519,8 @@
       '<button type="button" class="btn btn--outline btn--quiz-master note-quiz-chrome__master" hidden aria-pressed="false" title="이 문항을 일반 퀴즈 범위에서 제외합니다">마스터</button>' +
       '<button type="button" class="btn btn--ticket btn--ticket-report note-quiz-chrome__ticket-report">오류 신고하기</button>' +
       '<button type="button" class="btn btn--ticket btn--ticket-suggestion note-quiz-chrome__ticket-suggestion">개선 의견 보내기</button>' +
-      '<button type="button" class="btn btn--secondary note-quiz-chrome__ai-toggle" aria-expanded="false">엘리에게 물어보기(AI)</button>' +
-      '<button type="button" class="btn btn--ticket btn--ticket-ask note-quiz-chrome__ticket-ask">변호사에게 물어보기</button>' +
+      '<button type="button" class="btn btn--secondary note-quiz-chrome__ai-toggle" aria-expanded="false">엘리(AI)에게 질문하기</button>' +
+      '<button type="button" class="btn btn--ticket btn--ticket-ask note-quiz-chrome__ticket-ask">변호사에게 질문하기</button>' +
       "</div>" +
       '<div class="quiz-ai-panel note-quiz-chrome__ai-panel" hidden>' +
       '<label class="field"><span class="field__label">엘리(AI)에게 질문 (문항·해설 맥락이 함께 전달됩니다)</span>' +
@@ -462,7 +547,7 @@
     if (typeof window.openHanlawTicketModal !== "function") return;
     var u0 = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     if (!u0 || !u0.email) {
-      window.alert("변호사에게 물어보기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
+      window.alert("변호사에게 질문하기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
       return;
     }
     function go() {
@@ -478,15 +563,19 @@
         return;
       }
       if ((state.total || 0) < 1) {
-        var pp =
-          typeof window.getQuestionPackPricesDisplay === "function"
-            ? window.getQuestionPackPricesDisplay()
-            : "";
-        window.alert(
-          "질문권이 없습니다.\n\n· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
-            pp +
-            ", 구매일로부터 1년 유효)."
-        );
+        if (typeof window.showLawyerCreditsNeededModal === "function") {
+          window.showLawyerCreditsNeededModal();
+        } else {
+          var pp =
+            typeof window.getQuestionPackPricesDisplay === "function"
+              ? window.getQuestionPackPricesDisplay()
+              : "";
+          window.alert(
+            "질문권이 없습니다.\n\n· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
+              pp +
+              ", 구매일로부터 1년 유효)."
+          );
+        }
         return;
       }
       go();
@@ -558,12 +647,20 @@
     if (chromeBtn.classList.contains("note-quiz-chrome__ai-toggle")) {
       ensureContextsForArticle(article);
       if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-        window.alert("엘리에게 물어보기(AI)는 유료 회원에 한해 이용할 수 있습니다.");
+        window.alert("엘리(AI)에게 질문하기는 유료 회원에 한해 이용할 수 있습니다.");
         return;
       }
       var root = article.querySelector(".note-quiz-chrome");
       var p = root && root.querySelector(".note-quiz-chrome__ai-panel");
       if (!p) return;
+      if (
+        p.hidden &&
+        window.QuizAiAsk &&
+        typeof window.QuizAiAsk.guardEllyPanelOpen === "function" &&
+        !window.QuizAiAsk.guardEllyPanelOpen()
+      ) {
+        return;
+      }
       var open = p.hidden;
       p.hidden = !open;
       chromeBtn.setAttribute("aria-expanded", open ? "true" : "false");

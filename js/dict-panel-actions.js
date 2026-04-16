@@ -50,6 +50,9 @@
   }
 
   var dictMemoCanvasApi = { term: null, statute: null, case: null };
+  var dictMemoPanMode = { term: false, statute: false, case: false };
+  /** 전부 지우기로 캔버스를 비운 뒤에는 저장 시 기존 손글씨를 되살리지 않음 */
+  var dictMemoDrawingUserCleared = { term: false, statute: false, case: false };
 
   function ensureMemoCanvasApi(kind) {
     if (dictMemoCanvasApi[kind]) return dictMemoCanvasApi[kind];
@@ -96,6 +99,26 @@
           break;
         }
       }
+    }
+  }
+
+  function applyDictMemoPanMode(kind, on) {
+    var pre = "dict-" + kind + "-memo";
+    var pan = !!on;
+    dictMemoPanMode[kind] = pan;
+    var canvas = $(pre + "-canvas");
+    var scrollWrap = canvas ? canvas.closest(".quiz-memo__canvas-scroll") : null;
+    if (canvas) canvas.classList.toggle("quiz-memo__canvas--pan", pan);
+    if (scrollWrap) scrollWrap.classList.toggle("quiz-memo__canvas-scroll--pan", pan);
+    var panBtn = $(pre + "-pan-toggle");
+    if (panBtn) {
+      panBtn.setAttribute("aria-pressed", pan ? "true" : "false");
+      panBtn.classList.toggle("quiz-memo__split-actions-btn--active", pan);
+      panBtn.textContent = pan ? "그리기" : "이동";
+    }
+    var api = ensureMemoCanvasApi(kind);
+    if (api && typeof api.setDrawingEnabled === "function") {
+      api.setDrawingEnabled(!pan);
     }
   }
 
@@ -153,7 +176,8 @@
       mode: "dictionary",
       topic: "[용어사전] " + (title || "항목"),
       statement: snip || "(내용 없음)",
-      explanationBasic: ""
+      explanationBasic: "",
+      questionId: "dict-term:" + encodeURIComponent(title || "unknown")
     };
     window.__QUIZ_QUESTION_CONTEXT = {
       questionId: "dict-term:" + encodeURIComponent(title || "unknown"),
@@ -177,7 +201,8 @@
       mode: "dictionary",
       topic: "[조문사전] " + (title || key),
       statement: full.slice(0, 4000) || "(내용 없음)",
-      explanationBasic: ""
+      explanationBasic: "",
+      questionId: "dict-statute:" + encodeURIComponent(key || title || "unknown")
     };
     window.__QUIZ_QUESTION_CONTEXT = {
       questionId: "dict-statute:" + encodeURIComponent(key || title || "unknown"),
@@ -205,7 +230,8 @@
       mode: "dictionary",
       topic: "[판례사전] " + label,
       statement: plain.slice(0, 4000) || "(내용 없음)",
-      explanationBasic: titleText ? "사건명: " + titleText : ""
+      explanationBasic: titleText ? "사건명: " + titleText : "",
+      questionId: "dict-case:" + encodeURIComponent(cit || label)
     };
     window.__QUIZ_QUESTION_CONTEXT = {
       questionId: "dict-case:" + encodeURIComponent(cit || label),
@@ -273,6 +299,7 @@
     var api = ensureMemoCanvasApi(kind);
     if (!key) {
       ta.value = "";
+      dictMemoDrawingUserCleared[kind] = false;
       if (api) {
         if (typeof api.setEraser === "function") api.setEraser(false);
         if (typeof api.clear === "function") api.clear();
@@ -285,8 +312,10 @@
     if (api) {
       if (typeof api.setEraser === "function") api.setEraser(false);
       if (m.drawing && String(m.drawing).indexOf("data:image") === 0 && typeof api.loadDataUrl === "function") {
+        dictMemoDrawingUserCleared[kind] = false;
         api.loadDataUrl(m.drawing);
       } else if (typeof api.clear === "function") {
+        dictMemoDrawingUserCleared[kind] = false;
         api.clear();
       }
       updateDictMemoToolUi(kind);
@@ -315,7 +344,7 @@
   function packPrices() {
     return typeof window.getQuestionPackPricesDisplay === "function"
       ? window.getQuestionPackPricesDisplay()
-      : "1건 ₩3,000 · 10건 ₩15,000";
+      : "1건 ₩5,000 · 10건 ₩30,000";
   }
 
   function ensureTicketContext(kind) {
@@ -354,7 +383,7 @@
     if (type === "question") {
       var u1 = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
       if (!u1 || !u1.email) {
-        window.alert("변호사에게 물어보기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
+        window.alert("변호사에게 질문하기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
         return;
       }
       if (typeof window.waitForQuestionCreditState !== "function") {
@@ -369,13 +398,17 @@
           return;
         }
         if ((state.total || 0) < 1) {
-          window.alert(
-            "질문권이 없습니다.\n\n" +
-              "· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n" +
-              "· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
-              packPrices() +
-              ", 구매일로부터 1년 유효)."
-          );
+          if (typeof window.showLawyerCreditsNeededModal === "function") {
+            window.showLawyerCreditsNeededModal();
+          } else {
+            window.alert(
+              "질문권이 없습니다.\n\n" +
+                "· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n" +
+                "· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
+                packPrices() +
+                ", 구매일로부터 1년 유효)."
+            );
+          }
           return;
         }
         if (typeof window.openHanlawTicketModal === "function") {
@@ -435,20 +468,29 @@
           window.alert("나의 메모는 로그인 후 이용할 수 있습니다.");
           return;
         }
-        ensureTicketContext(kind);
         var k = window.__HANLAW_DICT_MEMO_KEY;
+        if (!k) {
+          ensureTicketContext(kind);
+          k = window.__HANLAW_DICT_MEMO_KEY;
+        }
         if (!k) {
           window.alert("저장할 항목이 없습니다. 검색 결과가 있을 때 다시 시도해 주세요.");
           return;
         }
         var api = ensureMemoCanvasApi(kind);
-        var drawing = "";
         var canvas = $("dict-" + kind + "-memo-canvas");
-        if (api && typeof api.hasInk === "function" && api.hasInk() && canvas) {
+        var drawing = "";
+        var hadInk = api && typeof api.hasInk === "function" && api.hasInk();
+        if (hadInk && canvas) {
           try {
             drawing = canvas.toDataURL("image/jpeg", 0.88);
           } catch (e) {
             drawing = "";
+          }
+        } else if (!dictMemoDrawingUserCleared[kind]) {
+          var prev = loadMemoEntry(k);
+          if (prev.drawing && String(prev.drawing).indexOf("data:image") === 0) {
+            drawing = prev.drawing;
           }
         }
         saveMemoEntry(k, memoTa.value, drawing);
@@ -539,9 +581,17 @@
       var clearBtn = $(pre + "-clear-canvas");
       if (clearBtn) {
         clearBtn.addEventListener("click", function () {
+          dictMemoDrawingUserCleared[kind] = true;
           var api = ensureMemoCanvasApi(kind);
           if (api && typeof api.clear === "function") api.clear();
         });
+      }
+      var panBtn = $(pre + "-pan-toggle");
+      if (panBtn) {
+        panBtn.addEventListener("click", function () {
+          applyDictMemoPanMode(kind, !dictMemoPanMode[kind]);
+        });
+        applyDictMemoPanMode(kind, false);
       }
     });
   }

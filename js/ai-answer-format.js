@@ -144,7 +144,12 @@
       var t = lines[i].replace(/\s+$/, "");
 
       if (t.trim() === "") {
-        flushPara();
+        if (para.length) {
+          flushPara();
+        } else {
+          // 연속 빈 줄: flush만으로는 간격이 한 번만 생겨 관리자가 띄운 줄간격이 사라짐 → 빈 단락으로 간격 유지
+          blocks.push('<p class="hanlaw-para-gap" aria-hidden="true">\u00a0</p>');
+        }
         continue;
       }
 

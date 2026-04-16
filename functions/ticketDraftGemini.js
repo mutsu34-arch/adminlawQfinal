@@ -11,6 +11,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { effectiveGeminiModelId, uniqueGeminiModelCandidates } = require("./geminiModel");
 const { retrieveLibraryContextForQuiz } = require("./libraryRag");
+const { appendLibraryRagBlockToSystemPrompt } = require("./libraryRagPromptAppend");
 
 function isAdminFromAuth(auth) {
   const email = auth && auth.token && auth.token.email ? String(auth.token.email).toLowerCase() : "";
@@ -60,12 +61,10 @@ function appendLibraryRagToPrompt(basePrompt, ragBlock) {
   const b = String(basePrompt || "");
   const r = String(ragBlock || "").trim();
   if (!r) return b;
-  return (
-    b +
-    "\n\n[자료실에서 검색된 참고 발췌]\n" +
-    "(관리자가 업로드한 PDF·엑셀에서 티켓 본문·맥락과 유사하게 뽑은 구절입니다. 초안 작성 시 참고할 수 있으나 원문과 다를 수 있으니, 단정적 표현은 피하세요.)\n\n" +
-    r
-  );
+  let out = appendLibraryRagBlockToSystemPrompt(b, r);
+  out +=
+    "\n\n(위 발췌는 참고용입니다. 회원에게 보낼 문장에도 파일명·원문 직접 인용·특정 교재 표시는 넣지 마세요. 의미만 반영해 재서술하세요.)";
+  return out;
 }
 
 function buildPrompt(ticket) {

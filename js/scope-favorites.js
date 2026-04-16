@@ -1,14 +1,124 @@
 /**
  * 범위 설정 즐겨찾기: 시험·연도·주제·문항 수·순서를 묶어 저장하고, 버튼 한 번에 적용 후 퀴즈 시작
+ * 저장소는 로그인 사용자별 localStorage 키로 분리 (quiz-favorites.js 와 동일 패턴).
  */
 (function () {
-  var STORAGE_KEY = "hanlaw_scope_favorites_v1";
+  var STORAGE_VER = "v1";
+  var LS_PREFIX = "hanlaw_scope_favorites_";
+  /** 구버전 전역 키 — 1회 마이그레이션 후 제거 */
+  var LEGACY_KEY = "hanlaw_scope_favorites_v1";
   var MAX_ITEMS = 15;
   var ALL_TOPIC = "전체";
 
-  function loadStore() {
+  function normalizeId(id) {
+    return String(id == null ? "" : id).trim();
+  }
+
+  function getCurrentUid() {
     try {
-      var raw = localStorage.getItem(STORAGE_KEY);
+      if (typeof window.getHanlawUser === "function") {
+        var u = window.getHanlawUser();
+        if (u && u.uid) return normalizeId(u.uid);
+      }
+    } catch (e) {}
+    try {
+      if (typeof firebase !== "undefined" && firebase.auth && firebase.auth().currentUser) {
+        var cu = firebase.auth().currentUser;
+        if (cu && cu.uid) return normalizeId(cu.uid);
+      }
+    } catch (e2) {}
+    return "";
+  }
+
+  function isLoggedIn() {
+    return !!getCurrentUid();
+  }
+
+  function storageKey() {
+    var uid = getCurrentUid();
+    if (!uid) return "";
+    return LS_PREFIX + STORAGE_VER + "_" + uid;
+  }
+
+  /** 예전 단일 키 데이터를 비로그인용 키로 옮긴 뒤 레거시 삭제 */
+  function migrateLegacyOnce() {
+    try {
+      var raw = localStorage.getItem(LEGACY_KEY);
+      if (!raw) return;
+      var leg = JSON.parse(raw);
+      if (!leg || !Array.isArray(leg.items) || !leg.items.length) {
+        localStorage.removeItem(LEGACY_KEY);
+        return;
+      }
+      var keyLocal = LS_PREFIX + STORAGE_VER + "_local";
+      var rawL = localStorage.getItem(keyLocal);
+      var oL = rawL ? JSON.parse(rawL) : { v: 1, items: [] };
+      if (!oL || !Array.isArray(oL.items)) oL = { v: 1, items: [] };
+      var seen = {};
+      oL.items.forEach(function (x) {
+        if (x && x.id) seen[String(x.id)] = true;
+      });
+      leg.items.forEach(function (x) {
+        if (!x || !x.id) return;
+        var sid = String(x.id);
+        if (seen[sid]) return;
+        seen[sid] = true;
+        oL.items.push(x);
+      });
+      if (oL.items.length > MAX_ITEMS) oL.items = oL.items.slice(0, MAX_ITEMS);
+      oL.v = 1;
+      localStorage.setItem(keyLocal, JSON.stringify(oL));
+      localStorage.removeItem(LEGACY_KEY);
+    } catch (e) {
+      try {
+        localStorage.removeItem(LEGACY_KEY);
+      } catch (e2) {}
+    }
+  }
+
+  /** 비로그인에서 저장한 목록을 로그인 시 해당 계정 키로 합침 (찜하기와 동일) */
+  function mergeScopeFavLocalIntoUid(uid) {
+    var id = normalizeId(uid);
+    if (!id) return;
+    var keyLocal = LS_PREFIX + STORAGE_VER + "_local";
+    var keyUid = LS_PREFIX + STORAGE_VER + "_" + id;
+    try {
+      var rawL = localStorage.getItem(keyLocal);
+      if (!rawL) return;
+      var oL = JSON.parse(rawL);
+      if (!oL || !Array.isArray(oL.items) || !oL.items.length) return;
+
+      var rawU = localStorage.getItem(keyUid);
+      var oU = rawU ? JSON.parse(rawU) : { v: 1, items: [] };
+      if (!oU || !Array.isArray(oU.items)) oU = { v: 1, items: [] };
+
+      var seen = {};
+      var merged = [];
+      function pushItem(it) {
+        if (!it || !it.id) return;
+        var sid = String(it.id);
+        if (seen[sid]) return;
+        seen[sid] = true;
+        merged.push(it);
+      }
+      oL.items.forEach(pushItem);
+      oU.items.forEach(pushItem);
+      if (merged.length > MAX_ITEMS) merged = merged.slice(0, MAX_ITEMS);
+
+      oU.v = 1;
+      oU.items = merged;
+      localStorage.setItem(keyUid, JSON.stringify(oU));
+      localStorage.removeItem(keyLocal);
+    } catch (e) {}
+  }
+
+  migrateLegacyOnce();
+
+  function loadStore() {
+    var key = storageKey();
+    if (!key) return { v: 1, items: [] };
+    try {
+      var raw = localStorage.getItem(key);
       if (!raw) return { v: 1, items: [] };
       var o = JSON.parse(raw);
       if (!o || !Array.isArray(o.items)) return { v: 1, items: [] };
@@ -19,8 +129,10 @@
   }
 
   function saveStore(store) {
+    var key = storageKey();
+    if (!key) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      localStorage.setItem(key, JSON.stringify(store));
     } catch (e) {}
   }
 
@@ -140,6 +252,10 @@
   }
 
   function addFavorite(name) {
+    if (!isLoggedIn()) {
+      alert("범위 즐겨찾기는 로그인 후 이용할 수 있습니다.");
+      return;
+    }
     var label = String(name || "").trim();
     if (!label) {
       alert("즐겨찾기 이름을 입력하세요.");
@@ -190,8 +306,15 @@
   function renderList() {
     var host = document.getElementById("scope-favorites-list");
     if (!host) return;
-    var st = loadStore();
     host.innerHTML = "";
+    if (!isLoggedIn()) {
+      var locked = document.createElement("p");
+      locked.className = "scope-favorites__empty";
+      locked.textContent = "로그인 후 내 범위 즐겨찾기를 확인할 수 있습니다.";
+      host.appendChild(locked);
+      return;
+    }
+    var st = loadStore();
     if (!st.items.length) {
       var empty = document.createElement("p");
       empty.className = "scope-favorites__empty";
@@ -230,6 +353,20 @@
     });
   }
 
+  function syncLoginUi() {
+    var loggedIn = isLoggedIn();
+    var btnSave = document.getElementById("btn-scope-favorite-save");
+    var inp = document.getElementById("scope-favorite-name");
+    if (btnSave) btnSave.disabled = !loggedIn;
+    if (inp) {
+      inp.disabled = !loggedIn;
+      if (!loggedIn) inp.value = "";
+      inp.placeholder = loggedIn
+        ? "예: 9급 최근 3개년 랜덤"
+        : "로그인 후 범위 즐겨찾기를 저장할 수 있습니다";
+    }
+  }
+
   function bind() {
     var btnSave = document.getElementById("btn-scope-favorite-save");
     var inp = document.getElementById("scope-favorite-name");
@@ -246,6 +383,24 @@
         }
       });
     }
+
+    window.addEventListener("app-auth", function (e) {
+      var u = e && e.detail && e.detail.user;
+      if (u && u.uid) mergeScopeFavLocalIntoUid(u.uid);
+      syncLoginUi();
+      renderList();
+    });
+    try {
+      if (typeof firebase !== "undefined" && firebase.auth) {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user && user.uid) mergeScopeFavLocalIntoUid(user.uid);
+          syncLoginUi();
+          renderList();
+        });
+      }
+    } catch (e) {}
+
+    syncLoginUi();
     renderList();
   }
 

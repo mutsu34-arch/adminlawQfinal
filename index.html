@@ -29,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=20260412-dict-memo-canvas" />
+  <link rel="stylesheet" href="css/style.css?v=20260416-memo-pan-mode" />
 </head>
 <body>
   <div class="app">
@@ -351,6 +351,36 @@
               </section>
 
               <section id="screen-quiz" class="screen" aria-label="문제 화면" hidden>
+                <div
+                  id="quiz-timer-panel"
+                  class="quiz-timer-panel"
+                  hidden
+                  aria-hidden="true"
+                >
+                  <p id="quiz-timer-meta" class="quiz-timer-meta" aria-live="polite">—</p>
+                  <div class="quiz-timer-arcade" aria-hidden="true">
+                    <div class="quiz-timer-arcade__label">TIME</div>
+                    <div
+                      class="quiz-timer-arcade__bezel"
+                      role="progressbar"
+                      aria-label="남은 시간 게이지"
+                      id="quiz-timer-bar-track"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      aria-valuenow="100"
+                    >
+                      <div class="quiz-timer-arcade__glass">
+                        <div class="quiz-timer-arcade__track">
+                          <div
+                            id="quiz-timer-arcade-fill"
+                            class="quiz-timer-arcade__fill"
+                            style="width: 100%"
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div class="quiz-bar">
                   <span id="quiz-progress" class="quiz-progress">1 / 10</span>
                   <span id="quiz-score" class="quiz-score">정답 0</span>
@@ -368,14 +398,16 @@
                 <div class="card card--question">
                   <p id="q-source" class="q-source"></p>
                   <p id="q-meta" class="q-meta"></p>
-                  <button
-                    type="button"
-                    id="btn-quiz-admin-edit"
-                    class="btn btn--small btn--outline btn--quiz-admin-edit"
-                    hidden
-                  >
-                    문항 수정
-                  </button>
+                  <div class="quiz-admin-edit-toolbar">
+                    <button
+                      type="button"
+                      id="btn-quiz-admin-edit"
+                      class="btn btn--small btn--outline btn--quiz-admin-edit"
+                      hidden
+                    >
+                      관리자 수정
+                    </button>
+                  </div>
                   <p id="q-text" class="q-text" role="heading" aria-level="2"></p>
                   <div id="q-actions" class="q-actions">
                     <button type="button" class="btn btn--ox btn--o" data-answer="true" aria-label="참(O)">O</button>
@@ -401,6 +433,16 @@
                   <div id="feedback-tags-section" class="feedback-tags-section">
                     <p class="feedback__block-label">태그</p>
                     <div class="feedback__tags feedback__block-body" id="feedback-tags"></div>
+                  </div>
+                  <div class="quiz-admin-edit-toolbar quiz-admin-edit-toolbar--feedback">
+                    <button
+                      type="button"
+                      id="btn-quiz-admin-edit-feedback"
+                      class="btn btn--small btn--outline btn--quiz-admin-edit btn--quiz-admin-edit--feedback"
+                      hidden
+                    >
+                      관리자 수정
+                    </button>
                   </div>
                   <div id="quiz-memo-section" class="quiz-memo">
                     <button
@@ -440,6 +482,22 @@
                         <button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" id="quiz-memo-clear-canvas">
                           전부 지우기
                         </button>
+                        <button
+                          type="button"
+                          class="btn btn--outline btn--small quiz-memo__split-actions-btn"
+                          id="quiz-memo-pan-toggle"
+                          aria-pressed="false"
+                        >
+                          이동
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn--secondary btn--small quiz-memo__split-actions-btn"
+                          id="quiz-memo-edit-draw"
+                          hidden
+                        >
+                          손글씨 수정
+                        </button>
                       </div>
                       <div id="quiz-memo-draw-settings" class="quiz-memo__draw-settings" hidden>
                         <div class="quiz-memo__tool-row">
@@ -474,8 +532,17 @@
                           </label>
                         </div>
                       </div>
-                      <p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>
-                      <canvas id="quiz-memo-canvas" class="quiz-memo__canvas" width="960" height="400"></canvas>
+                      <p class="quiz-memo__draw-hint" id="quiz-memo-draw-hint">
+                        마우스나 손가락으로 그려 보세요. 넓은 판은 가로·세로로 스크롤하여 이용할 수 있습니다. 저장한 뒤에는 덧그리지 않도록 잠기며, 바꾸려면 「손글씨 수정」을 누르세요.
+                      </p>
+                      <div
+                        class="quiz-memo__canvas-scroll"
+                        id="quiz-memo-canvas-scroll"
+                        tabindex="0"
+                        aria-label="손글씨 그리기 영역 (스크롤하여 이동)"
+                      >
+                        <canvas id="quiz-memo-canvas" class="quiz-memo__canvas" width="1800" height="1350"></canvas>
+                      </div>
                     </div>
                     <div class="quiz-memo__save-row">
                       <button type="button" class="btn btn--secondary btn--small" id="quiz-memo-save">메모 저장</button>
@@ -518,10 +585,10 @@
                         aria-expanded="false"
                         aria-controls="quiz-ai-panel"
                       >
-                        엘리에게 물어보기(AI)
+                        엘리(AI)에게 질문하기
                       </button>
                       <button type="button" class="btn btn--ticket btn--ticket-ask" id="btn-ticket-ask">
-                        변호사에게 물어보기
+                        변호사에게 질문하기
                       </button>
                     </div>
                     <div id="quiz-ai-panel" class="quiz-ai-panel" hidden>
@@ -640,10 +707,10 @@
                     aria-expanded="false"
                     aria-controls="dict-term-eli-panel"
                   >
-                    엘리에게 물어보기(AI)
+                    엘리(AI)에게 질문하기
                   </button>
                   <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-term-ticket-ask">
-                    변호사에게 물어보기
+                    변호사에게 질문하기
                   </button>
                   <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-term-ticket-report">
                     오류 신고하기
@@ -707,6 +774,14 @@
                       <button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" id="dict-term-memo-clear-canvas">
                         전부 지우기
                       </button>
+                      <button
+                        type="button"
+                        class="btn btn--outline btn--small quiz-memo__split-actions-btn"
+                        id="dict-term-memo-pan-toggle"
+                        aria-pressed="false"
+                      >
+                        이동
+                      </button>
                     </div>
                     <div id="dict-term-memo-draw-settings" class="quiz-memo__draw-settings" hidden>
                       <div class="quiz-memo__tool-row">
@@ -741,8 +816,12 @@
                         </label>
                       </div>
                     </div>
-                    <p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>
-                    <canvas id="dict-term-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="720" height="280"></canvas>
+                    <p class="quiz-memo__draw-hint">
+                      마우스나 손가락으로 그려 보세요. 넓은 판은 가로·세로로 스크롤하여 이용할 수 있습니다.
+                    </p>
+                    <div class="quiz-memo__canvas-scroll" tabindex="0" aria-label="손글씨 그리기 영역 (스크롤하여 이동)">
+                      <canvas id="dict-term-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="1800" height="1350"></canvas>
+                    </div>
                   </div>
                   <div class="dict-memo-panel__actions">
                     <button type="button" class="btn btn--secondary btn--small" id="dict-term-memo-save">메모 저장</button>
@@ -785,10 +864,10 @@
                     aria-expanded="false"
                     aria-controls="dict-statute-eli-panel"
                   >
-                    엘리에게 물어보기(AI)
+                    엘리(AI)에게 질문하기
                   </button>
                   <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-statute-ticket-ask">
-                    변호사에게 물어보기
+                    변호사에게 질문하기
                   </button>
                   <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-statute-ticket-report">
                     오류 신고하기
@@ -852,6 +931,14 @@
                       <button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" id="dict-statute-memo-clear-canvas">
                         전부 지우기
                       </button>
+                      <button
+                        type="button"
+                        class="btn btn--outline btn--small quiz-memo__split-actions-btn"
+                        id="dict-statute-memo-pan-toggle"
+                        aria-pressed="false"
+                      >
+                        이동
+                      </button>
                     </div>
                     <div id="dict-statute-memo-draw-settings" class="quiz-memo__draw-settings" hidden>
                       <div class="quiz-memo__tool-row">
@@ -886,8 +973,12 @@
                         </label>
                       </div>
                     </div>
-                    <p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>
-                    <canvas id="dict-statute-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="720" height="280"></canvas>
+                    <p class="quiz-memo__draw-hint">
+                      마우스나 손가락으로 그려 보세요. 넓은 판은 가로·세로로 스크롤하여 이용할 수 있습니다.
+                    </p>
+                    <div class="quiz-memo__canvas-scroll" tabindex="0" aria-label="손글씨 그리기 영역 (스크롤하여 이동)">
+                      <canvas id="dict-statute-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="1800" height="1350"></canvas>
+                    </div>
                   </div>
                   <div class="dict-memo-panel__actions">
                     <button type="button" class="btn btn--secondary btn--small" id="dict-statute-memo-save">메모 저장</button>
@@ -920,10 +1011,10 @@
                     aria-expanded="false"
                     aria-controls="dict-case-eli-panel"
                   >
-                    엘리에게 물어보기(AI)
+                    엘리(AI)에게 질문하기
                   </button>
                   <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-case-ticket-ask">
-                    변호사에게 물어보기
+                    변호사에게 질문하기
                   </button>
                   <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-case-ticket-report">
                     오류 신고하기
@@ -987,6 +1078,14 @@
                       <button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" id="dict-case-memo-clear-canvas">
                         전부 지우기
                       </button>
+                      <button
+                        type="button"
+                        class="btn btn--outline btn--small quiz-memo__split-actions-btn"
+                        id="dict-case-memo-pan-toggle"
+                        aria-pressed="false"
+                      >
+                        이동
+                      </button>
                     </div>
                     <div id="dict-case-memo-draw-settings" class="quiz-memo__draw-settings" hidden>
                       <div class="quiz-memo__tool-row">
@@ -1021,8 +1120,12 @@
                         </label>
                       </div>
                     </div>
-                    <p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요.</p>
-                    <canvas id="dict-case-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="720" height="280"></canvas>
+                    <p class="quiz-memo__draw-hint">
+                      마우스나 손가락으로 그려 보세요. 넓은 판은 가로·세로로 스크롤하여 이용할 수 있습니다.
+                    </p>
+                    <div class="quiz-memo__canvas-scroll" tabindex="0" aria-label="손글씨 그리기 영역 (스크롤하여 이동)">
+                      <canvas id="dict-case-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="1800" height="1350"></canvas>
+                    </div>
                   </div>
                   <div class="dict-memo-panel__actions">
                     <button type="button" class="btn btn--secondary btn--small" id="dict-case-memo-save">메모 저장</button>
@@ -1320,11 +1423,13 @@
             </div>
 
             <div id="pricing-question-packs" class="pricing-question-packs">
-              <div class="card card--pricing-intro">
-                <h2 class="card__title">질문권</h2>
+              <div id="pricing-lawyer-question-packs" class="card card--pricing-intro">
+                <h2 class="card__title">변호사 질문권</h2>
                 <p class="pricing-lead">
-                  변호사에게 물어보기는 질문권 1건이 소모됩니다. 오류 신고는 질문권 없이 이용할 수 있습니다.
+                  변호사에게 질문하기는 질문권 1건이 소모됩니다. 오류 신고는 질문권 없이 이용할 수 있습니다.
                   <strong>PayApp</strong> 결제 완료 후 서버 피드백으로 지갑에 반영됩니다. 로그인이 필요하며, 구매분은 결제일로부터 1년 유효입니다.
+                  퀴즈 출석으로 쌓은 포인트로도 전환할 수 있으며(변호사 질문권 1건당 <strong>5,000점</strong> 차감),
+                  <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 할 수 있습니다.
                   금액은 Functions <code class="pricing-code">PAYAPP_KRW_Q1</code> · <code class="pricing-code">PAYAPP_KRW_Q10</code> 및
                   <code class="pricing-code">js/payapp-config.js</code> 표시 문구를 맞춰 주세요.
                   <a href="https://docs.payapp.kr/dev_center01.html" class="pricing-link" target="_blank" rel="noopener noreferrer">PayApp 개발자 매뉴얼</a>
@@ -1332,8 +1437,8 @@
               </div>
               <div class="pricing-grid">
                 <article class="pricing-card">
-                  <h3 class="pricing-card__name">질문권 1건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-q1">₩3,000</p>
+                  <h3 class="pricing-card__name">변호사 질문권 1건</h3>
+                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-q1">₩5,000</p>
                   <p class="pricing-card__period">1회 · PayApp</p>
                   <p class="pricing-card__note">로그인 후 결제 시 서버로 사용자 정보가 전달됩니다.</p>
                   <div class="pricing-card__pay-actions">
@@ -1342,12 +1447,55 @@
                 </article>
                 <article class="pricing-card pricing-card--featured">
                   <span class="pricing-card__badge">추천</span>
-                  <h3 class="pricing-card__name">질문권 10건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-q10">₩15,000</p>
+                  <h3 class="pricing-card__name">변호사 질문권 10건</h3>
+                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-q10">₩30,000</p>
                   <p class="pricing-card__period">10회 · PayApp</p>
-                  <p class="pricing-card__note">건당 ₩1,500 수준.</p>
+                  <p class="pricing-card__note">건당 ₩3,000 수준.</p>
                   <div class="pricing-card__pay-actions">
                     <button type="button" class="btn btn--payapp" data-payapp-pack="10">PayApp으로 결제</button>
+                  </div>
+                </article>
+              </div>
+
+              <div id="pricing-elly-question-packs" class="card card--pricing-intro pricing-elly-intro">
+                <h2 class="card__title">엘리(AI) 질문권</h2>
+                <p class="pricing-lead">
+                  유료 회원에게는 하루 무료 <strong>4회</strong>가 제공됩니다. 그 이후에는 아래 엘리(AI) 질문권이 차감됩니다.
+                  적립·차감은 <code class="pricing-code">hanlaw_quiz_ai_wallet</code>에서 처리됩니다.
+                  퀴즈 출석 포인트로도 전환할 수 있으며(엘리 질문권 1건당 <strong>500점</strong> 차감, 10건 팩 건당 약 ₩500 수준),
+                  <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 할 수 있습니다.
+                  금액(Functions 환경변수): <code class="pricing-code">PAYAPP_KRW_EQ10</code> · <code class="pricing-code">PAYAPP_KRW_EQ50</code> ·
+                  <code class="pricing-code">PAYAPP_KRW_EQ100</code>.
+                </p>
+              </div>
+              <div class="pricing-grid">
+                <article class="pricing-card">
+                  <h3 class="pricing-card__name">엘리 질문권 10건</h3>
+                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-eq10">₩5,000</p>
+                  <p class="pricing-card__period">10회 · PayApp</p>
+                  <p class="pricing-card__note">무료 4회 소진 후 건당 차감(구매일로부터 1년 유효). 건당 약 ₩500.</p>
+                  <div class="pricing-card__pay-actions">
+                    <button type="button" class="btn btn--payapp" data-payapp-elly-pack="10">PayApp으로 결제</button>
+                  </div>
+                </article>
+                <article class="pricing-card pricing-card--featured">
+                  <span class="pricing-card__badge">추천</span>
+                  <h3 class="pricing-card__name">엘리 질문권 50건</h3>
+                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-eq50">₩20,000</p>
+                  <p class="pricing-card__period">50회 · PayApp</p>
+                  <p class="pricing-card__note">건당 약 ₩400 수준.</p>
+                  <div class="pricing-card__pay-actions">
+                    <button type="button" class="btn btn--payapp" data-payapp-elly-pack="50">PayApp으로 결제</button>
+                  </div>
+                </article>
+                <article class="pricing-card pricing-card--featured">
+                  <span class="pricing-card__badge">대용량</span>
+                  <h3 class="pricing-card__name">엘리 질문권 100건</h3>
+                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-eq100">₩30,000</p>
+                  <p class="pricing-card__period">100회 · PayApp</p>
+                  <p class="pricing-card__note">건당 약 ₩300 수준.</p>
+                  <div class="pricing-card__pay-actions">
+                    <button type="button" class="btn btn--payapp" data-payapp-elly-pack="100">PayApp으로 결제</button>
                   </div>
                 </article>
               </div>
@@ -1408,7 +1556,11 @@
                       <span class="dashboard-stat-card__label">출석 포인트</span>
                       <span id="dashboard-attendance-points" class="dashboard-stat-card__value">—</span>
                       <span class="dashboard-stat-card__unit">점</span>
-                      <p class="dashboard-stat-card__hint">퀴즈 1문제 이상 풀면 그날 출석으로 인정되며 하루 1회 포인트가 쌓입니다. 3,000점이 모이면 아래 버튼으로 질문권 1건으로 바꿀 수 있습니다(전환한 시점부터 1년 유효).</p>
+                      <p class="dashboard-stat-card__hint">
+                        퀴즈 1문제 이상 풀면 그날 출석으로 인정되며 하루 1회 포인트가 쌓입니다.
+                        아래 「출석 포인트 전환」에서 <strong>5,000점</strong>으로 변호사 질문권 1건,
+                        <strong>500점</strong>으로 엘리(AI) 질문권 1건으로 바꿀 수 있습니다(전환 시점부터 1년 유효).
+                      </p>
                     </div>
                     <div class="dashboard-stat-card">
                       <span class="dashboard-stat-card__label">오늘 학습 시간</span>
@@ -1436,10 +1588,61 @@
                 </div>
               </div>
 
+              <div id="dashboard-my-points" class="dashboard-my-points">
+                <h3 class="dashboard-subtitle">나의 포인트</h3>
+                <p id="dashboard-my-points-loggedout" class="dashboard-lead" hidden>
+                  로그인하면 출석 포인트 내역과 질문권 전환이 표시됩니다.
+                </p>
+                <div id="dashboard-my-points-body" class="dashboard-my-points-body" hidden>
+                  <p class="dashboard-my-points-summary">
+                    현재 <strong id="dashboard-my-points-balance">—</strong>점
+                  </p>
+                  <div
+                    id="dashboard-point-log-list"
+                    class="dashboard-point-log"
+                    role="list"
+                    aria-label="포인트 내역"
+                  ></div>
+                  <p id="dashboard-point-log-empty" class="dashboard-point-log-empty" hidden>
+                    아직 기록된 내역이 없습니다. 퀴즈 출석·이벤트·전환 내역은 앞으로 여기에 쌓입니다.
+                  </p>
+                  <p id="dashboard-point-log-err" class="dashboard-point-log-err" hidden role="status"></p>
+                  <div id="dashboard-point-convert-section" class="dashboard-point-convert-section">
+                    <h4 class="dashboard-subheading">포인트로 질문권 전환</h4>
+                    <p class="dashboard-lead dashboard-point-convert-lead">
+                      모은 출석 포인트로 <strong>변호사 질문권</strong> 또는 <strong>엘리(AI) 질문권</strong>으로 바꿀 수 있습니다.
+                      PayApp 결제 없이 전환할 때는 아래 버튼을 사용하세요. 전환한 질문권은 전환 시점부터 1년간 유효합니다.
+                    </p>
+                    <div class="dashboard-question-actions">
+                      <button
+                        type="button"
+                        class="btn btn--secondary btn--small dashboard-attendance-convert"
+                        id="btn-dashboard-attendance-convert-lawyer"
+                        disabled
+                      >
+                        변호사 질문권 1건 (5,000점)
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--secondary btn--small dashboard-attendance-convert"
+                        id="btn-dashboard-attendance-convert-elly"
+                        disabled
+                      >
+                        엘리 질문권 1건 (500점)
+                      </button>
+                      <button type="button" class="btn btn--outline btn--small" id="dashboard-buy-question-credits">
+                        질문권 구매
+                      </button>
+                    </div>
+                    <p id="dashboard-attendance-convert-msg" class="dashboard-attendance-convert-msg" hidden role="status"></p>
+                  </div>
+                </div>
+              </div>
+
               <h3 class="dashboard-subtitle">나의 신고·질문</h3>
               <div class="dashboard-inquiry">
                 <p class="dashboard-lead dashboard-inquiry-lead">
-                  제출한 오류 신고·질문 내역을 확인할 수 있습니다. 답변은 아래 알림에도 표시됩니다.
+                  오류 신고·변호사 질문·개선 의견·엘리(AI) 질문 내역을 확인할 수 있습니다. 답변은 아래 알림에도 표시됩니다.
                 </p>
                 <div class="dashboard-inquiry-tabs" role="tablist" aria-label="신고·질문 유형">
                   <button
@@ -1463,6 +1666,28 @@
                   >
                     <span class="dashboard-inquiry-tab__label">변호사 질문</span>
                     <span class="dashboard-inquiry-tab__hint">질문권으로 접수</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    class="dashboard-inquiry-tab"
+                    id="dashboard-my-suggestions"
+                    aria-selected="false"
+                    data-filter="suggestion"
+                  >
+                    <span class="dashboard-inquiry-tab__label">개선 의견</span>
+                    <span class="dashboard-inquiry-tab__hint">아이디어·건의</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    class="dashboard-inquiry-tab"
+                    id="dashboard-my-elly"
+                    aria-selected="false"
+                    data-filter="elly"
+                  >
+                    <span class="dashboard-inquiry-tab__label">엘리(AI) 질문</span>
+                    <span class="dashboard-inquiry-tab__hint">성공한 질문 기록</span>
                   </button>
                 </div>
                 <div id="dashboard-tickets-drawer" class="dashboard-tickets-drawer" hidden>
@@ -1498,15 +1723,6 @@
               <p class="dashboard-lead dashboard-question-credits-hint">
                 유료 구독: 매월 4건(한국시간 월 단위, 매월 1일 기준으로 리셋). 추가 구매분은 결제일로부터 1년간 유효하며, 유료 회원도 구매할 수 있습니다.
               </p>
-              <div class="dashboard-question-actions">
-                <button type="button" class="btn btn--secondary btn--small dashboard-attendance-convert" id="btn-dashboard-attendance-convert" disabled>
-                  질문권 1건 전환 (3,000점 차감)
-                </button>
-                <button type="button" class="btn btn--outline btn--small" id="dashboard-buy-question-credits">
-                  질문권 구매
-                </button>
-              </div>
-              <p id="dashboard-attendance-convert-msg" class="dashboard-attendance-convert-msg" hidden role="status"></p>
               <p class="dashboard-lead">
                 <button type="button" class="btn btn--link" id="dashboard-goto-question-packs">질문권 구매(요금제)</button>
               </p>
@@ -1572,6 +1788,37 @@
                   <button type="button" class="theme-switch__btn" id="theme-btn-dark" aria-pressed="true">다크</button>
                   <button type="button" class="theme-switch__btn" id="theme-btn-light" aria-pressed="false">라이트</button>
                 </div>
+              </section>
+
+              <section class="settings-block" aria-labelledby="settings-quiz-timer-title">
+                <h3 id="settings-quiz-timer-title" class="settings-block__title">퀴즈 제한 시간</h3>
+                <p class="settings-block__hint">
+                  켜 두면 문항마다 지정한 시간 안에 O/X를 고르지 않으면 <strong>오답</strong>으로 처리하고, 정답과 해설을 바로 보여 줍니다. 보통 <strong>10~20초</strong> 정도가 무난하며, 더 길게 늘릴 수도 있습니다.
+                </p>
+                <label class="field field--row field--row--checkbox">
+                  <input type="checkbox" id="settings-quiz-timer-enabled" />
+                  <span>문항당 제한 시간 사용</span>
+                </label>
+                <label class="field">
+                  <span class="field__label">문항당 시간(초)</span>
+                  <input
+                    type="number"
+                    id="settings-quiz-timer-seconds"
+                    class="input"
+                    min="10"
+                    max="600"
+                    step="1"
+                    value="15"
+                    inputmode="numeric"
+                    aria-label="문항당 제한 시간 초 단위"
+                  />
+                </label>
+                <div class="settings-dday-row">
+                  <button type="button" class="btn btn--secondary" id="btn-settings-quiz-timer-save">
+                    타이머 설정 저장
+                  </button>
+                </div>
+                <p id="settings-quiz-timer-msg" class="settings-dday-msg" hidden role="status"></p>
               </section>
 
               <section class="settings-block" aria-labelledby="settings-dday-title">
@@ -1898,7 +2145,7 @@
               <div id="admin-panel-library" class="admin-panel-library" hidden>
                 <p class="admin-json-help">
                   행정법 교과서·기출 해설·법령 개정·판례 관련 <strong>PDF</strong> 또는 <strong>Excel(.xlsx)</strong>를 올리면 서버에서 텍스트를 추출해 벡터 DB(Pinecone)에 저장합니다.
-                  퀴즈 <strong>엘리에게 물어보기(AI)</strong> 답변 시 관련 발췌를 참고합니다. Functions 환경변수:
+                  퀴즈 <strong>엘리(AI)에게 질문하기</strong> 답변 시 관련 발췌를 참고합니다. Functions 환경변수:
                   <code class="pricing-code">GEMINI_API_KEY</code>,
                   <code class="pricing-code">PINECONE_API_KEY</code>,
                   <code class="pricing-code">PINECONE_INDEX_NAME</code>
@@ -2025,6 +2272,56 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <div
+    id="quiz-ai-limit-modal"
+    class="modal"
+    hidden
+    aria-hidden="true"
+    role="dialog"
+    aria-labelledby="quiz-ai-limit-modal-title"
+    aria-modal="true"
+  >
+    <div class="modal__panel card">
+      <div class="modal__head">
+        <h2 class="modal__title" id="quiz-ai-limit-modal-title">엘리(AI) 질문 한도</h2>
+        <button type="button" class="modal__close" id="quiz-ai-limit-modal-close" aria-label="닫기">×</button>
+      </div>
+      <p class="modal__hint" id="quiz-ai-limit-modal-body">
+        무료 한도를 다 썼으니, 내일 질문하거나 질문권을 구매해 주세요.
+      </p>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="quiz-ai-limit-modal-dismiss">닫기</button>
+        <button type="button" class="btn btn--outline" id="quiz-ai-limit-modal-go-point-convert">포인트 전환하기</button>
+        <button type="button" class="btn btn--primary" id="quiz-ai-limit-modal-go-pricing">AI 질문권 구매</button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="lawyer-credits-modal"
+    class="modal"
+    hidden
+    aria-hidden="true"
+    role="dialog"
+    aria-labelledby="lawyer-credits-modal-title"
+    aria-modal="true"
+  >
+    <div class="modal__panel card">
+      <div class="modal__head">
+        <h2 class="modal__title" id="lawyer-credits-modal-title">변호사 질문권이 필요합니다</h2>
+        <button type="button" class="modal__close" id="lawyer-credits-modal-close" aria-label="닫기">×</button>
+      </div>
+      <p class="modal__hint" id="lawyer-credits-modal-body">
+        보유한 변호사 질문권이 없습니다. 요금제에서 질문권을 구매한 뒤 이용해 주세요.
+      </p>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="lawyer-credits-modal-dismiss">닫기</button>
+        <button type="button" class="btn btn--outline" id="lawyer-credits-modal-go-point-convert">포인트 전환하기</button>
+        <button type="button" class="btn btn--primary" id="lawyer-credits-modal-go-pricing">질문권 구매하기</button>
+      </div>
     </div>
   </div>
 
@@ -2216,7 +2513,7 @@
   </div>
 
   <script src="js/header-quote.js?v=8"></script>
-  <script src="js/app-settings.js?v=20260511"></script>
+  <script src="js/app-settings.js?v=20260415-quiz-timer"></script>
   <script src="js/theme-toggle.js"></script>
   <script src="js/exam-catalog.js"></script>
   <script src="js/scope.js"></script>
@@ -2231,37 +2528,37 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260407"></script>
+  <script src="js/firebase-config.js?v=20260414"></script>
   <script src="js/auth-bridge.js"></script>
   <script src="js/firestore-db.js?v=9"></script>
   <script src="js/ai-config.js"></script>
-  <script src="js/tickets-service.js?v=11"></script>
+  <script src="js/tickets-service.js?v=12"></script>
   <script src="js/payapp-config.js?v=6"></script>
   <script src="js/payapp-checkout.js?v=5"></script>
-  <script src="js/auth.js?v=4"></script>
+  <script src="js/auth.js?v=5"></script>
   <script src="js/user-profile.js?v=20260419"></script>
   <script src="js/dict-remote.js?v=2"></script>
   <script src="js/statute-tag.js"></script>
   <script src="js/tag-dict-modal.js?v=3"></script>
   <script src="js/member-tier.js?v=2"></script>
-  <script src="js/question-credits.js?v=3"></script>
-  <script src="js/quiz-ai-ask.js?v=10"></script>
+  <script src="js/question-credits.js?v=6"></script>
+  <script src="js/quiz-ai-ask.js?v=14"></script>
   <script src="js/questions.js"></script>
-  <script src="js/dashboard-tickets.js?v=4"></script>
-  <script src="js/learning-stats.js?v=2"></script>
+  <script src="js/dashboard-tickets.js?v=5"></script>
+  <script src="js/learning-stats.js?v=3"></script>
   <script src="js/nav-layout.js?v=6"></script>
   <script src="js/public-qa.js?v=8"></script>
   <script src="js/quiz-note-panel.js?v=8"></script>
   <script src="js/quiz-question-memo.js?v=2"></script>
-  <script src="js/quiz-trash.js?v=3"></script>
+  <script src="js/quiz-trash.js?v=4"></script>
   <script src="js/quiz-wrong-note.js?v=5"></script>
   <script src="js/quiz-master.js?v=2"></script>
   <script src="js/quiz-favorites.js?v=6"></script>
-  <script src="js/app.js?v=27"></script>
-  <script src="js/scope-favorites.js?v=7"></script>
-  <script src="js/ticket-modal.js?v=10"></script>
-  <script src="js/dict-panel-actions.js?v=4"></script>
-  <script src="js/quiz-note-card-actions.js?v=1"></script>
+  <script src="js/app.js?v=34"></script>
+  <script src="js/scope-favorites.js?v=8"></script>
+  <script src="js/ticket-modal.js?v=11"></script>
+  <script src="js/dict-panel-actions.js?v=6"></script>
+  <script src="js/quiz-note-card-actions.js?v=6"></script>
   <script src="js/notifications-ui.js?v=2"></script>
   <script src="js/admin-panel.js?v=2"></script>
   <script src="js/admin-review.js?v=4"></script>

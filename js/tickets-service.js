@@ -606,4 +606,42 @@
         }
       );
   };
+
+  var ELLY_ASKS = "hanlaw_quiz_ai_asks";
+
+  /**
+   * 엘리(AI) 질문 성공 기록(Functions가 저장). 본인 문서만, userId 단일 조건 + 클라이언트 정렬.
+   */
+  window.subscribeUserEllyAsks = function (userId, callback) {
+    var d = db();
+    if (!d) return function () {};
+    return d
+      .collection(ELLY_ASKS)
+      .where("userId", "==", userId)
+      .limit(100)
+      .onSnapshot(
+        function (snap) {
+          var list = snap.docs.map(function (doc) {
+            var x = doc.data();
+            x._docId = doc.id;
+            return x;
+          });
+          list.sort(function (a, b) {
+            var ta =
+              a.createdAt && a.createdAt.toMillis
+                ? a.createdAt.toMillis()
+                : 0;
+            var tb =
+              b.createdAt && b.createdAt.toMillis
+                ? b.createdAt.toMillis()
+                : 0;
+            return tb - ta;
+          });
+          callback(list);
+        },
+        function () {
+          callback([]);
+        }
+      );
+  };
 })();

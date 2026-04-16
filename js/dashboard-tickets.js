@@ -1,6 +1,8 @@
 (function () {
   var TICKET_CACHE = [];
+  var ELLY_ASK_CACHE = [];
   var unsub = null;
+  var unsubElly = null;
   var currentFilter = null;
   var searchDebTimer = null;
   var SEARCH_DEB_MS = 220;
@@ -97,23 +99,35 @@
     return parts.join("\n").toLowerCase();
   }
 
+  function haystackForEllyAsk(x) {
+    return [
+      String(x.userQuestion || ""),
+      String(x.answerPreview || ""),
+      String(x.quizTopic || ""),
+      String(x.questionId || ""),
+      String(x.mode || "")
+    ]
+      .join("\n")
+      .toLowerCase();
+  }
+
   function ticketMatchesSearch(t, q) {
     if (!q) return true;
     return haystackForTicket(t).indexOf(q) !== -1;
   }
 
+  function ellyAskMatchesSearch(x, q) {
+    if (!q) return true;
+    return haystackForEllyAsk(x).indexOf(q) !== -1;
+  }
+
   function syncTabUi(filter) {
-    var br = $("dashboard-my-reports");
-    var bq = $("dashboard-my-questions");
-    var tabs = [br, bq];
-    for (var i = 0; i < tabs.length; i++) {
-      var btn = tabs[i];
-      if (!btn) continue;
+    document.querySelectorAll(".dashboard-inquiry-tab[data-filter]").forEach(function (btn) {
       var f = btn.getAttribute("data-filter");
       var isActive = !!filter && f === filter;
       btn.setAttribute("aria-selected", isActive ? "true" : "false");
       btn.classList.toggle("dashboard-inquiry-tab--active", isActive);
-    }
+    });
   }
 
   function closeDrawer() {
@@ -125,41 +139,136 @@
     if (search) search.value = "";
   }
 
+  function drawerTitleForFilter(f) {
+    if (f === "report") return "나의 신고내역";
+    if (f === "question") return "나의 질문내역 (변호사)";
+    if (f === "suggestion") return "나의 개선 의견";
+    if (f === "elly") return "엘리(AI) 질문 내역";
+    return "";
+  }
+
+  function emptyMessageForFilter(f, ofTypeLen, hasSearch) {
+    if (ofTypeLen && hasSearch) return "검색 조건에 맞는 항목이 없습니다.";
+    if (f === "report") return "아직 제출한 오류 신고가 없습니다.";
+    if (f === "question") return "아직 제출한 질문이 없습니다.";
+    if (f === "suggestion") return "아직 제출한 개선 의견이 없습니다.";
+    if (f === "elly") return "아직 엘리(AI) 질문 기록이 없습니다. (이후 질문부터 여기에 쌓입니다.)";
+    return "항목이 없습니다.";
+  }
+
   function renderDrawerList() {
     var listEl = $("dashboard-tickets-drawer-list");
     var titleEl = $("dashboard-tickets-drawer-title");
     if (!listEl || !titleEl) return;
 
-    titleEl.textContent =
-      currentFilter === "report" ? "나의 신고내역" : "나의 질문내역";
+    titleEl.textContent = drawerTitleForFilter(currentFilter);
 
     var q = getSearchQuery();
-    var ofType = TICKET_CACHE.filter(function (t) {
-      return t.type === currentFilter;
-    });
-    var filtered = ofType.filter(function (t) {
-      return ticketMatchesSearch(t, q);
-    });
+    var ofType;
+    if (currentFilter === "elly") {
+      ofType = ELLY_ASK_CACHE.slice();
+    } else {
+      ofType = TICKET_CACHE.filter(function (t) {
+        return t.type === currentFilter;
+      });
+    }
+
+    var filtered =
+      currentFilter === "elly"
+        ? ofType.filter(function (x) {
+            return ellyAskMatchesSearch(x, q);
+          })
+        : ofType.filter(function (t) {
+            return ticketMatchesSearch(t, q);
+          });
 
     listEl.innerHTML = "";
     if (!filtered.length) {
       var empty = document.createElement("p");
       empty.className = "dashboard-ticket-empty";
-      if (ofType.length && q) {
-        empty.textContent = "검색 조건에 맞는 항목이 없습니다.";
-      } else {
-        empty.textContent =
-          currentFilter === "report"
-            ? "아직 제출한 오류 신고가 없습니다."
-            : "아직 제출한 질문이 없습니다.";
-      }
+      empty.textContent = emptyMessageForFilter(currentFilter, ofType.length, !!q);
       listEl.appendChild(empty);
       return;
     }
 
     for (var i = 0; i < filtered.length; i++) {
-      listEl.appendChild(renderTicketCard(filtered[i]));
+      if (currentFilter === "elly") {
+        listEl.appendChild(renderEllyAskCard(filtered[i]));
+      } else {
+        listEl.appendChild(renderTicketCard(filtered[i]));
+      }
     }
+  }
+
+  function renderEllyAskCard(x) {
+    var art = document.createElement("article");
+    art.className = "dashboard-ticket-item dashboard-elly-ask-item";
+
+    var meta = document.createElement("p");
+    meta.className = "dashboard-ticket-item__meta";
+    var st = document.createElement("span");
+    st.className = "dashboard-ticket-item__status";
+    st.textContent = "생성됨";
+    meta.appendChild(st);
+    meta.appendChild(document.createTextNode(" · " + formatWhen(x.createdAt)));
+    art.appendChild(meta);
+
+    if (x.quizTopic && String(x.quizTopic).trim()) {
+      var ctx = document.createElement("p");
+      ctx.className = "dashboard-ticket-item__context";
+      ctx.textContent =
+        (x.mode === "dictionary" ? "맥락: " : "주제·맥락: ") + String(x.quizTopic).trim();
+      art.appendChild(ctx);
+    }
+
+    var uq = String(x.userQuestion || "").trim();
+    if (uq) {
+      var uLab = document.createElement("span");
+      uLab.className = "dashboard-ticket-item__reply-label";
+      uLab.textContent = "나의 질문";
+      var uDiv = document.createElement("div");
+      uDiv.className = "dashboard-ticket-item__reply";
+      uDiv.appendChild(uLab);
+      var uBody = document.createElement("div");
+      uBody.className = "dashboard-ticket-item__reply-body quiz-ai-answer";
+      var uTrunc = truncate(uq, 2000);
+      if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+        uBody.innerHTML = window.formatHanlawRichParagraphsHtml(uTrunc);
+      } else {
+        uBody.textContent = uTrunc;
+      }
+      uDiv.appendChild(uBody);
+      art.appendChild(uDiv);
+    }
+
+    var ap = String(x.answerPreview || "").trim();
+    if (ap) {
+      var aLab = document.createElement("span");
+      aLab.className = "dashboard-ticket-item__reply-label";
+      aLab.textContent = "AI 답변";
+      var aWrap = document.createElement("div");
+      aWrap.className = "dashboard-ticket-item__reply";
+      aWrap.appendChild(aLab);
+      var aBody = document.createElement("div");
+      aBody.className = "dashboard-ticket-item__reply-body quiz-ai-answer";
+      var apTrunc = truncate(ap, 4000);
+      if (typeof window.formatHanlawAiAnswerHtml === "function") {
+        aBody.innerHTML = window.formatHanlawAiAnswerHtml(apTrunc);
+      } else {
+        aBody.textContent = apTrunc;
+      }
+      aWrap.appendChild(aBody);
+      art.appendChild(aWrap);
+    }
+
+    if (x.questionId && String(x.questionId).trim() && isAdminViewer()) {
+      var pid = document.createElement("p");
+      pid.className = "dashboard-ticket-item__context";
+      pid.textContent = "식별: " + String(x.questionId).trim();
+      art.appendChild(pid);
+    }
+
+    return art;
   }
 
   function renderTicketCard(t) {
@@ -192,7 +301,7 @@
       quizBox.className = "dashboard-ticket-item__quiz";
       var quizLab = document.createElement("span");
       quizLab.className = "dashboard-ticket-item__quiz-label";
-      quizLab.textContent = "해당 퀴즈 지문";
+      quizLab.textContent = t.type === "suggestion" ? "관련 퀴즈 지문" : "해당 퀴즈 지문";
       quizBox.appendChild(quizLab);
       var quizP = document.createElement("div");
       quizP.className = "dashboard-ticket-item__quiz-text quiz-ai-answer";
@@ -277,33 +386,46 @@
       unsub();
       unsub = null;
     }
+    if (unsubElly) {
+      unsubElly();
+      unsubElly = null;
+    }
     TICKET_CACHE = [];
+    ELLY_ASK_CACHE = [];
     closeDrawer();
-    if (!user || typeof window.subscribeUserTickets !== "function") return;
-    unsub = window.subscribeUserTickets(user.uid, function (list) {
-      TICKET_CACHE = list;
-      if (currentFilter) renderDrawerList();
-    });
+    if (!user) return;
+
+    if (typeof window.subscribeUserTickets === "function") {
+      unsub = window.subscribeUserTickets(user.uid, function (list) {
+        TICKET_CACHE = list;
+        if (currentFilter && currentFilter !== "elly") renderDrawerList();
+      });
+    }
+
+    if (typeof window.subscribeUserEllyAsks === "function") {
+      unsubElly = window.subscribeUserEllyAsks(user.uid, function (list) {
+        ELLY_ASK_CACHE = list;
+        if (currentFilter === "elly") renderDrawerList();
+      });
+    }
   }
 
   function initDom() {
-    var br = $("dashboard-my-reports");
-    var bq = $("dashboard-my-questions");
+    var tabs = document.querySelector(".dashboard-inquiry-tabs");
+    if (tabs) {
+      tabs.addEventListener("click", function (e) {
+        var btn = e.target.closest(".dashboard-inquiry-tab[data-filter]");
+        if (!btn) return;
+        var f = btn.getAttribute("data-filter");
+        if (!f) return;
+        if (!requireUser()) return;
+        openDrawer(f);
+      });
+    }
+
     var bc = $("dashboard-buy-question-credits");
     var bx = $("dashboard-tickets-drawer-close");
 
-    if (br) {
-      br.addEventListener("click", function () {
-        if (!requireUser()) return;
-        openDrawer("report");
-      });
-    }
-    if (bq) {
-      bq.addEventListener("click", function () {
-        if (!requireUser()) return;
-        openDrawer("question");
-      });
-    }
     if (bc) {
       bc.addEventListener("click", function () {
         if (!requireUser()) return;

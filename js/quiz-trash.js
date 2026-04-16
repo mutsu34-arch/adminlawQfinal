@@ -81,11 +81,11 @@
     window.dispatchEvent(new CustomEvent("quiz-trash-updated"));
   }
 
-  function writeRaw(data) {
+  function writeRaw(data, silent) {
     try {
       localStorage.setItem(storageKey(), JSON.stringify(data));
     } catch (e) {}
-    emit();
+    if (!silent) emit();
   }
 
   function pruneExpired(data) {
@@ -143,8 +143,13 @@
   }
 
   function getItems() {
-    var d = pruneExpired(readRaw());
-    writeRaw(d);
+    var raw = readRaw();
+    var beforeLen = raw && Array.isArray(raw.items) ? raw.items.length : 0;
+    var d = pruneExpired(raw);
+    if ((d.items || []).length !== beforeLen) {
+      // 패널 렌더 중 무한 이벤트 루프를 막기 위해 조용히 정리 저장
+      writeRaw(d, true);
+    }
     return d.items.slice();
   }
 

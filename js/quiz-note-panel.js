@@ -98,27 +98,19 @@
       }
       return t;
     }
+    function normalizeDetailBodyRaw(raw) {
+      return String(raw || "").replace(/\r\n/g, "\n");
+    }
+
     function normalizedText(raw) {
-      var s = String(raw || "").trim();
-      if (!s) return "";
-      s = s.replace(/법리\s*근거\s*[:：-]?\s*/gi, "법리 근거: ");
-      s = s.replace(/함정\s*포인트\s*[:：-]?\s*/gi, "함정 포인트: ");
-      s = s.replace(/판례\s*요지\s*[:：-]?\s*/gi, "판례: ");
-      s = s.replace(/판례\s*[:：-]?\s*/gi, "판례: ");
-      s = s.replace(/(법리 근거:\s*){2,}/gi, "법리 근거: ");
-      s = s.replace(/(함정 포인트:\s*){2,}/gi, "함정 포인트: ");
-      s = s.replace(/(판례:\s*){2,}/gi, "판례: ");
-      s = s.replace(/\s*(법리 근거:\s*)/gi, "\n\n$1");
-      s = s.replace(/\s*(함정 포인트:\s*)/gi, "\n\n$1");
-      s = s.replace(/\s*(판례:\s*)/gi, "\n\n$1");
-      return s.replace(/^\s+/, "").trim();
+      return String(raw || "").replace(/\r\n/g, "\n").trim();
     }
     var merged = "";
     if (typeof detail === "string") {
-      merged = normalizedText(detail);
+      merged = normalizeDetailBodyRaw(detail);
     } else if (typeof detail === "object") {
       if (detail.body != null && String(detail.body).trim()) {
-        merged = normalizedText(String(detail.body));
+        merged = normalizeDetailBodyRaw(String(detail.body));
       } else {
         var parts = [];
         if (detail.legal != null && String(detail.legal).trim()) {
@@ -138,17 +130,14 @@
       }
     }
     if (!merged) return;
-    var wrap = document.createElement("div");
-    wrap.className = "feedback-detail__block";
-    var p = document.createElement("p");
-    p.className = "feedback-detail__text quiz-ai-answer";
+    var root = document.createElement("div");
+    root.className = "feedback-detail__rich-html";
     if (typeof window.formatHanlawAiAnswerHtml === "function") {
-      p.innerHTML = window.formatHanlawAiAnswerHtml(merged);
+      root.innerHTML = window.formatHanlawAiAnswerHtml(merged);
     } else {
-      p.textContent = merged;
+      root.textContent = merged;
     }
-    wrap.appendChild(p);
-    container.appendChild(wrap);
+    container.appendChild(root);
   }
 
   function populateDetailContainer(container, q) {

@@ -8,7 +8,9 @@ window.PAYAPP_CONFIG = {
   /** 환불·결제 문의 — 비우면 문의 버튼이 개발자 문서로 연결됩니다. */
   merchantSupportEmail: "",
   /** 질문권 (서버 기본: PAYAPP_KRW_Q1 / Q10) */
-  questionPackKrwDisplay: "1건 ₩3,000 · 10건 ₩15,000",
+  questionPackKrwDisplay: "1건 ₩5,000 · 10건 ₩30,000",
+  /** 엘리(AI) 질문권 (PAYAPP_KRW_EQ10 / EQ50 / EQ100) */
+  ellyQuestionPackKrwDisplay: "10건 ₩5,000 · 50건 ₩20,000 · 100건 ₩30,000",
   /** 월 구독만 (서버 기본: PAYAPP_KRW_SUB_MONTHLY) — 페이앱 정기결제(rebill) */
   subscriptionKrwDisplay: "월 ₩10,000",
   /** 기간권·1년·2년 일회 표시 (1년·2년 정가는 월 ₩15,000 기준) */
@@ -18,7 +20,12 @@ window.PAYAPP_CONFIG = {
 
 window.getPayAppQuestionPackKrwDisplay = function () {
   var c = window.PAYAPP_CONFIG || {};
-  return c.questionPackKrwDisplay || "1건 ₩3,000 · 10건 ₩15,000";
+  return c.questionPackKrwDisplay || "1건 ₩5,000 · 10건 ₩30,000";
+};
+
+window.getPayAppEllyQuestionPackKrwDisplay = function () {
+  var c = window.PAYAPP_CONFIG || {};
+  return c.ellyQuestionPackKrwDisplay || "10건 ₩5,000 · 50건 ₩20,000 · 100건 ₩30,000";
 };
 
 window.getPayAppSubscriptionKrwDisplay = function () {

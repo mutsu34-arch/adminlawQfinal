@@ -161,6 +161,8 @@
     var drawing = false;
     var last = { x: 0, y: 0 };
     var hasInk = false;
+    /** false면 필기 입력 무시(저장 후 잠금 등) */
+    var drawingEnabled = true;
 
     function applyStrokeStyle() {
       if (eraserMode) {
@@ -193,6 +195,7 @@
     }
 
     function start(e) {
+      if (!drawingEnabled) return;
       if (e.type === "touchstart") e.preventDefault();
       drawing = true;
       var p = scalePoint(e);
@@ -200,7 +203,7 @@
     }
 
     function drawLine(e) {
-      if (!drawing) return;
+      if (!drawingEnabled || !drawing) return;
       if (e.type === "touchmove") e.preventDefault();
       var p = scalePoint(e);
       applyStrokeStyle();
@@ -262,6 +265,15 @@
       },
       isEraser: function () {
         return eraserMode;
+      },
+      setDrawingEnabled: function (on) {
+        drawingEnabled = !!on;
+        if (!drawingEnabled) {
+          drawing = false;
+        }
+      },
+      isDrawingEnabled: function () {
+        return drawingEnabled;
       },
       loadDataUrl: function (url, done) {
         if (!url || String(url).indexOf("data:image") !== 0) {

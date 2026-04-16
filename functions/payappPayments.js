@@ -6,11 +6,13 @@
  * 환경변수 (functions/.env):
  * - PAYAPP_USERID, PAYAPP_LINK_KEY, PAYAPP_LINK_VALUE
  * - PAYAPP_SHOP_NAME
- * 질문권: PAYAPP_KRW_Q1, PAYAPP_KRW_Q10 (기본 3000, 15000)
+ * 질문권: PAYAPP_KRW_Q1, PAYAPP_KRW_Q10 (기본 5000, 30000)
+ * 엘리(AI) 질문권: PAYAPP_KRW_EQ10, PAYAPP_KRW_EQ50, PAYAPP_KRW_EQ100 (기본 5000, 20000, 30000) — var2 e10|e50|e100, 지갑 hanlaw_quiz_ai_wallet
+ * 엘리 무제한 1개월: PAYAPP_KRW_ELLY_PASS_1M (기본 10000) — var2 sub_elly_pass_1m, hanlaw_members.ellyUnlimitedUntil
  * 구독: PAYAPP_KRW_SUB_MONTHLY, PAYAPP_KRW_SUB_YEARLY, PAYAPP_KRW_SUB_TWO_YEAR (기본 10000, 100000, 150000)
  * 비갱신(기간권): PAYAPP_KRW_NONRENEW_1M, PAYAPP_KRW_NONRENEW_3M, PAYAPP_KRW_NONRENEW_6M (기본 15000, 42750, 81000 — 3·6개월은 정가 대비 5%·10% 할인가)
  *
- * var2: 질문권 "1"|"10" · 구독 "sub_monthly"|"sub_yearly"|"sub_twoYear" · 비갱신 "sub_nonrenew_1m"|"sub_nonrenew_3m"|"sub_nonrenew_6m"
+ * var2: 질문권 "1"|"10" · 엘리권 "e10"|"e50"|"e100" · 엘리 1개월권 "sub_elly_pass_1m" · 구독 "sub_monthly"|… · 비갱신 "sub_nonrenew_1m"|…
  *
  * 정기결제(PayApp rebill): 월 구독(monthly)만 https://docs.payapp.kr 정기결제 요청(JS) — PayApp.rebill()
  * · 연/2년 구독은 매뉴얼상 정기 주기가 Month·Week·Day뿐이라 기존 일회 결제(payrequest) 유지
@@ -70,9 +72,26 @@ function normalizeWallet(data, periodKey) {
 
 function expectedKrwForPack(pack) {
   if (pack === 10) {
-    return Math.max(1000, parseInt(process.env.PAYAPP_KRW_Q10 || "15000", 10) || 15000);
+    return Math.max(1000, parseInt(process.env.PAYAPP_KRW_Q10 || "30000", 10) || 30000);
   }
-  return Math.max(1000, parseInt(process.env.PAYAPP_KRW_Q1 || "3000", 10) || 3000);
+  return Math.max(1000, parseInt(process.env.PAYAPP_KRW_Q1 || "5000", 10) || 5000);
+}
+
+function expectedKrwForEllyPack(pack) {
+  if (pack === 10) {
+    return Math.max(1000, parseInt(process.env.PAYAPP_KRW_EQ10 || "5000", 10) || 5000);
+  }
+  if (pack === 50) {
+    return Math.max(1000, parseInt(process.env.PAYAPP_KRW_EQ50 || "20000", 10) || 20000);
+  }
+  if (pack === 100) {
+    return Math.max(1000, parseInt(process.env.PAYAPP_KRW_EQ100 || "30000", 10) || 30000);
+  }
+  return 0;
+}
+
+function expectedKrwForEllyPassOneMonth() {
+  return Math.max(1000, parseInt(process.env.PAYAPP_KRW_ELLY_PASS_1M || "10000", 10) || 10000);
 }
 
 function expectedKrwForSubPlan(plan) {
@@ -105,7 +124,7 @@ function packFromVar2(v) {
   return 0;
 }
 
-/** @returns {{ type: 'pack', pack: number } | { type: 'sub', plan: string } | { type: 'sub_nonrenew', months: number } | null} */
+/** @returns {{ type: 'pack', pack: number } | { type: 'sub', plan: string } | { type: 'sub_nonrenew', months: number } | { type: 'elly_pack', pack: number } | { type: 'elly_pass' } | null} */
 function parseVar2Product(v) {
   const s = String(v || "").trim();
   if (s === "sub_monthly") return { type: "sub", plan: "monthly" };
@@ -114,6 +133,11 @@ function parseVar2Product(v) {
   if (s === "sub_nonrenew_1m") return { type: "sub_nonrenew", months: 1 };
   if (s === "sub_nonrenew_3m") return { type: "sub_nonrenew", months: 3 };
   if (s === "sub_nonrenew_6m") return { type: "sub_nonrenew", months: 6 };
+  if (s === "sub_elly_pass_1m") return { type: "elly_pass" };
+  if (s === "e10" || s === "e50" || s === "e100") {
+    const ellyPack = s === "e10" ? 10 : s === "e50" ? 50 : 100;
+    return { type: "elly_pack", pack: ellyPack };
+  }
   const pack = packFromVar2(v);
   if (pack) return { type: "pack", pack };
   return null;
@@ -122,9 +146,17 @@ function parseVar2Product(v) {
 function expectedKrwForProduct(product) {
   if (!product) return 0;
   if (product.type === "pack") return expectedKrwForPack(product.pack);
+  if (product.type === "elly_pack") return expectedKrwForEllyPack(product.pack);
+  if (product.type === "elly_pass") return expectedKrwForEllyPassOneMonth();
   if (product.type === "sub") return expectedKrwForSubPlan(product.plan);
   if (product.type === "sub_nonrenew") return expectedKrwForNonRenewMonths(product.months);
   return 0;
+}
+
+function addCalendarMonthFromMs(fromMs) {
+  const d = new Date(fromMs);
+  d.setMonth(d.getMonth() + 1);
+  return d.getTime();
 }
 
 function addSubscriptionUntilMs(fromMs, plan) {
@@ -271,6 +303,61 @@ const getPayAppQuestionPackCheckout = onCall({ region: REGION }, async (request)
     feedbackUrl,
     var1: uid,
     var2: String(pack),
+    checkretry: "y",
+    charset: "utf-8"
+  };
+});
+
+/** 엘리(AI) 질문권 10·50·100건 — hanlaw_quiz_ai_wallet */
+const getPayAppEllyQuestionPackCheckout = onCall({ region: REGION }, async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const uid = request.auth.uid;
+  const pack = parseInt((request.data && request.data.pack) || 0, 10);
+  if (pack !== 10 && pack !== 50 && pack !== 100) {
+    throw new HttpsError("invalid-argument", "pack은 10, 50 또는 100이어야 합니다.");
+  }
+
+  const { payappUserid, feedbackUrl } = assertPayAppConfigured();
+  const shopname = String(process.env.PAYAPP_SHOP_NAME || "행정법Q").trim() || "행정법Q";
+  const goodname = "행정법Q 엘리(AI) 질문권 " + pack + "건";
+  const price = expectedKrwForEllyPack(pack);
+  const var2 = pack === 10 ? "e10" : pack === 50 ? "e50" : "e100";
+
+  return {
+    userid: payappUserid,
+    shopname,
+    goodname,
+    price,
+    feedbackUrl,
+    var1: uid,
+    var2,
+    checkretry: "y",
+    charset: "utf-8"
+  };
+});
+
+/** 엘리(AI) 무제한 1개월 — 일회 결제, ellyUnlimitedUntil 1개월 연장(잔여 기간이 있으면 이어서) */
+const getPayAppEllyUnlimitedPassCheckout = onCall({ region: REGION }, async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const uid = request.auth.uid;
+
+  const { payappUserid, feedbackUrl } = assertPayAppConfigured();
+  const shopname = String(process.env.PAYAPP_SHOP_NAME || "행정법Q").trim() || "행정법Q";
+  const goodname = "행정법Q 엘리(AI) 무제한 1개월";
+  const price = expectedKrwForEllyPassOneMonth();
+
+  return {
+    userid: payappUserid,
+    shopname,
+    goodname,
+    price,
+    feedbackUrl,
+    var1: uid,
+    var2: "sub_elly_pass_1m",
     checkretry: "y",
     charset: "utf-8"
   };
@@ -547,6 +634,76 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
             { merge: true }
           );
         });
+      } else if (product.type === "elly_pack") {
+        const amount = product.pack;
+        const walletRef = db().collection("hanlaw_quiz_ai_wallet").doc(uid);
+        const exp = Timestamp.fromMillis(Date.now() + BATCH_VALID_MS);
+
+        await db().runTransaction(async (t) => {
+          const dup = await t.get(dedupRef);
+          if (dup.exists) return;
+
+          const wsnap = await t.get(walletRef);
+          const data = wsnap.exists ? wsnap.data() : {};
+          const batches = Array.isArray(data.batches) ? data.batches.slice() : [];
+          batches.push({
+            amount,
+            expiresAt: exp,
+            purchasedAt: Timestamp.now()
+          });
+
+          t.set(dedupRef, {
+            processedAt: FieldValue.serverTimestamp(),
+            source: "payapp",
+            kind: "elly_question_pack",
+            uid,
+            amount,
+            mulNo,
+            payState: 4
+          });
+          t.set(
+            walletRef,
+            {
+              batches,
+              updatedAt: FieldValue.serverTimestamp()
+            },
+            { merge: true }
+          );
+        });
+      } else if (product.type === "elly_pass") {
+        const memRef = db().collection("hanlaw_members").doc(uid);
+
+        await db().runTransaction(async (t) => {
+          const dup = await t.get(dedupRef);
+          if (dup.exists) return;
+
+          const msnap = await t.get(memRef);
+          const mdata = msnap.exists ? msnap.data() : {};
+          const now = Date.now();
+          let base = now;
+          const prev = mdata.ellyUnlimitedUntil;
+          if (prev && typeof prev.toMillis === "function") {
+            base = Math.max(now, prev.toMillis());
+          }
+          const newUntil = Timestamp.fromMillis(addCalendarMonthFromMs(base));
+
+          t.set(dedupRef, {
+            processedAt: FieldValue.serverTimestamp(),
+            source: "payapp",
+            kind: "elly_unlimited_pass",
+            uid,
+            mulNo,
+            payState: 4
+          });
+          t.set(
+            memRef,
+            {
+              ellyUnlimitedUntil: newUntil,
+              updatedAt: FieldValue.serverTimestamp()
+            },
+            { merge: true }
+          );
+        });
       } else if (product.type === "sub") {
         const plan = product.plan;
         const memRef = db().collection("hanlaw_members").doc(uid);
@@ -645,6 +802,8 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
 
 module.exports = {
   getPayAppQuestionPackCheckout,
+  getPayAppEllyQuestionPackCheckout,
+  getPayAppEllyUnlimitedPassCheckout,
   getPayAppSubscriptionCheckout,
   cancelPayAppRebill,
   payappQuestionFeedback

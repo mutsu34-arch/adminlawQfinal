@@ -101,7 +101,7 @@
     if (totalEl) totalEl.textContent = "보유 질문권: " + s.total + "건";
     if (s.adminUnlimited) {
       el.textContent =
-        "관리자 계정 · 변호사에게 물어보기는 질문권 차감 없이 이용할 수 있습니다.";
+        "관리자 계정 · 변호사에게 질문하기는 질문권 차감 없이 이용할 수 있습니다.";
       return;
     }
     var parts = [];
@@ -201,13 +201,30 @@
     });
   };
 
-  /** 출석 포인트 3,000점 → 질문권 1건(전환 시점부터 1년 유효). */
+  /** 서버와 동기: 변호사 질문권 전환에 필요한 출석 포인트(기본 5,000). */
+  window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT = 5000;
+  /** 서버와 동기: 엘리(AI) 질문권 1건 전환에 필요한 출석 포인트(기본 500, 엘리 10건 팩 건당 약 ₩500 수준). */
+  window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT = 500;
+
+  /** 출석 포인트 → 변호사 질문권 1건(전환 시점부터 1년 유효). */
   window.convertAttendancePointsToQuestionCreditCallable = function () {
     if (typeof firebase === "undefined" || !firebase.app || !firebase.functions) {
       return Promise.reject(new Error("Firebase Functions를 불러오지 못했습니다."));
     }
     var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
     var fn = firebase.app().functions(region).httpsCallable("convertAttendancePointsToQuestionCredit");
+    return fn({}).then(function (res) {
+      return res && res.data ? res.data : {};
+    });
+  };
+
+  /** 출석 포인트 → 엘리(AI) 질문권 1건(전환 시점부터 1년 유효). */
+  window.convertAttendancePointsToEllyCreditCallable = function () {
+    if (typeof firebase === "undefined" || !firebase.app || !firebase.functions) {
+      return Promise.reject(new Error("Firebase Functions를 불러오지 못했습니다."));
+    }
+    var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+    var fn = firebase.app().functions(region).httpsCallable("convertAttendancePointsToEllyCredit");
     return fn({}).then(function (res) {
       return res && res.data ? res.data : {};
     });
@@ -264,11 +281,118 @@
     }, 80);
   }
 
+  /** 요금제 패널 → 엘리(AI) 질문권 안내·구매 블록으로 스크롤 */
+  function goEllyQuestionPacks() {
+    var navBtn = document.querySelector('.nav-main__btn[data-panel="pricing"]');
+    if (navBtn) navBtn.click();
+    setTimeout(function () {
+      var sec = document.getElementById("pricing-elly-question-packs");
+      if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+      else {
+        var fb = document.getElementById("pricing-question-packs");
+        if (fb) fb.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 80);
+  }
+
   window.goToQuestionPacksSection = goQuestionPacks;
+  window.goToEllyQuestionPacksSection = goEllyQuestionPacks;
+
+  /** 요금제 패널 → 변호사 질문권 안내·PayApp 구매 블록으로 스크롤 */
+  function goLawyerQuestionPacks() {
+    var navBtn = document.querySelector('.nav-main__btn[data-panel="pricing"]');
+    if (navBtn) navBtn.click();
+    setTimeout(function () {
+      var sec = document.getElementById("pricing-lawyer-question-packs");
+      if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+      else {
+        var fb = document.getElementById("pricing-question-packs");
+        if (fb) fb.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 80);
+  }
+  window.goToLawyerQuestionPacksSection = goLawyerQuestionPacks;
+
+  /** 대시보드 탭 → 출석 포인트 전환(변호사·엘리 버튼) 영역으로 스크롤 */
+  function goToDashboardPointConvertSection() {
+    var navBtn = document.querySelector('.nav-main__btn[data-panel="dashboard"]');
+    if (navBtn) navBtn.click();
+    setTimeout(function () {
+      var sec = document.getElementById("dashboard-point-convert-section");
+      if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }
+  window.goToDashboardPointConvertSection = goToDashboardPointConvertSection;
+
+  var lawyerCreditsModalBound = false;
+  function hideLawyerCreditsNeededModal() {
+    var modal = document.getElementById("lawyer-credits-modal");
+    if (modal) {
+      modal.hidden = true;
+      modal.setAttribute("aria-hidden", "true");
+    }
+  }
+  function bindLawyerCreditsModalOnce() {
+    if (lawyerCreditsModalBound) return;
+    lawyerCreditsModalBound = true;
+    var modal = document.getElementById("lawyer-credits-modal");
+    if (!modal) return;
+    function goPricing() {
+      hideLawyerCreditsNeededModal();
+      goLawyerQuestionPacks();
+    }
+    function goPointConvert() {
+      hideLawyerCreditsNeededModal();
+      goToDashboardPointConvertSection();
+    }
+    var c = document.getElementById("lawyer-credits-modal-close");
+    var d = document.getElementById("lawyer-credits-modal-dismiss");
+    var p = document.getElementById("lawyer-credits-modal-go-point-convert");
+    var g = document.getElementById("lawyer-credits-modal-go-pricing");
+    if (c) c.addEventListener("click", hideLawyerCreditsNeededModal);
+    if (d) d.addEventListener("click", hideLawyerCreditsNeededModal);
+    if (p) p.addEventListener("click", goPointConvert);
+    if (g) g.addEventListener("click", goPricing);
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) hideLawyerCreditsNeededModal();
+    });
+  }
+  function showLawyerCreditsNeededModal() {
+    bindLawyerCreditsModalOnce();
+    var modal = document.getElementById("lawyer-credits-modal");
+    var pp =
+      typeof window.getQuestionPackPricesDisplay === "function"
+        ? window.getQuestionPackPricesDisplay()
+        : "1건 ₩5,000 · 10건 ₩30,000";
+    var bodyText =
+      "보유한 변호사 질문권이 없습니다.\n\n" +
+      "· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n" +
+      "· 출석 포인트 5,000점으로 변호사 질문권 1건 전환 가능(대시보드 > 출석 포인트 전환).\n" +
+      "· 요금제에서 추가 질문권을 구매할 수 있습니다(" +
+      pp +
+      ", 구매일로부터 1년 유효).";
+    if (!modal) {
+      window.alert(bodyText);
+      return;
+    }
+    var body = document.getElementById("lawyer-credits-modal-body");
+    if (body) {
+      body.textContent = bodyText;
+      body.style.whiteSpace = "pre-line";
+    }
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+  }
+  window.showLawyerCreditsNeededModal = showLawyerCreditsNeededModal;
 
   function initDom() {
     var b = document.getElementById("dashboard-goto-question-packs");
     if (b) b.addEventListener("click", goQuestionPacks);
+    document.querySelectorAll("[data-go-dashboard-point-convert]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        goToDashboardPointConvertSection();
+      });
+    });
   }
 
   if (document.readyState === "loading") {

@@ -3,6 +3,7 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions/v2");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { appendPointLog, REASON } = require("./attendancePointLedger");
 
 function db() {
   return getFirestore();
@@ -254,6 +255,12 @@ exports.revealLawyerQaAnswer = onCall({ region: REGION }, async (request) => {
       },
       { merge: true }
     );
+    appendPointLog(tx, attRef, {
+      delta: QA_VIEW_REWARD,
+      reason: REASON.QA_VIEW_REWARD,
+      balanceAfter: pts,
+      meta: { ticketId }
+    });
     return QA_VIEW_REWARD;
   });
 

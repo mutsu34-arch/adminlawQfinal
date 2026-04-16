@@ -169,6 +169,30 @@
       });
   }
 
+  function startPayAppEllyPack(pack) {
+    if (!requireLoginAndFirebase()) return;
+    var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+    var fn = firebase.app().functions(region).httpsCallable("getPayAppEllyQuestionPackCheckout");
+    fn({ pack: pack })
+      .then(function (res) {
+        var d = res && res.data;
+        if (!d || !d.userid || !d.feedbackUrl) {
+          throw new Error("서버 응답이 올바르지 않습니다.");
+        }
+        enrichCheckoutPayload(d);
+        return loadPayAppLite().then(function () {
+          applyPayAppParams(d);
+        });
+      })
+      .catch(function (e) {
+        var msg = e && e.message ? String(e.message) : "결제를 시작할 수 없습니다.";
+        if (e && e.code === "functions/failed-precondition") {
+          msg = e.message || msg;
+        }
+        window.alert(msg);
+      });
+  }
+
   function startPayAppSubscription(plan) {
     if (!requireLoginAndFirebase()) return;
     var payload = { plan: plan };
@@ -211,6 +235,15 @@
         if (pack === 1 || pack === 10) {
           e.preventDefault();
           startPayAppPack(pack);
+        }
+        return;
+      }
+      var ellyPackBtn = e.target && e.target.closest ? e.target.closest("[data-payapp-elly-pack]") : null;
+      if (ellyPackBtn) {
+        var ep = parseInt(ellyPackBtn.getAttribute("data-payapp-elly-pack") || "0", 10);
+        if (ep === 10 || ep === 50 || ep === 100) {
+          e.preventDefault();
+          startPayAppEllyPack(ep);
         }
         return;
       }
@@ -308,6 +341,7 @@
   window.HanlawPayAppCheckout = {
     loadPayAppLite: loadPayAppLite,
     startPayAppPack: startPayAppPack,
+    startPayAppEllyPack: startPayAppEllyPack,
     startPayAppSubscription: startPayAppSubscription,
     applyPayAppRebillParams: applyPayAppRebillParams
   };

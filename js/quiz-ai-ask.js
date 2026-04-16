@@ -1,6 +1,14 @@
 (function () {
+  /** 화면·알림에서 통일하는 엘리 AI 기능명 */
+  var HANLAW_ELLIE_AI_LABEL = "엘리(AI)에게 질문하기";
+  window.HANLAW_ELLIE_AI_LABEL = HANLAW_ELLIE_AI_LABEL;
+
   var usageUnsub = null;
+  var ellyWalletUnsub = null;
+  var memberUnsub = null;
   var lastRemain = 4;
+  var lastEllyCredits = 0;
+  var lastEllyUnlimitedUntilMs = 0;
 
   /** 퀴즈 AI 답변 상단 고정 안내(HTML 조각, format 결과 앞에 붙임) */
   var QUIZ_AI_ANSWER_DISCLAIMER =
@@ -25,6 +33,96 @@
     var d = snap.data();
     if (d.ymd !== today) return 4;
     return Math.max(0, 4 - (parseInt(d.count, 10) || 0));
+  }
+
+  function sumEllyBatches(batches) {
+    var now = Date.now();
+    var n = 0;
+    if (!batches || !batches.length) return 0;
+    for (var i = 0; i < batches.length; i++) {
+      var b = batches[i];
+      var exp = b && b.expiresAt;
+      var expMs = exp && typeof exp.toMillis === "function" ? exp.toMillis() : 0;
+      if (expMs < now) continue;
+      n += Math.max(0, parseInt(b.amount, 10) || 0);
+    }
+    return n;
+  }
+
+  function hasEllyUnlimited() {
+    return lastEllyUnlimitedUntilMs > Date.now();
+  }
+
+  function hasEllyAccess() {
+    return hasEllyUnlimited() || lastRemain > 0 || lastEllyCredits > 0;
+  }
+
+  var ellyLimitModalBound = false;
+  function hideEllyLimitModal() {
+    var modal = document.getElementById("quiz-ai-limit-modal");
+    if (modal) {
+      modal.hidden = true;
+      modal.setAttribute("aria-hidden", "true");
+    }
+  }
+  function bindEllyLimitModalOnce() {
+    if (ellyLimitModalBound) return;
+    ellyLimitModalBound = true;
+    var modal = document.getElementById("quiz-ai-limit-modal");
+    if (!modal) return;
+    function goPricing() {
+      hideEllyLimitModal();
+      if (typeof window.goToEllyQuestionPacksSection === "function") {
+        window.goToEllyQuestionPacksSection();
+      } else {
+        var navBtn = document.querySelector('.nav-main__btn[data-panel="pricing"]');
+        if (navBtn) navBtn.click();
+        setTimeout(function () {
+          var sec = document.getElementById("pricing-elly-question-packs");
+          if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 80);
+      }
+    }
+    function goPointConvert() {
+      hideEllyLimitModal();
+      if (typeof window.goToDashboardPointConvertSection === "function") {
+        window.goToDashboardPointConvertSection();
+      } else {
+        var navBtn = document.querySelector('.nav-main__btn[data-panel="dashboard"]');
+        if (navBtn) navBtn.click();
+      }
+    }
+    var c = document.getElementById("quiz-ai-limit-modal-close");
+    var d = document.getElementById("quiz-ai-limit-modal-dismiss");
+    var p = document.getElementById("quiz-ai-limit-modal-go-point-convert");
+    var g = document.getElementById("quiz-ai-limit-modal-go-pricing");
+    if (c) c.addEventListener("click", hideEllyLimitModal);
+    if (d) d.addEventListener("click", hideEllyLimitModal);
+    if (p) p.addEventListener("click", goPointConvert);
+    if (g) g.addEventListener("click", goPricing);
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) hideEllyLimitModal();
+    });
+  }
+  function showEllyLimitModal() {
+    bindEllyLimitModalOnce();
+    var modal = document.getElementById("quiz-ai-limit-modal");
+    if (!modal) {
+      window.alert(
+        "무료 한도를 다 썼으니, 내일 질문하거나 질문권을 구매해 주세요.\n" +
+          "출석 포인트 500점으로 엘리 질문권 1건 전환도 가능합니다(대시보드 > 출석 포인트 전환)."
+      );
+      return;
+    }
+    var body = document.getElementById("quiz-ai-limit-modal-body");
+    if (body) {
+      body.textContent =
+        "무료 한도를 다 썼으니, 내일 질문하거나 질문권을 구매해 주세요.\n" +
+        "출석 포인트 500점으로 엘리 질문권 1건 전환도 가능합니다(대시보드 > 출석 포인트 전환).";
+      body.style.whiteSpace = "pre-line";
+    }
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
   }
 
   function isRealFirebaseUser() {
@@ -78,19 +176,43 @@
     var el = document.getElementById(IDS.remain);
     var msg;
     if (!isRealFirebaseUser()) {
-      msg = "로그인 후 이용 · 유료 회원 한정 · 엘리에게 물어보기(AI) 한도 하루 4회(한국시간)";
-    } else if (typeof window.isPaidMember === "function" && !window.isPaidMember()) {
-      msg = "엘리에게 물어보기(AI)는 유료 회원에 한해 이용할 수 있습니다.";
-    } else {
       msg =
-        "오늘 엘리에게 물어보기(AI) 남은 횟수: " + lastRemain + " / 4 (한국시간 기준, Google Gemini)";
+        "로그인 후 이용 · 유료 회원 한정 · " +
+        HANLAW_ELLIE_AI_LABEL +
+        " 한도 하루 4회(한국시간)";
+    } else if (typeof window.isPaidMember === "function" && !window.isPaidMember()) {
+      msg = HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.";
+    } else if (hasEllyUnlimited()) {
+      var end = new Date(lastEllyUnlimitedUntilMs);
+      var ds = end.toLocaleDateString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric"
+      });
+      msg =
+        HANLAW_ELLIE_AI_LABEL +
+        " 무제한 이용 중 (~ " +
+        ds +
+        "까지 · 한국시간 기준, Google Gemini)";
+    } else {
+      var credPart = lastEllyCredits > 0 ? " · 보유 엘리 질문권 " + lastEllyCredits + "건" : "";
+      msg =
+        "오늘 무료 " +
+        lastRemain +
+        "/4회" +
+        credPart +
+        " · " +
+        HANLAW_ELLIE_AI_LABEL +
+        "(한국시간, Google Gemini)";
     }
     if (el) el.textContent = msg;
     document.querySelectorAll(".dict-panel-ai-remain").forEach(function (sub) {
       sub.textContent = msg;
     });
     var paidOk = typeof window.isPaidMember === "function" && window.isPaidMember();
-    var disSend = !paidOk || !isRealFirebaseUser() || lastRemain <= 0;
+    /** 한도 소진 시에도 버튼으로 안내 모달을 띄우기 위해, 유료·로그인만으로 활성화 */
+    var disSend = !paidOk || !isRealFirebaseUser();
     var s1 = document.getElementById(IDS.send);
     if (s1 && !s1.dataset.aiSending) s1.disabled = disSend;
     document.querySelectorAll(".note-quiz-chrome__ai-send").forEach(function (bs) {
@@ -129,6 +251,59 @@
     );
   }
 
+  function subscribeEllyWallet(uid) {
+    if (ellyWalletUnsub) {
+      ellyWalletUnsub();
+      ellyWalletUnsub = null;
+    }
+    if (!uid || typeof firebase === "undefined" || !firebase.firestore) {
+      lastEllyCredits = 0;
+      updateRemainTexts();
+      return;
+    }
+    var wref = firebase.firestore().collection("hanlaw_quiz_ai_wallet").doc(uid);
+    ellyWalletUnsub = wref.onSnapshot(
+      function (snap) {
+        var b = snap && snap.exists && snap.data().batches ? snap.data().batches : [];
+        lastEllyCredits = sumEllyBatches(b);
+        updateRemainTexts();
+      },
+      function () {
+        lastEllyCredits = 0;
+        updateRemainTexts();
+      }
+    );
+  }
+
+  function subscribeMemberElly(uid) {
+    if (memberUnsub) {
+      memberUnsub();
+      memberUnsub = null;
+    }
+    if (!uid || typeof firebase === "undefined" || !firebase.firestore) {
+      lastEllyUnlimitedUntilMs = 0;
+      updateRemainTexts();
+      return;
+    }
+    var mref = firebase.firestore().collection("hanlaw_members").doc(uid);
+    memberUnsub = mref.onSnapshot(
+      function (snap) {
+        lastEllyUnlimitedUntilMs = 0;
+        if (snap && snap.exists) {
+          var eu = snap.data().ellyUnlimitedUntil;
+          if (eu && typeof eu.toMillis === "function") {
+            lastEllyUnlimitedUntilMs = eu.toMillis();
+          }
+        }
+        updateRemainTexts();
+      },
+      function () {
+        lastEllyUnlimitedUntilMs = 0;
+        updateRemainTexts();
+      }
+    );
+  }
+
   function resetPanel() {
     var p = document.getElementById(IDS.panel);
     var ta = document.getElementById(IDS.question);
@@ -152,14 +327,28 @@
     if (btn) btn.setAttribute("aria-expanded", "false");
   }
 
+  /** 패널을 펼칠 때만: 로그인·질문권 없으면 false (모달/알림 처리됨) */
+  function guardEllyPanelOpen() {
+    if (!isRealFirebaseUser()) {
+      window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
+      return false;
+    }
+    if (!hasEllyAccess()) {
+      showEllyLimitModal();
+      return false;
+    }
+    return true;
+  }
+
   function togglePanel() {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert("엘리에게 물어보기(AI)는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
       return;
     }
     var p = document.getElementById(IDS.panel);
     var btn = document.getElementById(IDS.toggle);
     if (!p) return;
+    if (p.hidden && !guardEllyPanelOpen()) return;
     var open = p.hidden;
     p.hidden = !open;
     if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
@@ -167,15 +356,15 @@
 
   function sendAsk() {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert("엘리에게 물어보기(AI)는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
       return;
     }
     if (!isRealFirebaseUser()) {
       window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
       return;
     }
-    if (lastRemain <= 0) {
-      window.alert("오늘 엘리에게 물어보기(AI) 한도(4회)를 모두 사용했습니다.");
+    if (!hasEllyAccess()) {
+      showEllyLimitModal();
       return;
     }
     var ctx = window.__HANLAW_QUIZ_AI_CONTEXT;
@@ -231,22 +420,26 @@
         }
         if (res && typeof res.remainingToday === "number") {
           lastRemain = Math.max(0, res.remainingToday);
-          updateRemainTexts();
         }
+        if (res && typeof res.ellyCreditsRemaining === "number") {
+          lastEllyCredits = Math.max(0, res.ellyCreditsRemaining);
+        }
+        updateRemainTexts();
       })
       .catch(function (e) {
         hideAiLoading();
         var code = e && e.code;
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
-          msg = "오늘 엘리에게 물어보기(AI) 한도(4회)를 모두 사용했습니다. 내일 다시 이용해 주세요.";
-        }
-        if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
-          msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
-        }
-        if (errEl) {
-          errEl.textContent = msg;
-          errEl.hidden = false;
+          showEllyLimitModal();
+        } else {
+          if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
+            msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
+          }
+          if (errEl) {
+            errEl.textContent = msg;
+            errEl.hidden = false;
+          }
         }
       })
       .then(doneEnable, doneEnable);
@@ -254,15 +447,15 @@
 
   function sendFromNoteArticle(article) {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert("엘리에게 물어보기(AI)는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
       return;
     }
     if (!isRealFirebaseUser()) {
       window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
       return;
     }
-    if (lastRemain <= 0) {
-      window.alert("오늘 엘리에게 물어보기(AI) 한도(4회)를 모두 사용했습니다.");
+    if (!hasEllyAccess()) {
+      showEllyLimitModal();
       return;
     }
     var ctx = window.__HANLAW_QUIZ_AI_CONTEXT;
@@ -337,8 +530,11 @@
         }
         if (res && typeof res.remainingToday === "number") {
           lastRemain = Math.max(0, res.remainingToday);
-          updateRemainTexts();
         }
+        if (res && typeof res.ellyCreditsRemaining === "number") {
+          lastEllyCredits = Math.max(0, res.ellyCreditsRemaining);
+        }
+        updateRemainTexts();
       })
       .catch(function (e) {
         if (loadEl) {
@@ -348,14 +544,15 @@
         var code = e && e.code;
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
-          msg = "오늘 엘리에게 물어보기(AI) 한도(4회)를 모두 사용했습니다. 내일 다시 이용해 주세요.";
-        }
-        if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
-          msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
-        }
-        if (errEl) {
-          errEl.textContent = msg;
-          errEl.hidden = false;
+          showEllyLimitModal();
+        } else {
+          if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
+            msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
+          }
+          if (errEl) {
+            errEl.textContent = msg;
+            errEl.hidden = false;
+          }
         }
       })
       .then(doneEnable, doneEnable);
@@ -395,15 +592,15 @@
 
   function sendDictionaryPanelAsk(kind) {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert("엘리에게 물어보기(AI)는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
       return;
     }
     if (!isRealFirebaseUser()) {
       window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
       return;
     }
-    if (lastRemain <= 0) {
-      window.alert("오늘 엘리에게 물어보기(AI) 한도(4회)를 모두 사용했습니다.");
+    if (!hasEllyAccess()) {
+      showEllyLimitModal();
       return;
     }
     var ctx = window.__HANLAW_QUIZ_AI_CONTEXT;
@@ -463,22 +660,26 @@
         }
         if (res && typeof res.remainingToday === "number") {
           lastRemain = Math.max(0, res.remainingToday);
-          updateRemainTexts();
         }
+        if (res && typeof res.ellyCreditsRemaining === "number") {
+          lastEllyCredits = Math.max(0, res.ellyCreditsRemaining);
+        }
+        updateRemainTexts();
       })
       .catch(function (e) {
         hideDictAiLoading(pre);
         var code = e && e.code;
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
-          msg = "오늘 엘리에게 물어보기(AI) 한도(4회)를 모두 사용했습니다. 내일 다시 이용해 주세요.";
-        }
-        if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
-          msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
-        }
-        if (errEl) {
-          errEl.textContent = msg;
-          errEl.hidden = false;
+          showEllyLimitModal();
+        } else {
+          if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
+            msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
+          }
+          if (errEl) {
+            errEl.textContent = msg;
+            errEl.hidden = false;
+          }
         }
       })
       .then(doneEnable, doneEnable);
@@ -486,7 +687,7 @@
 
   function toggleDictionaryAiPanel(kind) {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert("엘리에게 물어보기(AI)는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
       return;
     }
     var pre = dictionaryEliPrefix(kind);
@@ -494,6 +695,7 @@
     var p = document.getElementById(pre + "-panel");
     var btn = document.getElementById(pre + "-toggle");
     if (!p) return;
+    if (p.hidden && !guardEllyPanelOpen()) return;
     var open = p.hidden;
     p.hidden = !open;
     if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
@@ -546,6 +748,8 @@
       if (firebase.auth && firebase.auth().currentUser) u = firebase.auth().currentUser.uid;
     } catch (e) {}
     subscribeUsage(u);
+    subscribeEllyWallet(u);
+    subscribeMemberElly(u);
     updateRemainTexts();
   }
 
@@ -556,7 +760,8 @@
     syncAuth: syncUser,
     sendFromNoteArticle: sendFromNoteArticle,
     sendDictionaryPanelAsk: sendDictionaryPanelAsk,
-    toggleDictionaryAiPanel: toggleDictionaryAiPanel
+    toggleDictionaryAiPanel: toggleDictionaryAiPanel,
+    guardEllyPanelOpen: guardEllyPanelOpen
   };
 
   function bindAuth() {

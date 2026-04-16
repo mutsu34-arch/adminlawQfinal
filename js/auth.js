@@ -230,7 +230,6 @@
       }
       auth = firebase.auth();
       googleProvider = new firebase.auth.GoogleAuthProvider();
-      googleProvider.setCustomParameters({ prompt: "select_account" });
       return true;
     } catch (e) {
       el.configWarn.textContent = "Firebase 초기화 실패: " + (e.message || String(e));

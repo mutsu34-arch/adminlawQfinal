@@ -4,6 +4,9 @@
 
   var attUnsub = null;
   var attendancePointsSnap = null;
+  var pointLogUnsub = null;
+  /** null | "loading" | "err" | Array<{ id: string, delta: number, label: string, createdAt: * }> */
+  var pointLogRows = null;
 
   var tickTimer = null;
   var lastTickMs = 0;
@@ -187,6 +190,104 @@
     return streak;
   }
 
+  function formatPointLogTime(ts) {
+    try {
+      if (!ts || typeof ts.toDate !== "function") return "—";
+      return ts.toDate().toLocaleString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        dateStyle: "medium",
+        timeStyle: "short"
+      });
+    } catch (e) {
+      return "—";
+    }
+  }
+
+  function renderMyPointsSection(uid) {
+    var wrap = document.getElementById("dashboard-my-points");
+    if (!wrap) return;
+    var lo = document.getElementById("dashboard-my-points-loggedout");
+    var body = document.getElementById("dashboard-my-points-body");
+    if (!uid) {
+      if (lo) lo.hidden = false;
+      if (body) body.hidden = true;
+      return;
+    }
+    if (lo) lo.hidden = true;
+    if (body) body.hidden = false;
+
+    var bal = document.getElementById("dashboard-my-points-balance");
+    if (bal) {
+      if (!attendancePointsSnap || attendancePointsSnap === "loading") {
+        bal.textContent = "불러오는 중…";
+      } else if (attendancePointsSnap === "err") {
+        bal.textContent = "—";
+      } else {
+        bal.textContent = String(Math.max(0, parseInt(attendancePointsSnap, 10) || 0));
+      }
+    }
+
+    var listEl = document.getElementById("dashboard-point-log-list");
+    var emptyEl = document.getElementById("dashboard-point-log-empty");
+    var errEl = document.getElementById("dashboard-point-log-err");
+    if (errEl) {
+      errEl.hidden = true;
+      errEl.textContent = "";
+    }
+
+    if (!listEl) return;
+
+    if (pointLogRows === "loading") {
+      listEl.innerHTML = "";
+      var p = document.createElement("p");
+      p.className = "dashboard-point-log-loading";
+      p.textContent = "내역을 불러오는 중…";
+      listEl.appendChild(p);
+      if (emptyEl) emptyEl.hidden = true;
+      return;
+    }
+
+    if (pointLogRows === "err") {
+      listEl.innerHTML = "";
+      if (emptyEl) emptyEl.hidden = true;
+      if (errEl) {
+        errEl.textContent = "포인트 내역을 불러오지 못했습니다.";
+        errEl.hidden = false;
+      }
+      return;
+    }
+
+    if (!pointLogRows || !pointLogRows.length) {
+      listEl.innerHTML = "";
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+
+    if (emptyEl) emptyEl.hidden = true;
+    listEl.innerHTML = "";
+    pointLogRows.forEach(function (row) {
+      var item = document.createElement("div");
+      item.className = "dashboard-point-log__row";
+      item.setAttribute("role", "listitem");
+      var t = document.createElement("span");
+      t.className = "dashboard-point-log__time";
+      t.textContent = formatPointLogTime(row.createdAt);
+      var lab = document.createElement("span");
+      lab.className = "dashboard-point-log__label";
+      lab.textContent = row.label || "포인트 변경";
+      var d = document.createElement("span");
+      var delta = Math.trunc(Number(row.delta)) || 0;
+      d.className =
+        "dashboard-point-log__delta" +
+        (delta >= 0 ? " dashboard-point-log__delta--plus" : " dashboard-point-log__delta--minus");
+      d.textContent = (delta > 0 ? "+" : "") + delta.toLocaleString("ko-KR") + "점";
+      item.appendChild(t);
+      item.appendChild(lab);
+      item.appendChild(d);
+      listEl.appendChild(item);
+    });
+  }
+
   function weaknessTopics(state, limit) {
     var list = [];
     for (var t in state.byTopic) {
@@ -216,11 +317,14 @@
     if (!uid) {
       if (lo) lo.hidden = false;
       if (body) body.hidden = true;
+      renderMyPointsSection(null);
       return;
     }
 
     if (lo) lo.hidden = true;
     if (body) body.hidden = false;
+
+    renderMyPointsSection(uid);
 
     var state = load();
     var today = kstTodayYmd();
@@ -244,20 +348,32 @@
       }
     }
 
-    var attConvertBtn = document.getElementById("btn-dashboard-attendance-convert");
-    if (attConvertBtn) {
+    var ptsLawyer =
+      typeof window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT === "number"
+        ? window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT
+        : 5000;
+    var ptsElly =
+      typeof window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT === "number"
+        ? window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT
+        : 500;
+    var attConvertLawyer = document.getElementById("btn-dashboard-attendance-convert-lawyer");
+    var attConvertElly = document.getElementById("btn-dashboard-attendance-convert-elly");
+    function setConvertDisabled(btn, minPts) {
+      if (!btn) return;
       if (
         !uid ||
         !attendancePointsSnap ||
         attendancePointsSnap === "loading" ||
         attendancePointsSnap === "err"
       ) {
-        attConvertBtn.disabled = true;
+        btn.disabled = true;
       } else {
         var pts = Math.max(0, parseInt(attendancePointsSnap, 10) || 0);
-        attConvertBtn.disabled = pts < 3000;
+        btn.disabled = pts < minPts;
       }
     }
+    setConvertDisabled(attConvertLawyer, ptsLawyer);
+    setConvertDisabled(attConvertElly, ptsElly);
 
     var row = document.getElementById("dashboard-attendance-row");
     if (row) {
@@ -354,6 +470,46 @@
     renderDashboard: renderLearningDashboard
   };
 
+  function subscribePointLog(uid) {
+    if (pointLogUnsub) {
+      pointLogUnsub();
+      pointLogUnsub = null;
+    }
+    pointLogRows = null;
+    if (!uid || typeof firebase === "undefined" || !firebase.firestore) {
+      renderLearningDashboard();
+      return;
+    }
+    pointLogRows = "loading";
+    renderLearningDashboard();
+    var q = firebase
+      .firestore()
+      .collection("hanlaw_attendance_rewards")
+      .doc(uid)
+      .collection("point_log")
+      .orderBy("createdAt", "desc")
+      .limit(50);
+    pointLogUnsub = q.onSnapshot(
+      function (snap) {
+        pointLogRows = [];
+        snap.forEach(function (doc) {
+          var d = doc.data() || {};
+          pointLogRows.push({
+            id: doc.id,
+            delta: d.delta,
+            label: d.label != null ? String(d.label) : "",
+            createdAt: d.createdAt
+          });
+        });
+        renderLearningDashboard();
+      },
+      function () {
+        pointLogRows = "err";
+        renderLearningDashboard();
+      }
+    );
+  }
+
   function subscribeAttendancePoints(uid) {
     if (attUnsub) {
       attUnsub();
@@ -362,10 +518,12 @@
     attendancePointsSnap = null;
     if (!uid || typeof firebase === "undefined" || !firebase.firestore) {
       attendancePointsSnap = null;
+      subscribePointLog(null);
       renderLearningDashboard();
       return;
     }
     attendancePointsSnap = "loading";
+    subscribePointLog(uid);
     renderLearningDashboard();
     var ref = firebase.firestore().collection("hanlaw_attendance_rewards").doc(uid);
     attUnsub = ref.onSnapshot(
@@ -407,71 +565,147 @@
     }
   }
 
+  function ptsLawyerMin() {
+    return typeof window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT === "number"
+      ? window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT
+      : 5000;
+  }
+  function ptsEllyMin() {
+    return typeof window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT === "number"
+      ? window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT
+      : 500;
+  }
+
   function bindAttendanceConvert() {
-    var btn = document.getElementById("btn-dashboard-attendance-convert");
     var msg = document.getElementById("dashboard-attendance-convert-msg");
-    if (!btn || btn.dataset.bound === "1") return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", function () {
-      if (typeof window.convertAttendancePointsToQuestionCreditCallable !== "function") {
-        if (msg) {
-          msg.textContent = "기능을 불러오지 못했습니다.";
-          msg.hidden = false;
-        }
-        return;
+    var btnLawyer = document.getElementById("btn-dashboard-attendance-convert-lawyer");
+    var btnElly = document.getElementById("btn-dashboard-attendance-convert-elly");
+
+    function handleErr(err) {
+      var t = err && err.message ? err.message : "전환에 실패했습니다.";
+      if (t === "INTERNAL" || t.indexOf("internal") >= 0) {
+        t = "전환 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
       }
-      var ptsNow = Math.max(0, parseInt(attendancePointsSnap, 10) || 0);
-      var ask = window.confirm(
-        "출석 포인트를 질문권으로 전환할까요?\n\n" +
-          "- 차감 포인트: 3,000점\n" +
-          "- 지급 질문권: 1건\n" +
-          "- 유효기간: 전환 시점부터 1년\n" +
-          "- 현재 포인트: " +
-          ptsNow.toLocaleString("ko-KR") +
-          "점"
-      );
-      if (!ask) {
-        if (msg) {
-          msg.textContent = "전환을 취소했습니다.";
-          msg.hidden = false;
-        }
-        return;
+      if (msg) {
+        msg.textContent = t;
+        msg.hidden = false;
       }
-      btn.disabled = true;
-      if (msg) msg.hidden = true;
-      window
-        .convertAttendancePointsToQuestionCreditCallable()
-        .then(function (data) {
+    }
+
+    if (btnLawyer && btnLawyer.dataset.bound !== "1") {
+      btnLawyer.dataset.bound = "1";
+      btnLawyer.addEventListener("click", function () {
+        if (typeof window.convertAttendancePointsToQuestionCreditCallable !== "function") {
           if (msg) {
-            var leftPts =
-              data && data.attendancePoints != null
-                ? Math.max(0, parseInt(data.attendancePoints, 10) || 0)
-                : null;
-            msg.textContent =
-              "질문권 1건이 추가되었습니다. " +
-              (leftPts == null ? "" : "(남은 출석 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +
-              "전환한 시점부터 1년간 사용할 수 있습니다.";
+            msg.textContent = "기능을 불러오지 못했습니다.";
             msg.hidden = false;
           }
-          window.dispatchEvent(new CustomEvent("question-credits-updated"));
-        })
-        .catch(function (err) {
-          var t =
-            err && err.message
-              ? err.message
-              : "전환에 실패했습니다.";
-          if (t === "INTERNAL" || t.indexOf("internal") >= 0) {
-            t = "전환 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
-          }
+          return;
+        }
+        var need = ptsLawyerMin();
+        var ptsNow = Math.max(0, parseInt(attendancePointsSnap, 10) || 0);
+        var ask = window.confirm(
+          "출석 포인트를 변호사 질문권으로 전환할까요?\n\n" +
+            "- 차감 포인트: " +
+            need.toLocaleString("ko-KR") +
+            "점\n" +
+            "- 지급: 변호사 질문권 1건\n" +
+            "- 유효기간: 전환 시점부터 1년\n" +
+            "- 현재 포인트: " +
+            ptsNow.toLocaleString("ko-KR") +
+            "점"
+        );
+        if (!ask) {
           if (msg) {
-            msg.textContent = t;
+            msg.textContent = "전환을 취소했습니다.";
             msg.hidden = false;
           }
-        })
-        .finally(function () {
-          renderLearningDashboard();
-        });
-    });
+          return;
+        }
+        btnLawyer.disabled = true;
+        if (btnElly) btnElly.disabled = true;
+        if (msg) msg.hidden = true;
+        window
+          .convertAttendancePointsToQuestionCreditCallable()
+          .then(function (data) {
+            if (msg) {
+              var leftPts =
+                data && data.attendancePoints != null
+                  ? Math.max(0, parseInt(data.attendancePoints, 10) || 0)
+                  : null;
+              msg.textContent =
+                "변호사 질문권 1건이 추가되었습니다. " +
+                (leftPts == null
+                  ? ""
+                  : "(남은 출석 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +
+                "전환한 시점부터 1년간 사용할 수 있습니다.";
+              msg.hidden = false;
+            }
+            window.dispatchEvent(new CustomEvent("question-credits-updated"));
+          })
+          .catch(handleErr)
+          .finally(function () {
+            renderLearningDashboard();
+          });
+      });
+    }
+
+    if (btnElly && btnElly.dataset.bound !== "1") {
+      btnElly.dataset.bound = "1";
+      btnElly.addEventListener("click", function () {
+        if (typeof window.convertAttendancePointsToEllyCreditCallable !== "function") {
+          if (msg) {
+            msg.textContent = "기능을 불러오지 못했습니다.";
+            msg.hidden = false;
+          }
+          return;
+        }
+        var need = ptsEllyMin();
+        var ptsNow = Math.max(0, parseInt(attendancePointsSnap, 10) || 0);
+        var ask = window.confirm(
+          "출석 포인트를 엘리(AI) 질문권으로 전환할까요?\n\n" +
+            "- 차감 포인트: " +
+            need.toLocaleString("ko-KR") +
+            "점\n" +
+            "- 지급: 엘리 질문권 1건(무료 4회 소진 후 차감)\n" +
+            "- 유효기간: 전환 시점부터 1년\n" +
+            "- 현재 포인트: " +
+            ptsNow.toLocaleString("ko-KR") +
+            "점"
+        );
+        if (!ask) {
+          if (msg) {
+            msg.textContent = "전환을 취소했습니다.";
+            msg.hidden = false;
+          }
+          return;
+        }
+        btnElly.disabled = true;
+        if (btnLawyer) btnLawyer.disabled = true;
+        if (msg) msg.hidden = true;
+        window
+          .convertAttendancePointsToEllyCreditCallable()
+          .then(function (data) {
+            if (msg) {
+              var leftPts =
+                data && data.attendancePoints != null
+                  ? Math.max(0, parseInt(data.attendancePoints, 10) || 0)
+                  : null;
+              msg.textContent =
+                "엘리(AI) 질문권 1건이 추가되었습니다. " +
+                (leftPts == null
+                  ? ""
+                  : "(남은 출석 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +
+                "전환한 시점부터 1년간 사용할 수 있습니다.";
+              msg.hidden = false;
+            }
+          })
+          .catch(handleErr)
+          .finally(function () {
+            renderLearningDashboard();
+          });
+      });
+    }
   }
 
   if (document.readyState === "loading") {
