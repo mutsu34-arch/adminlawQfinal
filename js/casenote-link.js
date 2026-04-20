@@ -1,8 +1,7 @@
 /**
- * 판례 외부 링크 URL 생성.
- * - 법고을(대법원 lx.scourt.go.kr): 공공 판례 DB. 사건번호 검색 목록(전문 보기까지 동일 사이트).
- * - 사법정보공개포털(portal.scourt.go.kr): 종합법률정보·판례 전문. jisCntntsSrno 또는 전체 URL을 데이터에 넣으면 해당 문서로 연결.
- * - 케이스노트(casenote.kr): 별도 서비스로 로그인·유료 구간이 있을 수 있음.
+ * 판례 외부 링크 URL 생성(케이스노트 UI 등에서 사용).
+ * - 케이스노트(casenote.kr): 사건번호 기준 직접 URL(`/법원명/사건번호`) 또는 검색 URL. 전문은 사건번호로 조회 가능.
+ * - scourtList / scourtPortal: dict-panels 등에서 직접 쓰지 않지만, 데이터·다른 화면용으로 유지.
  */
 (function () {
   var CASENOTE_ORIGIN = "https://casenote.kr";
@@ -31,7 +30,7 @@
     var compact = String(str || "").replace(/\s/g, "");
     var hm = compact.match(/(\d{4}헌[가바마]\d+)/);
     if (hm) return hm[1];
-    var m = compact.match(/(\d{2,4})([누두구])(\d{3,7})/);
+    var m = compact.match(/(\d{2,4})([가-힣]{1,3})(\d{2,7})/);
     if (m) return m[1] + m[2] + m[3];
     return null;
   }

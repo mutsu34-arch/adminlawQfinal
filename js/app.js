@@ -855,6 +855,13 @@
       buildDetailBlocks(container, q.detail);
       return;
     }
+    if (
+      typeof window.HanlawDetailUnlock === "object" &&
+      typeof window.HanlawDetailUnlock.render === "function"
+    ) {
+      window.HanlawDetailUnlock.render(container, q, buildDetailBlocks);
+      return;
+    }
     if (userIsPaidMember()) {
       buildDetailBlocks(container, q.detail);
     } else {
@@ -1780,6 +1787,14 @@
     showScreen("start");
   }
 
+  (function bindAppTitleReload() {
+    var btn = document.getElementById("btn-app-title-reload");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      window.location.reload();
+    });
+  })();
+
   if (el.btnStart) el.btnStart.addEventListener("click", startQuiz);
   if (el.qActions) {
     el.qActions.addEventListener("click", function (e) {
@@ -1850,6 +1865,16 @@
   }
 
   window.addEventListener("question-bank-updated", syncBankUi);
+
+  function refreshFeedbackDetailIfOpen() {
+    try {
+      if (!el.feedback || el.feedback.hidden) return;
+      if (!state.list || !state.list[state.index]) return;
+      populateDetailContainer(el.feedbackDetail, state.list[state.index]);
+    } catch (e) {}
+  }
+  window.addEventListener("hanlaw-detail-unlocked", refreshFeedbackDetailIfOpen);
+  window.addEventListener("membership-updated", refreshFeedbackDetailIfOpen);
 
   syncBankUi();
 

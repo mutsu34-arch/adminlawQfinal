@@ -11,6 +11,9 @@
   --danger: #f87171;
   --radius: 12px;
   --font: "IBM Plex Sans KR", system-ui, sans-serif;
+  /* 버튼 박스 테두리(찜하기 등과 동일하게 잘 보이도록 텍스트·보더 혼합) */
+  --btn-rim: color-mix(in srgb, var(--border) 38%, var(--text) 62%);
+  --btn-rim-strong: color-mix(in srgb, var(--border) 28%, var(--text) 72%);
 }
 
 html[data-theme="light"] {
@@ -25,6 +28,8 @@ html[data-theme="light"] {
   --accent-dim: #1356a8;
   --success: #047857;
   --danger: #c53030;
+  --btn-rim: color-mix(in srgb, var(--border) 42%, var(--text) 58%);
+  --btn-rim-strong: color-mix(in srgb, var(--border) 32%, var(--text) 68%);
 }
 
 html[data-theme="light"] body {
@@ -1225,6 +1230,53 @@ body {
   color: var(--text);
 }
 
+.dict-case-create-ox {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.dict-case-create-ox__hint {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.case-ox-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 0.35rem;
+}
+
+.case-ox-form__row {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+}
+
+.case-ox-form__legend {
+  padding: 0 0.15rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.case-ox-form__field {
+  margin-top: 0.45rem;
+}
+
+.case-ox-form__field:first-of-type {
+  margin-top: 0.35rem;
+}
+
+.case-ox-form__field--answer {
+  max-width: 12rem;
+}
+
 .dict-term-index__list {
   display: flex;
   flex-direction: row;
@@ -1400,6 +1452,77 @@ body {
   color: var(--muted);
   line-height: 1.65;
   white-space: pre-wrap;
+}
+
+.case-result-card__text.quiz-ai-answer {
+  color: var(--text);
+}
+
+.case-result-card__text.quiz-ai-answer .quiz-ai-answer__lead,
+.case-result-card__text.quiz-ai-answer .quiz-ai-answer__accent {
+  color: var(--text);
+}
+
+.case-result-card__ox-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.case-result-card__ox-item {
+  margin: 0;
+}
+
+.case-result-card__ox-answer {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.case-result-card__ox-actions {
+  margin-top: 0.4rem;
+  position: relative;
+  z-index: 2;
+}
+
+.case-result-card__ox-actions .btn.btn--ox {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.case-result-card__ox-feedback {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.case-result-card__ox-result {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.case-result-card__ox-result--ok {
+  color: var(--success);
+}
+
+.case-result-card__ox-result--bad {
+  color: var(--danger);
+}
+
+.case-result-card__ox-explain {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.case-result-card__ox-explain.quiz-ai-answer {
+  color: var(--text);
 }
 
 /* 요금제 패널: 안내 카드·그리드·질문권까지 동일 가로 폭 (메인 영역 전체 사용) */
@@ -1622,10 +1745,12 @@ body {
   background: #0d9488;
   color: #fff;
   font-size: 0.9rem;
+  border: 2px solid color-mix(in srgb, #0f766e 78%, #020617 22%);
 }
 
 .btn--payapp:hover {
   background: #0f766e;
+  border-color: color-mix(in srgb, #0f766e 88%, #020617 12%);
 }
 
 .pricing-card__pay-actions {
@@ -1983,13 +2108,15 @@ body {
 }
 
 .btn--outline {
-  background: transparent;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 2px solid var(--btn-rim);
+  border-radius: 10px;
 }
 
 .btn--outline:hover {
   background: var(--surface-hover);
+  border-color: var(--btn-rim-strong);
 }
 
 .auth-overlay {
@@ -2209,7 +2336,8 @@ body {
 .btn--google {
   background: #fff;
   color: #1f1f1f;
-  border: 1px solid var(--border);
+  border: 2px solid color-mix(in srgb, var(--border) 55%, #1f1f1f 45%);
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2218,6 +2346,7 @@ body {
 
 .btn--google:hover {
   background: #f3f4f6;
+  border-color: color-mix(in srgb, var(--border) 40%, #1f1f1f 60%);
 }
 
 .btn--google__icon {
@@ -2252,6 +2381,32 @@ body {
   font-size: 1.65rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+.title__btn {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+  vertical-align: baseline;
+}
+
+.title__btn:hover {
+  opacity: 0.9;
+}
+
+.title__btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 .subtitle {
@@ -2490,7 +2645,10 @@ body {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
 }
 
 /* [hidden]만으로는 숨겨지지 않음: .btn 의 display 가 동일·이후 규칙으로 덮어씀 */
@@ -2505,30 +2663,35 @@ body {
 .btn--primary {
   background: var(--accent);
   color: #fff;
+  border: 2px solid color-mix(in srgb, var(--accent-dim) 76%, var(--bg) 24%);
 }
 
 .btn--primary:hover {
   background: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent-dim) 88%, var(--bg) 12%);
 }
 
 .btn--secondary {
   background: var(--surface-hover);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 2px solid var(--btn-rim);
   margin-bottom: 0.5rem;
 }
 
 .btn--secondary:hover {
   background: var(--border);
+  border-color: var(--btn-rim-strong);
 }
 
 .btn--ghost {
   background: transparent;
   color: var(--muted);
+  border: 2px solid color-mix(in srgb, var(--border) 48%, var(--muted) 52%);
 }
 
 .btn--ghost:hover {
   color: var(--text);
+  border-color: var(--btn-rim);
 }
 
 .btn--ox {
@@ -2542,13 +2705,13 @@ body {
 .btn--x {
   background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 2px solid var(--btn-rim);
 }
 
 .btn--o:hover,
 .btn--x:hover {
   background: var(--surface-hover);
-  border-color: color-mix(in srgb, var(--muted) 55%, var(--border));
+  border-color: var(--btn-rim-strong);
 }
 
 .q-actions--revealed .btn--ox:disabled {
@@ -2767,7 +2930,7 @@ body {
   max-height: calc(100dvh - 4rem);
   padding: 0.5rem 0.1rem;
   border-radius: 12px;
-  border: 1px solid var(--border);
+  border: 2px solid var(--btn-rim);
   background: var(--surface);
   color: var(--muted);
   cursor: pointer;
@@ -3362,6 +3525,39 @@ body {
   line-height: 1.55;
 }
 
+.feedback-detail-lock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.feedback-detail-lock__sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.hanlaw-detail-ad-slot {
+  min-height: 120px;
+  min-width: 280px;
+  max-width: 100%;
+  background: var(--surface-alt, rgba(0, 0, 0, 0.04));
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.feedback-detail-unlock-btn {
+  align-self: flex-start;
+}
+
+.feedback-detail-unlock-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .feedback__tags {
   display: flex;
   flex-wrap: wrap;
@@ -3381,6 +3577,10 @@ body {
   flex: 1 1 calc(50% - 0.25rem);
   min-width: 8.5rem;
   box-sizing: border-box;
+  /* 찜/마스터·티켓·엘리(AI) 등 서로 다른 클래스의 font-size를 한 줄로 맞춤 */
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .quiz-post-actions__toolbar .btn--quiz-fav,
@@ -3487,6 +3687,89 @@ html[data-theme="light"] .btn--quiz-master--on {
   font-size: 0.88rem;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.fav-note-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.fav-note-subtabs__btn {
+  width: auto;
+  margin-bottom: 0;
+}
+
+.fav-note-subpane {
+  margin-top: 0.25rem;
+}
+
+.dict-fav-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.dict-fav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.dict-fav-card {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.dict-fav-card__title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.dict-fav-card__sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.dict-fav-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.dict-fav-card__preview {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  max-height: min(70vh, 28rem);
+  overflow: auto;
+}
+
+.dict-fav-card__preview .dict-result-card,
+.dict-fav-card__preview .case-result-card {
+  margin: 0;
+}
+
+.dict-fav-card__preview .dict-empty {
+  margin: 0;
+}
+
+.dict-result-card__fav-row {
+  margin-top: 0.65rem;
+}
+
+.btn--dict-fav--on {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, var(--surface));
 }
 
 .note-panel-toolbar {
@@ -4252,24 +4535,27 @@ button.feedback-tag--link:hover {
   width: auto;
   font-size: 0.88rem;
   padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border-width: 2px;
+  border-style: solid;
 }
 
 .btn--ticket-report {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
-  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--btn-rim) 42%);
 }
 
 .btn--ticket-ask {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--btn-rim) 42%);
 }
 
 .btn--ticket-suggestion {
   background: color-mix(in srgb, var(--success) 12%, transparent);
   color: var(--success);
-  border: 1px solid color-mix(in srgb, var(--success) 38%, transparent);
+  border-color: color-mix(in srgb, var(--success) 58%, var(--btn-rim) 42%);
 }
 
 .notif-wrap {
@@ -4350,6 +4636,13 @@ button.feedback-tag--link:hover {
   display: block;
   font-size: 0.85rem;
   margin-bottom: 0.25rem;
+}
+
+.notif-item__time {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .notif-item__hint {
@@ -4567,19 +4860,58 @@ button.feedback-tag--link:hover {
   margin-top: 0.35rem;
 }
 
+/* 대시보드: 앱 설정(.card--settings)과 동일한 카드·제목·섹션 패턴 */
 .card--dashboard {
   max-width: none;
   width: 100%;
   margin: 0;
-  padding: 1.4rem 1.35rem 1.55rem;
-  border-radius: 14px;
-  border-color: color-mix(in srgb, var(--accent) 14%, var(--border));
-  box-shadow:
-    0 12px 30px color-mix(in srgb, #000 20%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent);
-  background:
-    radial-gradient(ellipse 120% 120% at 0% 0%, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 48%),
-    var(--surface);
+  text-align: left;
+}
+
+.card--dashboard .card__title {
+  text-align: center;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+}
+
+.dashboard-block {
+  margin: 0;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.dashboard-block:last-of-type {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.dashboard-block .dashboard-subtitle {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.dashboard-block .dashboard-lead:last-child {
+  margin-bottom: 0;
+}
+
+.dashboard-block .dashboard-notifications {
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.dashboard-block .dashboard-learning {
+  margin-top: 0.45rem;
+  margin-bottom: 0;
+}
+
+.dashboard-block .dashboard-my-points {
+  margin-top: 0;
 }
 
 .dashboard-learning {
@@ -5148,40 +5480,34 @@ button.feedback-tag--link:hover {
   min-height: 3rem;
 }
 
-/* Dashboard: 앱 설정 UI 톤으로 통일 */
-.card--dashboard {
-  padding: 0;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: none;
+.dashboard-notifs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.card--dashboard .card__title {
+.dashboard-notifs__toggle {
+  width: 100%;
+  justify-content: center;
   text-align: center;
-  margin: 1.35rem 1.25rem 0;
-  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.55rem 0.75rem;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.dashboard-notifs__panel {
+  max-height: min(48vh, 380px);
+  overflow-y: auto;
+  padding: 0.15rem 0.35rem 0.35rem;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  background: color-mix(in srgb, var(--bg) 88%, var(--surface));
 }
 
-.card--dashboard > .dashboard-subtitle,
-.card--dashboard > .dashboard-learning {
-  margin: 0;
-  padding: 1rem 1.25rem;
-  border-top: 1px solid var(--border);
-}
-
-.card--dashboard > .dashboard-subtitle {
-  margin-bottom: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.card--dashboard > .dashboard-subtitle + .dashboard-membership,
-.card--dashboard > .dashboard-subtitle + .dashboard-question-credits {
-  margin-top: 0.45rem;
+.dashboard-notifs__panel .notif-item:first-child {
+  padding-top: 0.45rem;
 }
 
 .card--dashboard .dashboard-membership,
@@ -5192,15 +5518,8 @@ button.feedback-tag--link:hover {
 .card--dashboard .dashboard-inquiry,
 .card--dashboard .dashboard-inquiry-actions,
 .card--dashboard .dashboard-tickets-drawer {
-  margin-left: 1.25rem;
-  margin-right: 1.25rem;
-}
-
-.card--dashboard .dashboard-learning {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .card--dashboard .dashboard-stat-card {
@@ -5215,16 +5534,7 @@ button.feedback-tag--link:hover {
   border-radius: 14px;
 }
 
-.card--dashboard > .dashboard-notifications {
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
-}
-
 @media (max-width: 640px) {
-  .card--dashboard {
-    padding: 0;
-  }
-
   .dashboard-learning {
     padding: 1rem;
   }
@@ -5249,16 +5559,86 @@ button.feedback-tag--link:hover {
   margin-top: 1rem;
 }
 
+.admin-review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-review-toolbar > .btn.btn--secondary {
+  flex-shrink: 0;
+}
+
+.admin-review-tabs {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+/* .btn 기본 width:100% 때문에 탭이 세로로 쌓임 → 한 줄에 나란히 */
+.admin-review-tabs .btn.admin-review-tab {
+  width: auto !important;
+  max-width: 100%;
+  flex: 0 1 auto;
+  box-sizing: border-box;
+}
+
+.admin-review-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: auto;
+  min-height: 2.35rem;
+}
+
+.admin-review-tab--active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border)) !important;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface)) !important;
+  color: var(--text) !important;
+  font-weight: 600;
+}
+
+.admin-review-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 32%, var(--surface));
+  color: var(--text);
+}
+
+.admin-review-tab__badge--empty {
+  background: color-mix(in srgb, var(--muted) 26%, var(--surface));
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.admin-review-tab--active .admin-review-tab__badge:not(.admin-review-tab__badge--empty) {
+  background: color-mix(in srgb, var(--accent) 36%, var(--surface));
+}
+
 .admin-review-layout {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 0.25rem;
 }
 
 @media (min-width: 720px) {
   .admin-review-layout {
-    grid-template-columns: minmax(220px, 320px) 1fr;
+    grid-template-columns: minmax(260px, min(40vw, 420px)) minmax(0, 1fr);
+    align-items: start;
   }
 }
 
@@ -5266,7 +5646,7 @@ button.feedback-tag--link:hover {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  max-height: 420px;
+  max-height: min(52vh, 520px);
   overflow-y: auto;
 }
 
@@ -5365,6 +5745,15 @@ button.feedback-tag--link:hover {
 .admin-library-row__title {
   font-weight: 600;
   font-size: 0.88rem;
+}
+
+.admin-library-row__id {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--muted);
+  word-break: break-all;
+  line-height: 1.35;
 }
 
 .admin-library-row__meta {

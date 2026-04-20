@@ -31,14 +31,59 @@
     return d.toLocaleString("ko-KR");
   }
 
+  function normalizeCaseIssuesText(raw) {
+    var src = String(raw || "").replace(/\r\n/g, "\n");
+    if (!src.trim()) return "";
+    var lines = src
+      .split("\n")
+      .map(function (x) {
+        return String(x || "").trim();
+      })
+      .filter(Boolean);
+    if (lines.length > 1) return lines.join("\n");
+    var one = lines.length ? lines[0] : "";
+    if (!one || one.indexOf(",") < 0) return one;
+    var parts = one
+      .split(",")
+      .map(function (x) {
+        return String(x || "").trim();
+      })
+      .filter(Boolean);
+    if (parts.length < 2) return one;
+    var issueLikeCount = 0;
+    for (var i = 0; i < parts.length; i++) {
+      if (/(여부|쟁점|문제)$/.test(parts[i])) issueLikeCount += 1;
+    }
+    if (issueLikeCount >= Math.max(2, Math.floor(parts.length / 2))) {
+      return parts.join("\n");
+    }
+    return one;
+  }
+
   function setMode(next) {
     mode = next === "term" || next === "case" ? next : "quiz";
     var bq = $("admin-review-type-quiz");
     var bt = $("admin-review-type-term");
     var bc = $("admin-review-type-case");
-    if (bq) bq.setAttribute("aria-pressed", mode === "quiz" ? "true" : "false");
-    if (bt) bt.setAttribute("aria-pressed", mode === "term" ? "true" : "false");
-    if (bc) bc.setAttribute("aria-pressed", mode === "case" ? "true" : "false");
+    [bq, bt, bc].forEach(function (b) {
+      if (!b) return;
+      b.classList.remove("admin-review-tab--active");
+    });
+    if (bq) {
+      bq.setAttribute("aria-pressed", mode === "quiz" ? "true" : "false");
+      bq.setAttribute("aria-selected", mode === "quiz" ? "true" : "false");
+      if (mode === "quiz") bq.classList.add("admin-review-tab--active");
+    }
+    if (bt) {
+      bt.setAttribute("aria-pressed", mode === "term" ? "true" : "false");
+      bt.setAttribute("aria-selected", mode === "term" ? "true" : "false");
+      if (mode === "term") bt.classList.add("admin-review-tab--active");
+    }
+    if (bc) {
+      bc.setAttribute("aria-pressed", mode === "case" ? "true" : "false");
+      bc.setAttribute("aria-selected", mode === "case" ? "true" : "false");
+      if (mode === "case") bc.classList.add("admin-review-tab--active");
+    }
     var fq = $("admin-review-form-quiz");
     var ft = $("admin-review-form-term");
     var fc = $("admin-review-form-case");
@@ -47,6 +92,49 @@
     if (fc) fc.hidden = mode !== "case";
     selected = null;
     fillDetail(null);
+  }
+
+  function filterPendingReviewItems(items) {
+    var all = items || [];
+    var out = all.filter(function (x) {
+      return x && (x.status === "reviewing" || x.status === "rejected");
+    });
+    if (!out.length && all.length) return all.slice();
+    return out;
+  }
+
+  function setReviewBadge(id, n) {
+    var el = $(id);
+    if (!el) return;
+    var v = typeof n === "number" && n >= 0 ? n : 0;
+    el.textContent = String(v);
+    el.setAttribute("data-count", String(v));
+    el.classList.toggle("admin-review-tab__badge--empty", v === 0);
+  }
+
+  function refreshReviewBadgeCounts() {
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!isAdminUser(user)) return;
+    if (
+      typeof window.adminListQuizStaging !== "function" ||
+      typeof window.adminListDictStaging !== "function"
+    ) {
+      return;
+    }
+    Promise.all([
+      window.adminListQuizStaging("all", 100),
+      window.adminListDictStaging("term", "all", 100),
+      window.adminListDictStaging("case", "all", 100)
+    ])
+      .then(function (results) {
+        var rq = results[0] && results[0].items;
+        var rt = results[1] && results[1].items;
+        var rc = results[2] && results[2].items;
+        setReviewBadge("admin-review-badge-quiz", filterPendingReviewItems(rq).length);
+        setReviewBadge("admin-review-badge-term", filterPendingReviewItems(rt).length);
+        setReviewBadge("admin-review-badge-case", filterPendingReviewItems(rc).length);
+      })
+      .catch(function () {});
   }
 
   function renderList(items) {
@@ -111,16 +199,23 @@
       $("admin-review-term").value = p.term || "";
       $("admin-review-aliases").value = Array.isArray(p.aliases) ? p.aliases.join(", ") : "";
       $("admin-review-definition").value = p.definition || "";
+      if (window.CaseOxForm && typeof window.CaseOxForm.ensureBuilt === "function") {
+        window.CaseOxForm.ensureBuilt("admin-review-term-ox-editor");
+        window.CaseOxForm.fill("admin-review-term-ox-editor", Array.isArray(p.oxQuizzes) ? p.oxQuizzes : []);
+      }
     } else {
       $("admin-review-citation").value = p.citation || "";
       $("admin-review-case-title").value = p.title || "";
       $("admin-review-facts").value = p.facts || "";
-      $("admin-review-issues").value = p.issues || "";
+      $("admin-review-issues").value = normalizeCaseIssuesText(p.issues || "");
       $("admin-review-judgment").value = p.judgment || "";
       $("admin-review-search-keys").value = Array.isArray(p.searchKeys) ? p.searchKeys.join(", ") : "";
       $("admin-review-topic-keywords").value = Array.isArray(p.topicKeywords)
         ? p.topicKeywords.join(", ")
         : "";
+      if (window.CaseOxForm && typeof window.CaseOxForm.fill === "function") {
+        window.CaseOxForm.fill("admin-review-case-ox-editor", Array.isArray(p.oxQuizzes) ? p.oxQuizzes : []);
+      }
     }
   }
 
@@ -139,12 +234,7 @@
     p
       .then(function (res) {
         var all = (res && res.items) || [];
-        var items = all.filter(function (x) {
-          return x && (x.status === "reviewing" || x.status === "rejected");
-        });
-        if (!items.length && all.length) {
-          items = all;
-        }
+        var items = filterPendingReviewItems(all);
         renderList(items);
         setMsg(
           "목록 " +
@@ -153,6 +243,7 @@
             (all.length !== items.length ? " (전체 " + all.length + "건 중 검수/반려 표시)" : ""),
           false
         );
+        refreshReviewBadgeCounts();
       })
       .catch(function (e) {
         var msg = (e && e.message) || "검수 목록 로드 실패";
@@ -231,11 +322,19 @@
             })
             .filter(Boolean)
         : [];
+      if (window.CaseOxForm && typeof window.CaseOxForm.collect === "function") {
+        window.CaseOxForm.ensureBuilt("admin-review-term-ox-editor");
+        p.oxQuizzes = window.CaseOxForm.collect("admin-review-term-ox-editor");
+        var oxErrTerm = window.CaseOxForm.validateForSave(p.oxQuizzes);
+        if (oxErrTerm) throw new Error(oxErrTerm);
+      } else if (Array.isArray(selected.payload.oxQuizzes)) {
+        p.oxQuizzes = selected.payload.oxQuizzes;
+      }
     } else {
       p.citation = $("admin-review-citation").value.trim();
       p.title = $("admin-review-case-title").value.trim();
       p.facts = $("admin-review-facts").value.trim();
-      p.issues = $("admin-review-issues").value.trim();
+      p.issues = normalizeCaseIssuesText($("admin-review-issues").value.trim());
       p.judgment = $("admin-review-judgment").value.trim();
       var keysRaw = $("admin-review-search-keys").value.trim();
       p.searchKeys = keysRaw
@@ -255,11 +354,21 @@
             })
             .filter(Boolean)
         : [];
+      if (!window.CaseOxForm || typeof window.CaseOxForm.collect !== "function") {
+        throw new Error("OX 퀴즈 편집 모듈을 불러오지 못했습니다. 페이지를 새로고침해 주세요.");
+      }
+      p.oxQuizzes = window.CaseOxForm.collect("admin-review-case-ox-editor");
+      var oxErr = window.CaseOxForm.validateForSave(p.oxQuizzes);
+      if (oxErr) throw new Error(oxErr);
     }
     return p;
   }
 
   function bind() {
+    if (window.CaseOxForm && typeof window.CaseOxForm.ensureBuilt === "function") {
+      window.CaseOxForm.ensureBuilt("admin-review-case-ox-editor");
+      window.CaseOxForm.ensureBuilt("admin-review-term-ox-editor");
+    }
     var btnRefresh = $("admin-review-refresh");
     if (btnRefresh) btnRefresh.addEventListener("click", loadList);
 
@@ -267,7 +376,13 @@
     if (btnSave) {
       btnSave.addEventListener("click", function () {
         if (!selected) return;
-        var payload = collectPayload();
+        var payload = null;
+        try {
+          payload = collectPayload();
+        } catch (e0) {
+          setMsg((e0 && e0.message) || "입력값 확인 중 오류가 발생했습니다.", true);
+          return;
+        }
         setMsg("수정 저장 중…", false);
         var p =
           mode === "quiz"

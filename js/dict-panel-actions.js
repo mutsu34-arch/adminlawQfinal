@@ -118,8 +118,42 @@
     }
     var api = ensureMemoCanvasApi(kind);
     if (api && typeof api.setDrawingEnabled === "function") {
-      api.setDrawingEnabled(!pan);
+      var locked = canvas && canvas.classList.contains("quiz-memo__canvas--locked");
+      api.setDrawingEnabled(!pan && !locked);
     }
+  }
+
+  /** 손글씨 저장 후·불러올 때 잠금 — 퀴즈 나의 메모와 동일 */
+  function applyDictMemoDrawingLock(kind, locked) {
+    var pre = "dict-" + kind + "-memo";
+    var canvas = $(pre + "-canvas");
+    ensureMemoCanvasApi(kind);
+    if (!canvas) return;
+    canvas.classList.toggle("quiz-memo__canvas--locked", !!locked);
+    var editBtn = $(pre + "-edit-draw");
+    if (editBtn) editBtn.hidden = !locked;
+    var toolIds = [
+      pre + "-draw-settings-toggle",
+      pre + "-clear-canvas",
+      pre + "-tool-pen",
+      pre + "-tool-eraser",
+      pre + "-pen-color",
+      pre + "-pen-width"
+    ];
+    var ti;
+    for (ti = 0; ti < toolIds.length; ti++) {
+      var node = $(toolIds[ti]);
+      if (node) node.disabled = !!locked;
+    }
+    if (locked) {
+      var settingsPanel = $(pre + "-draw-settings");
+      var settingsToggle = $(pre + "-draw-settings-toggle");
+      if (settingsPanel) settingsPanel.hidden = true;
+      if (settingsToggle) settingsToggle.setAttribute("aria-expanded", "false");
+    } else {
+      updateDictMemoToolUi(kind);
+    }
+    applyDictMemoPanMode(kind, dictMemoPanMode[kind]);
   }
 
   function syncDictMemoCanvasFromInputs(kind) {
@@ -305,6 +339,7 @@
         if (typeof api.clear === "function") api.clear();
         updateDictMemoToolUi(kind);
       }
+      applyDictMemoDrawingLock(kind, false);
       return;
     }
     var m = loadMemoEntry(key);
@@ -320,6 +355,8 @@
       }
       updateDictMemoToolUi(kind);
     }
+    var hasDrawingSaved = !!(m.drawing && String(m.drawing).indexOf("data:image") === 0);
+    applyDictMemoDrawingLock(kind, hasDrawingSaved);
   }
 
   function setMemoMsg(kind, text, isError) {
@@ -494,6 +531,8 @@
           }
         }
         saveMemoEntry(k, memoTa.value, drawing);
+        var hasDrawingSaved = !!(drawing && String(drawing).indexOf("data:image") === 0);
+        applyDictMemoDrawingLock(kind, hasDrawingSaved);
         setMemoMsg(kind, "메모를 저장했습니다.", false);
         setTimeout(function () {
           var mid =
@@ -592,6 +631,12 @@
           applyDictMemoPanMode(kind, !dictMemoPanMode[kind]);
         });
         applyDictMemoPanMode(kind, false);
+      }
+      var editDraw = $(pre + "-edit-draw");
+      if (editDraw) {
+        editDraw.addEventListener("click", function () {
+          applyDictMemoDrawingLock(kind, false);
+        });
       }
     });
   }

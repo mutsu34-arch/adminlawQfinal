@@ -67,6 +67,22 @@
     return map[s] || s || "—";
   }
 
+  /** Firestore Timestamp → 밀리초 (없으면 null) */
+  function firestoreTsToMs(ts) {
+    if (!ts) return null;
+    try {
+      if (typeof ts.toDate === "function") return ts.toDate().getTime();
+      if (ts.seconds != null) return ts.seconds * 1000 + Math.floor((ts.nanoseconds || 0) / 1e6);
+    } catch (e) {}
+    return null;
+  }
+
+  /** 경과 분(최소 0) */
+  function elapsedMinutes(fromMs, toMs) {
+    if (fromMs == null || toMs == null) return null;
+    return Math.max(0, Math.floor((toMs - fromMs) / 60000));
+  }
+
   function renderList(snap) {
     var el = document.getElementById("admin-library-list");
     if (!el) return;
@@ -83,14 +99,32 @@
       var x = d.data();
       var row = document.createElement("div");
       row.className = "admin-library-row";
+      var titleWrap = document.createElement("div");
       var title = document.createElement("div");
       title.className = "admin-library-row__title";
       title.textContent = x.title || d.id;
+      var idLine = document.createElement("div");
+      idLine.className = "admin-library-row__id";
+      idLine.textContent = "문서 ID(로그 검색용) · " + d.id;
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(idLine);
       var meta = document.createElement("div");
       meta.className = "admin-library-row__meta";
       var parts = [];
       parts.push(catLabel[x.category] || x.category || "");
       parts.push(statusLabel(x.status));
+      var now = Date.now();
+      var procMs = firestoreTsToMs(x.processedAt);
+      var upMs = firestoreTsToMs(x.uploadedAt);
+      var compMs = firestoreTsToMs(x.completedAt);
+      if (x.status === "processing" && procMs != null) {
+        var em = elapsedMinutes(procMs, now);
+        if (em != null) parts.push("학습 시작 후 약 " + em + "분 경과");
+      }
+      if (x.status === "complete" && compMs != null) {
+        var emC = elapsedMinutes(compMs, now);
+        if (emC != null) parts.push("완료 처리 약 " + emC + "분 전");
+      }
       if (x.chunkCount != null) parts.push("청크 " + x.chunkCount + "개");
       if (x.numPages != null) {
         if (x.fileKind === "xlsx") parts.push("시트 " + x.numPages + "개");
@@ -102,15 +136,32 @@
         err.className = "admin-library-row__err";
         err.textContent = String(x.errorMessage).slice(0, 240);
       }
+      var warn = document.createElement("div");
+      if (x.status === "processing" && procMs && now - procMs > 10 * 60 * 1000) {
+        warn.className = "admin-library-row__err";
+        warn.textContent =
+          "백엔드(onLibraryPdfUploaded)는 한 실행당 최대 약 9분(540초)입니다. 그보다 길게 '학습 중'만 보이면, 타임아웃 등으로 Firestore가 '오류'로 바뀌지 못하고 멈춘 경우가 많습니다. Firebase 콘솔 → Functions → 로그에서 문서 ID \"" +
+          d.id +
+          "\" 또는 libraryPipeline으로 검색하세요. 대용량·스캔 PDF는 나눠 올리거나 삭제 후 재시도하세요.";
+        if (now - procMs > 30 * 60 * 1000) {
+          warn.textContent +=
+            " 30분 이상이면 메모리 한도·Pinecone·임베딩 API 지연도 의심됩니다.";
+        }
+      } else if (x.status === "pending" && upMs && now - upMs > 20 * 60 * 1000) {
+        warn.className = "admin-library-row__err";
+        warn.textContent =
+          "오래 대기 중입니다. Storage 업로드가 끝났는지, Functions 배포·HANLAW_STORAGE_BUCKET·트리거(onLibraryPdfUploaded)가 프로젝트와 일치하는지 확인하세요.";
+      }
       var del = document.createElement("button");
       del.type = "button";
       del.className = "btn btn--ghost btn--small";
       del.textContent = "삭제";
       del.setAttribute("data-library-id", d.id);
-      row.appendChild(title);
+      row.appendChild(titleWrap);
       row.appendChild(del);
       row.appendChild(meta);
       if (err.textContent) row.appendChild(err);
+      if (warn.textContent) row.appendChild(warn);
       el.appendChild(row);
     });
   }
@@ -168,6 +219,16 @@
     return "application/pdf";
   }
 
+  /** Storage 규칙이 ID 토큰의 email 클레임을 보므로, 업로드 직전에 토큰을 갱신해 불일치를 줄임 */
+  function refreshIdTokenThen(fn) {
+    if (typeof firebase === "undefined" || !firebase.auth) return Promise.resolve().then(fn);
+    var u = firebase.auth().currentUser;
+    if (!u || typeof u.getIdToken !== "function") return Promise.resolve().then(fn);
+    return u.getIdToken(true).then(function () {
+      return fn();
+    });
+  }
+
   function uploadSingleFile(createFn, category, description, file, title) {
     return createFn({
       title: title,
@@ -177,8 +238,10 @@
     }).then(function (res) {
       var data = res && res.data;
       if (!data || !data.storagePath) throw new Error("서버 응답이 올바르지 않습니다.");
-      var ref = firebase.storage().ref(data.storagePath);
-      return ref.put(file, { contentType: libraryFileContentType(file) });
+      return refreshIdTokenThen(function () {
+        var ref = firebase.storage().ref(data.storagePath);
+        return ref.put(file, { contentType: libraryFileContentType(file) });
+      });
     });
   }
 

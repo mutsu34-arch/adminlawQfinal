@@ -472,7 +472,12 @@ const quizAskGemini = onCall({ region: "asia-northeast3" }, async (request) => {
       await db().collection("hanlaw_quiz_ai_asks").add({
         userId: uid,
         userQuestion: clampStr(rawQ, MAX_USER_Q),
+        /** 대시보드·Q&A에서 퀴즈 지문·사전 본문 표시용 */
+        quizStatement: clampStr(quiz.statement, MAX_STATEMENT),
         answerPreview: clampStr(String(answer), 4000),
+        /** Q&A 공개·열람용 전문(미리보기보다 길게 보관) */
+        answerFull: clampStr(String(answer), 12000),
+        userNickname: learnerNick ? clampStr(learnerNick, 80) : "",
         mode: isDictionary ? "dictionary" : "quiz",
         quizTopic: clampStr(quiz.topic, 200) || "",
         questionId: qid,

@@ -9,7 +9,8 @@ const REASON = {
   CONVERT_ELLY: "convert_elly",
   PROMOTION: "promotion",
   SUGGESTION: "suggestion",
-  QA_VIEW_REWARD: "qa_view_reward"
+  QA_VIEW_REWARD: "qa_view_reward",
+  ELLY_QA_VIEW_REWARD: "elly_qa_view_reward"
 };
 
 const DEFAULT_LABELS = {
@@ -18,7 +19,8 @@ const DEFAULT_LABELS = {
   [REASON.CONVERT_ELLY]: "엘리(AI) 질문권으로 전환(차감)",
   [REASON.PROMOTION]: "홍보 인증 보상",
   [REASON.SUGGESTION]: "개선 의견 채택 보상",
-  [REASON.QA_VIEW_REWARD]: "공개 Q&A 답변 최초 열람 보상(질문자)"
+  [REASON.QA_VIEW_REWARD]: "공개 Q&A 답변 최초 열람 보상(질문자)",
+  [REASON.ELLY_QA_VIEW_REWARD]: "공개 엘리(AI) Q&A 최초 열람 보상(질문자)"
 };
 
 /**

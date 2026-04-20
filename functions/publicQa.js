@@ -12,6 +12,33 @@ const REGION = "asia-northeast3";
 
 /** 다른 사용자가 변호사 답변을 처음 열람할 때 질문자에게 지급하는 출석 포인트 */
 const QA_VIEW_REWARD = 500;
+/** 엘리(AI) 공개 Q&A: 타인이 처음 열람 시 질문자에게 지급 */
+const ELLY_QA_VIEW_REWARD = 200;
+const ELLY_QA_TICKET_PREFIX = "elly_";
+
+function ellyPublicDocId(ellyAskId) {
+  return ELLY_QA_TICKET_PREFIX + String(ellyAskId || "").trim();
+}
+
+function isEllyQaTicketId(ticketId) {
+  return String(ticketId || "").startsWith(ELLY_QA_TICKET_PREFIX);
+}
+
+function clientEllyQuizContextForReveal(ask, auth) {
+  const topic = ask && ask.quizTopic != null ? String(ask.quizTopic).trim() : "";
+  const stmtRaw = ask && ask.quizStatement != null ? String(ask.quizStatement).trim() : "";
+  const stmt = stmtRaw ? stmtRaw.slice(0, 4000) : "";
+  const qid = ask && ask.questionId != null ? String(ask.questionId).trim() : "";
+  const out = {
+    quizTopic: topic || null,
+    quizStatement: stmt || null,
+    questionId: null
+  };
+  if (qid && isAdminEmailFromAuth(auth)) {
+    out.questionId = qid;
+  }
+  return out;
+}
 
 function isAdminEmailFromAuth(auth) {
   const email = auth && auth.token && auth.token.email ? String(auth.token.email).toLowerCase() : "";
@@ -169,6 +196,33 @@ exports.searchLawyerQa = onCall({ region: REGION }, async (request) => {
     const ticketId = doc.id;
     const pub = doc.data() || {};
     if (pub.communityVisible === false) continue;
+
+    if (isEllyQaTicketId(ticketId)) {
+      const ellyAskId = ticketId.slice(ELLY_QA_TICKET_PREFIX.length);
+      if (!ellyAskId) continue;
+      const askSnap = await db().collection("hanlaw_quiz_ai_asks").doc(ellyAskId).get();
+      if (!askSnap.exists) continue;
+      const ask = askSnap.data() || {};
+      const qm = String(ask.userQuestion || "");
+      const ar = String(ask.answerFull || ask.answerPreview || "");
+      const ctopic = String(ask.quizTopic || "");
+      const st = String(ask.quizStatement || "");
+      const hay = (qm + "\n" + ar + "\n" + ctopic + "\n" + st).toLowerCase();
+      if (!hay.includes(needle)) continue;
+      const qtext = String(pub.questionMessage || qm || "").trim() || "(내용 없음)";
+      const matchRow = {
+        ticketId,
+        questionMessage: qtext.slice(0, 8000)
+      };
+      if (pub.quizTopic || ctopic) matchRow.quizTopic = pub.quizTopic || ctopic;
+      if (pub.quizStatement || st) {
+        matchRow.quizStatement = String(pub.quizStatement || st).slice(0, 4000);
+      }
+      matches.push(matchRow);
+      if (matches.length >= QA_SEARCH_MAX_RESULTS) break;
+      continue;
+    }
+
     const tSnap = await db().collection("hanlaw_tickets").doc(ticketId).get();
     if (!tSnap.exists) continue;
     const t = tSnap.data();
@@ -204,6 +258,98 @@ exports.searchLawyerQa = onCall({ region: REGION }, async (request) => {
   };
 });
 
+async function revealEllyQaAnswerInternal(request, viewerUid, ticketId) {
+  const ellyAskId = ticketId.slice(ELLY_QA_TICKET_PREFIX.length);
+  if (!ellyAskId) {
+    throw new HttpsError("invalid-argument", "엘리 질문 식별자가 올바르지 않습니다.");
+  }
+  const pubSnap = await db().collection("hanlaw_qa_public").doc(ticketId).get();
+  if (!pubSnap.exists) {
+    throw new HttpsError("not-found", "공개 목록에 없는 질문입니다.");
+  }
+  const pub = pubSnap.data() || {};
+  const askSnap = await db().collection("hanlaw_quiz_ai_asks").doc(ellyAskId).get();
+  if (!askSnap.exists) {
+    throw new HttpsError("not-found", "엘리(AI) 질문 기록을 찾을 수 없습니다.");
+  }
+  const ask = askSnap.data() || {};
+  const askerUserId = ask.userId ? String(ask.userId) : "";
+  if (!askerUserId) {
+    throw new HttpsError("failed-precondition", "질문자 정보가 없습니다.");
+  }
+  if (viewerUid !== askerUserId && pub.communityVisible === false) {
+    throw new HttpsError(
+      "permission-denied",
+      "아직 Q&A에 공개되지 않은 질문입니다. 질문자가 공개한 뒤에 답변을 볼 수 있습니다."
+    );
+  }
+  const pseudoTicket = { userNickname: ask.userNickname };
+  const answerRaw = String(ask.answerFull || ask.answerPreview || "").trim();
+  const answer = sanitizeAnswerForPublic(answerRaw, pseudoTicket, viewerUid, askerUserId);
+  if (!answer) {
+    throw new HttpsError("failed-precondition", "AI 답변을 찾을 수 없습니다.");
+  }
+
+  if (viewerUid === askerUserId) {
+    return {
+      ok: true,
+      answer,
+      selfView: true,
+      pointsAwardedToAsker: 0,
+      ...clientEllyQuizContextForReveal(ask, request.auth)
+    };
+  }
+
+  const logRef = db().collection("hanlaw_qa_view_logs").doc(ticketId + "_" + viewerUid);
+
+  const pointsAwardedToAsker = await db().runTransaction(async (tx) => {
+    const logSnap = await tx.get(logRef);
+    if (logSnap.exists) {
+      return 0;
+    }
+    const attRef = db().collection("hanlaw_attendance_rewards").doc(askerUserId);
+    const attSnap = await tx.get(attRef);
+    let pts = Math.max(
+      0,
+      parseInt(attSnap.exists ? attSnap.data().attendancePoints : 0, 10) || 0
+    );
+    pts += ELLY_QA_VIEW_REWARD;
+    tx.set(logRef, {
+      ticketId,
+      viewerUid,
+      askerUserId,
+      pointsAwarded: ELLY_QA_VIEW_REWARD,
+      source: "elly_qa",
+      ellyAskId,
+      createdAt: FieldValue.serverTimestamp()
+    });
+    tx.set(
+      attRef,
+      {
+        attendancePoints: pts,
+        updatedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+    appendPointLog(tx, attRef, {
+      delta: ELLY_QA_VIEW_REWARD,
+      reason: REASON.ELLY_QA_VIEW_REWARD,
+      balanceAfter: pts,
+      meta: { ticketId, ellyAskId }
+    });
+    return ELLY_QA_VIEW_REWARD;
+  });
+
+  return {
+    ok: true,
+    answer,
+    selfView: false,
+    pointsAwardedToAsker,
+    firstReward: pointsAwardedToAsker > 0,
+    ...clientEllyQuizContextForReveal(ask, request.auth)
+  };
+}
+
 exports.revealLawyerQaAnswer = onCall({ region: REGION }, async (request) => {
   if (!request.auth || !request.auth.uid) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -212,6 +358,10 @@ exports.revealLawyerQaAnswer = onCall({ region: REGION }, async (request) => {
   const ticketId = String((request.data && request.data.ticketId) || "").trim();
   if (!ticketId) {
     throw new HttpsError("invalid-argument", "ticketId가 필요합니다.");
+  }
+
+  if (isEllyQaTicketId(ticketId)) {
+    return revealEllyQaAnswerInternal(request, viewerUid, ticketId);
   }
 
   const pubSnap = await db().collection("hanlaw_qa_public").doc(ticketId).get();
@@ -446,6 +596,122 @@ exports.unpublishLawyerQaCommunity = onCall({ region: REGION }, async (request) 
     logger.error("unpublishLawyerQaCommunity", err);
     const msg = err && err.message ? String(err.message) : String(err);
     throw new HttpsError("failed-precondition", "Q&A 비공개 처리 중 오류: " + msg);
+  }
+});
+
+/**
+ * 엘리(AI) 질문자 본인: Q&A 섹션에 질문·AI 답변 공개(옵트인).
+ */
+exports.publishEllyQaCommunity = onCall({ region: REGION }, async (request) => {
+  try {
+    if (!request.auth || !request.auth.uid) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+    const uid = request.auth.uid;
+    const ellyAskId = String((request.data && request.data.ellyAskId) || "").trim();
+    if (!ellyAskId) {
+      throw new HttpsError("invalid-argument", "ellyAskId가 필요합니다.");
+    }
+
+    const askRef = db().collection("hanlaw_quiz_ai_asks").doc(ellyAskId);
+    const askSnap = await askRef.get();
+    if (!askSnap.exists) {
+      throw new HttpsError("not-found", "엘리(AI) 질문 기록을 찾을 수 없습니다.");
+    }
+    const ask = askSnap.data() || {};
+    if (String(ask.userId || "") !== uid) {
+      throw new HttpsError("permission-denied", "본인이 작성한 질문만 공개할 수 있습니다.");
+    }
+    const answer = String(ask.answerFull || ask.answerPreview || "").trim();
+    if (!answer) {
+      throw new HttpsError("failed-precondition", "AI 답변이 있는 경우에만 공개할 수 있습니다.");
+    }
+    const qmsg = String(ask.userQuestion || "").trim();
+    if (!qmsg) {
+      throw new HttpsError("failed-precondition", "질문 본문이 없습니다.");
+    }
+
+    const ticketId = ellyPublicDocId(ellyAskId);
+    const qtopic = String(ask.quizTopic || "").trim();
+    const qstmt = String(ask.quizStatement || "").trim();
+    const pubPayload = {
+      ticketId,
+      source: "elly",
+      ellyAskId,
+      askerUserId: uid,
+      questionMessage: qmsg.slice(0, 8000),
+      publishedAt: FieldValue.serverTimestamp(),
+      communityVisible: true,
+      communityPublishedAt: FieldValue.serverTimestamp()
+    };
+    if (qtopic) pubPayload.quizTopic = qtopic.slice(0, 500);
+    if (qstmt) pubPayload.quizStatement = qstmt.slice(0, 4000);
+
+    await db().collection("hanlaw_qa_public").doc(ticketId).set(pubPayload, { merge: true });
+    await askRef.set(
+      {
+        qaCommunityPublished: true,
+        qaCommunityPublishedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    logger.error("publishEllyQaCommunity", err);
+    const msg = err && err.message ? String(err.message) : String(err);
+    throw new HttpsError("failed-precondition", "엘리 Q&A 공개 처리 중 오류: " + msg);
+  }
+});
+
+/**
+ * 엘리(AI) 질문자 본인: 공개한 질문을 Q&A 목록에서 비공개로 전환.
+ */
+exports.unpublishEllyQaCommunity = onCall({ region: REGION }, async (request) => {
+  try {
+    if (!request.auth || !request.auth.uid) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+    const uid = request.auth.uid;
+    const ellyAskId = String((request.data && request.data.ellyAskId) || "").trim();
+    if (!ellyAskId) {
+      throw new HttpsError("invalid-argument", "ellyAskId가 필요합니다.");
+    }
+
+    const askRef = db().collection("hanlaw_quiz_ai_asks").doc(ellyAskId);
+    const askSnap = await askRef.get();
+    if (!askSnap.exists) {
+      throw new HttpsError("not-found", "엘리(AI) 질문 기록을 찾을 수 없습니다.");
+    }
+    const ask = askSnap.data() || {};
+    if (String(ask.userId || "") !== uid) {
+      throw new HttpsError("permission-denied", "본인이 작성한 질문만 비공개 전환할 수 있습니다.");
+    }
+
+    const ticketId = ellyPublicDocId(ellyAskId);
+    await db().collection("hanlaw_qa_public").doc(ticketId).set(
+      {
+        communityVisible: false,
+        communityUnpublishedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    await askRef.set(
+      {
+        qaCommunityPublished: false,
+        qaCommunityUnpublishedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    logger.error("unpublishEllyQaCommunity", err);
+    const msg = err && err.message ? String(err.message) : String(err);
+    throw new HttpsError("failed-precondition", "엘리 Q&A 비공개 처리 중 오류: " + msg);
   }
 });
 

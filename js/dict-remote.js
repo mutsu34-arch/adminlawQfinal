@@ -7,6 +7,38 @@
   window.LEGAL_CASES_REMOTE = [];
   window.LEGAL_STATUTES_REMOTE = [];
 
+  function mapOxQuizzesFromRaw(input, maxItems) {
+    var cap =
+      typeof maxItems === "number" && maxItems > 0 ? Math.min(10, maxItems) : 5;
+    if (!Array.isArray(input)) return [];
+    function normalizeOxAnswer(v) {
+      if (v === true || v === false) return v;
+      var s = String(v == null ? "" : v).trim().toLowerCase();
+      if (s === "o" || s === "true" || s === "참" || s === "1") return true;
+      if (s === "x" || s === "false" || s === "거짓" || s === "0") return false;
+      return null;
+    }
+    var out = [];
+    for (var i = 0; i < input.length; i++) {
+      var row = input[i] || {};
+      var statement = String(row.statement || "").trim();
+      var answer = normalizeOxAnswer(row.answer);
+      var explanation = String(row.explanation || "").trim();
+      var explanationBasic = String(
+        row.explanationBasic == null ? explanation : row.explanationBasic
+      ).trim();
+      if (!statement || answer == null || !explanation) continue;
+      out.push({
+        statement: statement,
+        answer: answer,
+        explanation: explanation,
+        explanationBasic: explanationBasic || explanation
+      });
+      if (out.length >= cap) break;
+    }
+    return out;
+  }
+
   function mapTermDoc(doc) {
     var d = doc.data();
     return {
@@ -14,7 +46,8 @@
       term: d.term || doc.id,
       aliases: Array.isArray(d.aliases) ? d.aliases : [],
       definition: d.definition || "",
-      source: d.source || ""
+      source: d.source || "",
+      oxQuizzes: mapOxQuizzesFromRaw(d.oxQuizzes, 3)
     };
   }
 
@@ -26,7 +59,8 @@
       key: key,
       heading: d.heading != null ? d.heading : "",
       body: d.body != null ? d.body : "",
-      sourceNote: d.sourceNote != null ? d.sourceNote : ""
+      sourceNote: d.sourceNote != null ? d.sourceNote : "",
+      oxQuizzes: mapOxQuizzesFromRaw(d.oxQuizzes, 3)
     };
   }
 
@@ -73,6 +107,8 @@
       facts: d.facts || "",
       issues: d.issues || "",
       judgment: d.judgment || "",
+      caseFullText: d.caseFullText || "",
+      oxQuizzes: mapOxQuizzesFromRaw(d.oxQuizzes, 5),
       searchKeys: Array.isArray(d.searchKeys) ? d.searchKeys : [],
       topicKeywords: Array.isArray(d.topicKeywords)
         ? d.topicKeywords

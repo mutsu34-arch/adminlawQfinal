@@ -156,7 +156,12 @@
       container.appendChild(empty);
       return;
     }
-    if (paidMember()) {
+    if (
+      typeof window.HanlawDetailUnlock === "object" &&
+      typeof window.HanlawDetailUnlock.render === "function"
+    ) {
+      window.HanlawDetailUnlock.render(container, q, buildDetailBlocks);
+    } else if (paidMember()) {
       buildDetailBlocks(container, q.detail);
     } else {
       var lockP = document.createElement("p");
@@ -388,6 +393,7 @@
 
     article._hanlawPost = post;
     article._hanlawActions = actions;
+    article._hanlawCachedQ = q;
     return article;
   }
 
@@ -622,6 +628,30 @@
   }
 
   window.addEventListener("quiz-question-memo-updated", refreshMemosOnAnsweredNoteCards);
+
+  function refreshAnsweredNoteCardsDetail() {
+    document.querySelectorAll('[data-note-quiz][data-answered="1"]').forEach(function (article) {
+      var post = article._hanlawPost;
+      var q = article._hanlawCachedQ;
+      if (!post || !post._hanlawParts || !q) return;
+      var parts = post._hanlawParts;
+      try {
+        fillExplainParts(
+          {
+            answerKey: parts.answerKey,
+            importanceLine: parts.importanceLine,
+            difficultyLine: parts.difficultyLine,
+            explain: parts.explain,
+            detail: parts.detail,
+            tags: parts.tags
+          },
+          q
+        );
+      } catch (err) {}
+    });
+  }
+  window.addEventListener("hanlaw-detail-unlocked", refreshAnsweredNoteCardsDetail);
+  window.addEventListener("membership-updated", refreshAnsweredNoteCardsDetail);
 
   window.HanlawNoteQuizUi = {
     DISPLAY_FREE: DISPLAY_FREE,

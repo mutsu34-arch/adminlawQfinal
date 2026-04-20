@@ -50,8 +50,17 @@
     P.setParam("feedbackurl", d.feedbackUrl);
     P.setParam("var1", d.var1 || "");
     P.setParam("var2", d.var2 != null ? String(d.var2) : "");
-    if (d.var1) {
-      P.setParam("buyerid", String(d.var1));
+    var buyerShow =
+      d.buyerDisplay != null && String(d.buyerDisplay).trim()
+        ? String(d.buyerDisplay).trim()
+        : d.var1 != null && String(d.var1) !== ""
+          ? String(d.var1)
+          : "";
+    if (buyerShow) {
+      P.setParam("buyerid", buyerShow);
+    }
+    if (d.recvemail) {
+      P.setParam("recvemail", String(d.recvemail).trim());
     }
     var memo = d.memo != null ? String(d.memo).trim() : "";
     if (memo) {
@@ -84,7 +93,18 @@
     if (d.failUrl) P.setParam("failurl", d.failUrl);
     P.setParam("var1", d.var1 || "");
     if (d.var2 != null) P.setParam("var2", String(d.var2));
-    if (d.var1) P.setParam("buyerid", String(d.var1));
+    var buyerShowR =
+      d.buyerDisplay != null && String(d.buyerDisplay).trim()
+        ? String(d.buyerDisplay).trim()
+        : d.var1 != null && String(d.var1) !== ""
+          ? String(d.var1)
+          : "";
+    if (buyerShowR) {
+      P.setParam("buyerid", buyerShowR);
+    }
+    if (d.recvemail) {
+      P.setParam("recvemail", String(d.recvemail).trim());
+    }
     var memo = d.memo != null ? String(d.memo).trim() : "";
     if (memo) P.setParam("memo", memo);
     if (d.smsuse) P.setParam("smsuse", d.smsuse);

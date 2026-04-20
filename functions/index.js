@@ -23,7 +23,7 @@ if (_envProjectId) {
  *
  * 출석 포인트→변호사 질문권: convertAttendancePointsToQuestionCredit · 엘리 질문권: convertAttendancePointsToEllyCredit (대시보드)
  * 개선의견 채택: adminApproveSuggestionTicket (관리자, 출석 포인트 지급)
- * 공개 Q&A: publishLawyerQaPublic(관리자, 비공개 스텁), publishLawyerQaCommunity(질문자 옵트인), searchLawyerQa, revealLawyerQaAnswer, adminBackfillLawyerQaCommunityVisible(관리자 1회)
+ * 공개 Q&A: publishLawyerQaPublic(관리자, 비공개 스텁), publishLawyerQaCommunity(질문자 옵트인), publishEllyQaCommunity·unpublishEllyQaCommunity(엘리 질문자 옵트인), searchLawyerQa, revealLawyerQaAnswer, adminBackfillLawyerQaCommunityVisible(관리자 1회)
  * 배포: 프로젝트 루트에서 firebase deploy --only functions,firestore:rules
  *
  * 사전·퀴즈 AI: GEMINI_API_KEY, 선택 GEMINI_MODEL (기본 gemini-2.0-flash, 구형 gemini-1.5-flash-latest 는 1.5-flash 로 치환)
@@ -45,7 +45,8 @@ const { appendPointLog, REASON } = require("./attendancePointLedger");
 initializeApp();
 const db = getFirestore();
 
-const { generateOrGetDictionaryEntry } = require("./dictionaryGemini");
+const { generateOrGetDictionaryEntry, generateStatuteOxQuizzesGemini } = require("./dictionaryGemini");
+const { effectiveGeminiModelId } = require("./geminiModel");
 exports.generateOrGetDictionaryEntry = generateOrGetDictionaryEntry;
 
 const { quizAskGemini } = require("./quizAiGemini");
@@ -87,6 +88,8 @@ const {
   searchLawyerQa,
   publishLawyerQaCommunity,
   unpublishLawyerQaCommunity,
+  publishEllyQaCommunity,
+  unpublishEllyQaCommunity,
   adminBackfillLawyerQaCommunityVisible
 } = require("./publicQa");
 exports.revealLawyerQaAnswer = revealLawyerQaAnswer;
@@ -94,6 +97,8 @@ exports.publishLawyerQaPublic = publishLawyerQaPublic;
 exports.searchLawyerQa = searchLawyerQa;
 exports.publishLawyerQaCommunity = publishLawyerQaCommunity;
 exports.unpublishLawyerQaCommunity = unpublishLawyerQaCommunity;
+exports.publishEllyQaCommunity = publishEllyQaCommunity;
+exports.unpublishEllyQaCommunity = unpublishEllyQaCommunity;
 exports.adminBackfillLawyerQaCommunityVisible = adminBackfillLawyerQaCommunityVisible;
 
 const MONTHLY_FREE_FOR_PAID = 4;
@@ -883,6 +888,38 @@ const STAGING_CASE_COLLECTION = "hanlaw_dict_cases_staging";
 const TERM_COLLECTION = "hanlaw_dict_terms";
 const CASE_COLLECTION = "hanlaw_dict_cases";
 
+function sanitizeDictOxQuizzes(input, maxItems) {
+  const cap =
+    Number.isFinite(maxItems) && maxItems > 0 ? Math.min(10, Math.floor(maxItems)) : 5;
+  if (!Array.isArray(input)) return [];
+  function normalizeOxAnswer(v) {
+    if (v === true || v === false) return v;
+    const s = String(v == null ? "" : v).trim().toLowerCase();
+    if (s === "o" || s === "true" || s === "참" || s === "1") return true;
+    if (s === "x" || s === "false" || s === "거짓" || s === "0") return false;
+    return null;
+  }
+  const out = [];
+  for (let i = 0; i < input.length; i++) {
+    const row = input[i] || {};
+    const statement = String(row.statement || "").trim().slice(0, 600);
+    const answer = normalizeOxAnswer(row.answer);
+    const explanation = String(row.explanation || "").trim().slice(0, 2000);
+    const explanationBasicRaw =
+      row.explanationBasic == null ? explanation : String(row.explanationBasic || "").trim();
+    const explanationBasic = explanationBasicRaw.slice(0, 2000);
+    if (!statement || answer == null || !explanation) continue;
+    out.push({
+      statement,
+      answer,
+      explanation,
+      explanationBasic: explanationBasic || explanation
+    });
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
 function sanitizeTermPayload(raw) {
   const src = raw || {};
   const term = String(src.term || "").trim();
@@ -892,7 +929,8 @@ function sanitizeTermPayload(raw) {
     aliases: Array.isArray(src.aliases)
       ? src.aliases.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 30)
       : [],
-    definition: String(src.definition || "").trim()
+    definition: String(src.definition || "").trim(),
+    oxQuizzes: sanitizeDictOxQuizzes(src.oxQuizzes, 3)
   };
   if (!out.definition) throw new HttpsError("invalid-argument", "정의(definition)가 필요합니다.");
   return out;
@@ -906,6 +944,8 @@ function sanitizeCasePayload(raw) {
     facts: String(src.facts || "").trim(),
     issues: String(src.issues || "").trim(),
     judgment: String(src.judgment || "").trim(),
+    caseFullText: String(src.caseFullText || "").trim(),
+    oxQuizzes: sanitizeDictOxQuizzes(src.oxQuizzes, 5),
     searchKeys: Array.isArray(src.searchKeys)
       ? src.searchKeys.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 40)
       : [],
@@ -1107,10 +1147,36 @@ exports.adminSaveDictStatute = onCall({ region: "asia-northeast3" }, async (requ
     heading: String(entry.heading != null ? entry.heading : "").trim(),
     body: String(entry.body != null ? entry.body : "").trim(),
     sourceNote: String(entry.sourceNote != null ? entry.sourceNote : "").trim(),
+    oxQuizzes: sanitizeDictOxQuizzes(entry.oxQuizzes, 3),
     updatedAt: FieldValue.serverTimestamp()
   };
   await db.collection("hanlaw_dict_statutes").doc(id).set(payload, { merge: true });
   return { ok: true, id };
+});
+
+exports.generateDictStatuteOxQuizzes = onCall({ region: "asia-northeast3" }, async (request) => {
+  assertAdminCallable(request);
+  const statuteKey = String((request.data && request.data.statuteKey) || "").trim();
+  const heading = String((request.data && request.data.heading) != null ? request.data.heading : "").trim();
+  const body = String((request.data && request.data.body) != null ? request.data.body : "").trim();
+  if (!statuteKey) {
+    throw new HttpsError("invalid-argument", "statuteKey가 필요합니다.");
+  }
+  if (!body) {
+    throw new HttpsError("invalid-argument", "본문(body)을 입력해 주세요.");
+  }
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    throw new HttpsError("failed-precondition", "서버에 GEMINI_API_KEY가 설정되지 않았습니다.");
+  }
+  const oxQuizzes = await generateStatuteOxQuizzesGemini(
+    statuteKey,
+    heading,
+    body,
+    apiKey,
+    effectiveGeminiModelId()
+  );
+  return { ok: true, oxQuizzes };
 });
 
 exports.adminRejectDictStaging = onCall({ region: "asia-northeast3" }, async (request) => {

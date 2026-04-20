@@ -102,9 +102,11 @@
   function haystackForEllyAsk(x) {
     return [
       String(x.userQuestion || ""),
-      String(x.answerPreview || ""),
+      String(x.answerPreview || x.answerFull || ""),
+      String(x.quizStatement || ""),
       String(x.quizTopic || ""),
       String(x.questionId || ""),
+      findStatementFromBank(x.questionId),
       String(x.mode || "")
     ]
       .join("\n")
@@ -203,6 +205,7 @@
   function renderEllyAskCard(x) {
     var art = document.createElement("article");
     art.className = "dashboard-ticket-item dashboard-elly-ask-item";
+    var ellyAskId = String(x._docId || "").trim();
 
     var meta = document.createElement("p");
     meta.className = "dashboard-ticket-item__meta";
@@ -213,36 +216,69 @@
     meta.appendChild(document.createTextNode(" · " + formatWhen(x.createdAt)));
     art.appendChild(meta);
 
-    if (x.quizTopic && String(x.quizTopic).trim()) {
-      var ctx = document.createElement("p");
-      ctx.className = "dashboard-ticket-item__context";
-      ctx.textContent =
-        (x.mode === "dictionary" ? "맥락: " : "주제·맥락: ") + String(x.quizTopic).trim();
-      art.appendChild(ctx);
+    var stmtText =
+      String(x.quizStatement || "").trim() || findStatementFromBank(x.questionId);
+    var msgTrim = String(x.userQuestion || "").trim();
+    var hasQuiz = !!stmtText;
+    var hasMsg = !!msgTrim;
+
+    var bodyEl = document.createElement("div");
+    bodyEl.className = "dashboard-ticket-item__body";
+    if (hasQuiz && hasMsg) {
+      bodyEl.classList.add("dashboard-ticket-item__body--split");
     }
 
-    var uq = String(x.userQuestion || "").trim();
-    if (uq) {
-      var uLab = document.createElement("span");
-      uLab.className = "dashboard-ticket-item__reply-label";
-      uLab.textContent = "나의 질문";
-      var uDiv = document.createElement("div");
-      uDiv.className = "dashboard-ticket-item__reply";
-      uDiv.appendChild(uLab);
-      var uBody = document.createElement("div");
-      uBody.className = "dashboard-ticket-item__reply-body quiz-ai-answer";
-      var uTrunc = truncate(uq, 2000);
+    if (hasQuiz) {
+      var quizBox = document.createElement("div");
+      quizBox.className = "dashboard-ticket-item__quiz";
+      var quizLab = document.createElement("span");
+      quizLab.className = "dashboard-ticket-item__quiz-label";
+      quizLab.textContent =
+        x.mode === "dictionary" ? "사전 본문·맥락" : "해당 퀴즈 지문";
+      quizBox.appendChild(quizLab);
+      var quizP = document.createElement("div");
+      quizP.className = "dashboard-ticket-item__quiz-text quiz-ai-answer";
       if (typeof window.formatHanlawRichParagraphsHtml === "function") {
-        uBody.innerHTML = window.formatHanlawRichParagraphsHtml(uTrunc);
+        quizP.innerHTML = window.formatHanlawRichParagraphsHtml(stmtText);
       } else {
-        uBody.textContent = uTrunc;
+        quizP.textContent = stmtText;
       }
-      uDiv.appendChild(uBody);
-      art.appendChild(uDiv);
+      quizBox.appendChild(quizP);
+      bodyEl.appendChild(quizBox);
     }
 
-    var ap = String(x.answerPreview || "").trim();
-    if (ap) {
+    if (hasMsg) {
+      var msg = document.createElement("div");
+      msg.className = "dashboard-ticket-item__message quiz-ai-answer";
+      var msgTrunc = truncate(msgTrim, 2000);
+      if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+        msg.innerHTML = window.formatHanlawRichParagraphsHtml(msgTrunc);
+      } else {
+        msg.textContent = msgTrunc;
+      }
+      bodyEl.appendChild(msg);
+    }
+
+    if (hasQuiz || hasMsg) {
+      art.appendChild(bodyEl);
+    }
+
+    var topicParts = [];
+    if (x.quizTopic && String(x.quizTopic).trim()) {
+      topicParts.push("주제: " + String(x.quizTopic).trim());
+    }
+    if (x.questionId && String(x.questionId).trim() && isAdminViewer()) {
+      topicParts.push("문항 ID: " + String(x.questionId).trim());
+    }
+    if (topicParts.length) {
+      var topicLine = document.createElement("p");
+      topicLine.className = "dashboard-ticket-item__context";
+      topicLine.textContent = topicParts.join(" · ");
+      art.appendChild(topicLine);
+    }
+
+    var answerText = String(x.answerPreview || x.answerFull || "").trim();
+    if (answerText) {
       var aLab = document.createElement("span");
       aLab.className = "dashboard-ticket-item__reply-label";
       aLab.textContent = "AI 답변";
@@ -251,7 +287,7 @@
       aWrap.appendChild(aLab);
       var aBody = document.createElement("div");
       aBody.className = "dashboard-ticket-item__reply-body quiz-ai-answer";
-      var apTrunc = truncate(ap, 4000);
+      var apTrunc = truncate(answerText, 4000);
       if (typeof window.formatHanlawAiAnswerHtml === "function") {
         aBody.innerHTML = window.formatHanlawAiAnswerHtml(apTrunc);
       } else {
@@ -259,13 +295,93 @@
       }
       aWrap.appendChild(aBody);
       art.appendChild(aWrap);
-    }
 
-    if (x.questionId && String(x.questionId).trim() && isAdminViewer()) {
-      var pid = document.createElement("p");
-      pid.className = "dashboard-ticket-item__context";
-      pid.textContent = "식별: " + String(x.questionId).trim();
-      art.appendChild(pid);
+      if (ellyAskId) {
+        var pubStateElly = x.qaCommunityPublished === true;
+        var qaBoxElly = document.createElement("div");
+        qaBoxElly.className = "dashboard-ticket-item__qa-community";
+
+        if (!pubStateElly) {
+          var hintElly = document.createElement("p");
+          hintElly.className = "dashboard-ticket-item__qa-hint";
+          hintElly.textContent =
+            "공개하면 다른 회원이 Q&A에서 이 질문과 엘리(AI) 답변을 열람할 수 있습니다. 다른 사람이 처음으로 답변을 펼쳐 볼 때 질문자에게 출석 포인트 200점이 적립될 수 있습니다.";
+          qaBoxElly.appendChild(hintElly);
+
+          var pubBtnElly = document.createElement("button");
+          pubBtnElly.type = "button";
+          pubBtnElly.className = "btn btn--secondary btn--small dashboard-ticket-item__qa-publish-btn";
+          pubBtnElly.textContent = "질문답변 공개하기";
+          pubBtnElly.addEventListener("click", function () {
+            if (!requireUser()) return;
+            if (typeof firebase === "undefined" || !firebase.functions) {
+              window.alert("Cloud Functions를 사용할 수 없습니다.");
+              return;
+            }
+            pubBtnElly.disabled = true;
+            var regionE = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+            firebase
+              .app()
+              .functions(regionE)
+              .httpsCallable("publishEllyQaCommunity")({ ellyAskId: ellyAskId })
+              .then(function () {
+                try {
+                  window.dispatchEvent(new CustomEvent("hanlaw-public-qa-refresh"));
+                } catch (e) {}
+                if (typeof window.refreshHanlawPublicQa === "function") {
+                  window.refreshHanlawPublicQa();
+                }
+              })
+              .catch(function (err) {
+                window.alert((err && err.message) || "공개 처리에 실패했습니다.");
+              })
+              .then(function () {
+                pubBtnElly.disabled = false;
+              });
+          });
+          qaBoxElly.appendChild(pubBtnElly);
+        } else {
+          var doneElly = document.createElement("p");
+          doneElly.className = "dashboard-ticket-item__qa-done";
+          doneElly.textContent = "이 질문과 답변은 Q&A에 공개된 상태입니다.";
+          qaBoxElly.appendChild(doneElly);
+
+          var unpubElly = document.createElement("button");
+          unpubElly.type = "button";
+          unpubElly.className = "btn btn--outline btn--small dashboard-ticket-item__qa-publish-btn";
+          unpubElly.textContent = "비공개로 전환하기";
+          unpubElly.addEventListener("click", function () {
+            if (!requireUser()) return;
+            if (typeof firebase === "undefined" || !firebase.functions) {
+              window.alert("Cloud Functions를 사용할 수 없습니다.");
+              return;
+            }
+            unpubElly.disabled = true;
+            var regionU = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+            firebase
+              .app()
+              .functions(regionU)
+              .httpsCallable("unpublishEllyQaCommunity")({ ellyAskId: ellyAskId })
+              .then(function () {
+                try {
+                  window.dispatchEvent(new CustomEvent("hanlaw-public-qa-refresh"));
+                } catch (e) {}
+                if (typeof window.refreshHanlawPublicQa === "function") {
+                  window.refreshHanlawPublicQa();
+                }
+              })
+              .catch(function (err) {
+                window.alert((err && err.message) || "비공개 전환에 실패했습니다.");
+              })
+              .then(function () {
+                unpubElly.disabled = false;
+              });
+          });
+          qaBoxElly.appendChild(unpubElly);
+        }
+
+        art.appendChild(qaBoxElly);
+      }
     }
 
     return art;

@@ -20,6 +20,8 @@
 
   function switchAdminTab(which) {
     var tabSingle = $("admin-tab-single");
+    var tabCaseDictCreate = $("admin-tab-case-dict-create");
+    var tabTermDictCreate = $("admin-tab-term-dict-create");
     var tabJson = $("admin-tab-json");
     var tabExcel = $("admin-tab-excel");
     var tabReview = $("admin-tab-review");
@@ -27,6 +29,8 @@
     var tabInbox = $("admin-tab-inbox");
     var tabQuotes = $("admin-tab-quotes");
     var panelSingle = $("admin-panel-single");
+    var panelCaseDictCreate = $("admin-panel-case-dict-create");
+    var panelTermDictCreate = $("admin-panel-term-dict-create");
     var panelJson = $("admin-panel-json");
     var panelExcel = $("admin-panel-excel");
     var panelReview = $("admin-panel-review");
@@ -34,10 +38,10 @@
     var panelInbox = $("admin-panel-inbox");
     var panelQuotes = $("admin-panel-quotes");
     function off() {
-      [tabSingle, tabJson, tabExcel, tabReview, tabLibrary, tabInbox, tabQuotes].forEach(function (t) {
+      [tabSingle, tabCaseDictCreate, tabTermDictCreate, tabJson, tabExcel, tabReview, tabLibrary, tabInbox, tabQuotes].forEach(function (t) {
         if (t) t.classList.remove("admin-tab--active");
       });
-      [panelSingle, panelJson, panelExcel, panelReview, panelLibrary, panelInbox, panelQuotes].forEach(
+      [panelSingle, panelCaseDictCreate, panelTermDictCreate, panelJson, panelExcel, panelReview, panelLibrary, panelInbox, panelQuotes].forEach(
         function (p) {
           if (p) p.hidden = true;
         }
@@ -65,6 +69,12 @@
       if (tabQuotes) tabQuotes.classList.add("admin-tab--active");
       if (panelQuotes) panelQuotes.hidden = false;
       if (typeof window.loadAdminQuotesPanel === "function") window.loadAdminQuotesPanel();
+    } else if (which === "case-dict-create") {
+      if (tabCaseDictCreate) tabCaseDictCreate.classList.add("admin-tab--active");
+      if (panelCaseDictCreate) panelCaseDictCreate.hidden = false;
+    } else if (which === "term-dict-create") {
+      if (tabTermDictCreate) tabTermDictCreate.classList.add("admin-tab--active");
+      if (panelTermDictCreate) panelTermDictCreate.hidden = false;
     } else {
       if (tabSingle) tabSingle.classList.add("admin-tab--active");
       if (panelSingle) panelSingle.hidden = false;
@@ -262,6 +272,8 @@
   function bind() {
     var tabInbox = $("admin-tab-inbox");
     var tabSingle = $("admin-tab-single");
+    var tabCaseDictCreate = $("admin-tab-case-dict-create");
+    var tabTermDictCreate = $("admin-tab-term-dict-create");
     var tabJson = $("admin-tab-json");
     var tabExcel = $("admin-tab-excel");
     var tabReview = $("admin-tab-review");
@@ -275,6 +287,16 @@
     if (tabJson) {
       tabJson.addEventListener("click", function () {
         switchAdminTab("json");
+      });
+    }
+    if (tabCaseDictCreate) {
+      tabCaseDictCreate.addEventListener("click", function () {
+        switchAdminTab("case-dict-create");
+      });
+    }
+    if (tabTermDictCreate) {
+      tabTermDictCreate.addEventListener("click", function () {
+        switchAdminTab("term-dict-create");
       });
     }
     if (tabExcel) {

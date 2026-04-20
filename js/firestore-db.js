@@ -241,10 +241,43 @@
   window.saveTermEntryToFirestore = function (entry, docId) {
     var db = getDb();
     if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    function normalizeOxAnswer(v) {
+      if (v === true || v === false) return v;
+      var s = String(v == null ? "" : v).trim().toLowerCase();
+      if (s === "o" || s === "true" || s === "참" || s === "1") return true;
+      if (s === "x" || s === "false" || s === "거짓" || s === "0") return false;
+      return null;
+    }
+    function sanitizeOxQuizzesBasic(input, maxItems) {
+      var cap = typeof maxItems === "number" && maxItems > 0 ? Math.min(10, maxItems) : 3;
+      if (!Array.isArray(input)) return [];
+      var out = [];
+      for (var i = 0; i < input.length; i++) {
+        var row = input[i] || {};
+        var statement = String(row.statement || "").trim().slice(0, 600);
+        var answer = normalizeOxAnswer(row.answer);
+        var explanation = String(row.explanation || "").trim().slice(0, 2000);
+        var explanationBasic = String(
+          row.explanationBasic == null ? explanation : row.explanationBasic
+        )
+          .trim()
+          .slice(0, 2000);
+        if (!statement || answer == null || !explanation) continue;
+        out.push({
+          statement: statement,
+          answer: answer,
+          explanation: explanation,
+          explanationBasic: explanationBasic || explanation
+        });
+        if (out.length >= cap) break;
+      }
+      return out;
+    }
     var payload = {
       term: String(entry && entry.term ? entry.term : "").trim(),
       aliases: Array.isArray(entry && entry.aliases) ? entry.aliases : [],
       definition: String(entry && entry.definition ? entry.definition : "").trim(),
+      oxQuizzes: sanitizeOxQuizzesBasic(entry && entry.oxQuizzes, 3),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (!payload.term || !payload.definition) {
@@ -257,12 +290,45 @@
   window.saveCaseEntryToFirestore = function (entry, docId) {
     var db = getDb();
     if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    function normalizeOxAnswer(v) {
+      if (v === true || v === false) return v;
+      var s = String(v == null ? "" : v).trim().toLowerCase();
+      if (s === "o" || s === "true" || s === "참" || s === "1") return true;
+      if (s === "x" || s === "false" || s === "거짓" || s === "0") return false;
+      return null;
+    }
+    function sanitizeOxQuizzes(input) {
+      if (!Array.isArray(input)) return [];
+      var out = [];
+      for (var i = 0; i < input.length; i++) {
+        var row = input[i] || {};
+        var statement = String(row.statement || "").trim().slice(0, 600);
+        var answer = normalizeOxAnswer(row.answer);
+        var explanation = String(row.explanation || "").trim().slice(0, 2000);
+        var explanationBasic = String(
+          row.explanationBasic == null ? explanation : row.explanationBasic
+        )
+          .trim()
+          .slice(0, 2000);
+        if (!statement || answer == null || !explanation) continue;
+        out.push({
+          statement: statement,
+          answer: answer,
+          explanation: explanation,
+          explanationBasic: explanationBasic || explanation
+        });
+        if (out.length >= 5) break;
+      }
+      return out;
+    }
     var payload = {
       citation: String(entry && entry.citation ? entry.citation : "").trim(),
       title: String(entry && entry.title ? entry.title : "").trim(),
       facts: String(entry && entry.facts ? entry.facts : "").trim(),
       issues: String(entry && entry.issues ? entry.issues : "").trim(),
       judgment: String(entry && entry.judgment ? entry.judgment : "").trim(),
+      caseFullText: String(entry && entry.caseFullText ? entry.caseFullText : "").trim(),
+      oxQuizzes: sanitizeOxQuizzes(entry && entry.oxQuizzes),
       searchKeys: Array.isArray(entry && entry.searchKeys) ? entry.searchKeys : [],
       topicKeywords: Array.isArray(entry && entry.topicKeywords) ? entry.topicKeywords : [],
       casenoteUrl: String(entry && entry.casenoteUrl ? entry.casenoteUrl : "").trim(),
@@ -284,11 +350,44 @@
     if (!statuteKey) {
       return Promise.reject(new Error("조문 식별자(statuteKey)가 없습니다."));
     }
+    function normalizeOxAnswerSt(v) {
+      if (v === true || v === false) return v;
+      var s = String(v == null ? "" : v).trim().toLowerCase();
+      if (s === "o" || s === "true" || s === "참" || s === "1") return true;
+      if (s === "x" || s === "false" || s === "거짓" || s === "0") return false;
+      return null;
+    }
+    function sanitizeOxQuizzesStat(input, maxItems) {
+      var cap = typeof maxItems === "number" && maxItems > 0 ? Math.min(10, maxItems) : 3;
+      if (!Array.isArray(input)) return [];
+      var out = [];
+      for (var i = 0; i < input.length; i++) {
+        var row = input[i] || {};
+        var statement = String(row.statement || "").trim().slice(0, 600);
+        var answer = normalizeOxAnswerSt(row.answer);
+        var explanation = String(row.explanation || "").trim().slice(0, 2000);
+        var explanationBasic = String(
+          row.explanationBasic == null ? explanation : row.explanationBasic
+        )
+          .trim()
+          .slice(0, 2000);
+        if (!statement || answer == null || !explanation) continue;
+        out.push({
+          statement: statement,
+          answer: answer,
+          explanation: explanation,
+          explanationBasic: explanationBasic || explanation
+        });
+        if (out.length >= cap) break;
+      }
+      return out;
+    }
     var payload = {
       statuteKey: statuteKey,
       heading: String(entry && entry.heading != null ? entry.heading : "").trim(),
       body: String(entry && entry.body != null ? entry.body : "").trim(),
       sourceNote: String(entry && entry.sourceNote != null ? entry.sourceNote : "").trim(),
+      oxQuizzes: sanitizeOxQuizzesStat(entry && entry.oxQuizzes, 3),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     var id = String(docId || "").trim() || normalizeDocId(statuteKey, "statute");
@@ -300,7 +399,8 @@
         _docId: String(resolvedDocId || "").trim(),
         heading: payload.heading,
         body: payload.body,
-        sourceNote: payload.sourceNote
+        sourceNote: payload.sourceNote,
+        oxQuizzes: payload.oxQuizzes
       });
     }
 
@@ -328,7 +428,8 @@
           statuteKey: statuteKey,
           heading: entry && entry.heading != null ? entry.heading : "",
           body: entry && entry.body != null ? entry.body : "",
-          sourceNote: entry && entry.sourceNote != null ? entry.sourceNote : ""
+          sourceNote: entry && entry.sourceNote != null ? entry.sourceNote : "",
+          oxQuizzes: entry && entry.oxQuizzes != null ? entry.oxQuizzes : []
         },
         docId: String(docId || "").trim()
       })
@@ -358,6 +459,18 @@
     }
     return firebase.app().functions("asia-northeast3").httpsCallable(name);
   }
+
+  /** 관리자 전용: 조문 본문 기반 OX 퀴즈 1~3개 초안 (Gemini) */
+  window.generateDictStatuteOxQuizzes = function (opts) {
+    opts = opts || {};
+    return getCallable("generateDictStatuteOxQuizzes")({
+      statuteKey: opts.statuteKey,
+      heading: opts.heading,
+      body: opts.body
+    }).then(function (r) {
+      return r.data || {};
+    });
+  };
 
   window.adminStageQuizBatch = function (rows) {
     return getCallable("adminStageQuizBatch")({ rows: Array.isArray(rows) ? rows : [] }).then(function (r) {

@@ -1,7 +1,8 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // firebase-config.js 의 ADMIN_EMAILS 와 동일한 이메일 목록으로 유지하세요.
+    // 아래 목록은 js/firebase-config.js 의 ADMIN_EMAILS·Functions 환경변수 ADMIN_EMAILS(쉼표 구분)과
+    // 반드시 동일해야 합니다. Functions만 통과하고 Storage만 unauthorized면 목록 불일치를 의심하세요.
     function isAdmin() {
       return request.auth != null
         && request.auth.token.email != null

@@ -409,5 +409,7 @@
     }
 
     initNavMobileBar();
+
+    window.hanlawNavigateToPanel = showPanel;
   });
 })();

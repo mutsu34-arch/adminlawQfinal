@@ -188,7 +188,8 @@
 
     var hint = document.createElement("span");
     hint.className = "public-qa-item__hint";
-    hint.textContent = "눌러서 변호사 답변 보기";
+    hint.textContent =
+      tid.indexOf("elly_") === 0 ? "눌러서 엘리(AI) 답변 보기" : "눌러서 변호사 답변 보기";
     btn.appendChild(hint);
 
     var ansWrap = document.createElement("div");

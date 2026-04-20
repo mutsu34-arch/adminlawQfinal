@@ -279,6 +279,18 @@ function assertPayAppConfigured() {
   return { payappUserid, feedbackUrl };
 }
 
+/** 결제창 표시용: Firebase Auth 이메일 (var1은 uid 유지) */
+function buyerDisplayEmailFromAuth(request) {
+  const e = request.auth && request.auth.token && request.auth.token.email;
+  return String(e || "").trim();
+}
+
+function payAppBuyerExtras(request) {
+  const email = buyerDisplayEmailFromAuth(request);
+  if (!email) return {};
+  return { recvemail: email, buyerDisplay: email };
+}
+
 /** 질문권 1·10건 */
 const getPayAppQuestionPackCheckout = onCall({ region: REGION }, async (request) => {
   if (!request.auth || !request.auth.uid) {
@@ -295,17 +307,20 @@ const getPayAppQuestionPackCheckout = onCall({ region: REGION }, async (request)
   const goodname = pack === 10 ? "행정법Q 질문권 10건" : "행정법Q 질문권 1건";
   const price = expectedKrwForPack(pack);
 
-  return {
-    userid: payappUserid,
-    shopname,
-    goodname,
-    price,
-    feedbackUrl,
-    var1: uid,
-    var2: String(pack),
-    checkretry: "y",
-    charset: "utf-8"
-  };
+  return Object.assign(
+    {
+      userid: payappUserid,
+      shopname,
+      goodname,
+      price,
+      feedbackUrl,
+      var1: uid,
+      var2: String(pack),
+      checkretry: "y",
+      charset: "utf-8"
+    },
+    payAppBuyerExtras(request)
+  );
 });
 
 /** 엘리(AI) 질문권 10·50·100건 — hanlaw_quiz_ai_wallet */
@@ -325,17 +340,20 @@ const getPayAppEllyQuestionPackCheckout = onCall({ region: REGION }, async (requ
   const price = expectedKrwForEllyPack(pack);
   const var2 = pack === 10 ? "e10" : pack === 50 ? "e50" : "e100";
 
-  return {
-    userid: payappUserid,
-    shopname,
-    goodname,
-    price,
-    feedbackUrl,
-    var1: uid,
-    var2,
-    checkretry: "y",
-    charset: "utf-8"
-  };
+  return Object.assign(
+    {
+      userid: payappUserid,
+      shopname,
+      goodname,
+      price,
+      feedbackUrl,
+      var1: uid,
+      var2,
+      checkretry: "y",
+      charset: "utf-8"
+    },
+    payAppBuyerExtras(request)
+  );
 });
 
 /** 엘리(AI) 무제한 1개월 — 일회 결제, ellyUnlimitedUntil 1개월 연장(잔여 기간이 있으면 이어서) */
@@ -350,17 +368,20 @@ const getPayAppEllyUnlimitedPassCheckout = onCall({ region: REGION }, async (req
   const goodname = "행정법Q 엘리(AI) 무제한 1개월";
   const price = expectedKrwForEllyPassOneMonth();
 
-  return {
-    userid: payappUserid,
-    shopname,
-    goodname,
-    price,
-    feedbackUrl,
-    var1: uid,
-    var2: "sub_elly_pass_1m",
-    checkretry: "y",
-    charset: "utf-8"
-  };
+  return Object.assign(
+    {
+      userid: payappUserid,
+      shopname,
+      goodname,
+      price,
+      feedbackUrl,
+      var1: uid,
+      var2: "sub_elly_pass_1m",
+      checkretry: "y",
+      charset: "utf-8"
+    },
+    payAppBuyerExtras(request)
+  );
 });
 
 /** 구독: 월 / 연 / 2년 — hanlaw_members.paidUntil 연장 */
@@ -429,38 +450,44 @@ const getPayAppSubscriptionCheckout = onCall({ region: REGION }, async (request)
     const expireYears = parseInt(process.env.PAYAPP_REBILL_EXPIRE_YEARS || "10", 10) || 10;
     const rebillExpire = rebillExpireYmdKst(expireYears);
     const failUrl = feedbackUrl;
-    return {
-      payMode: "rebill",
-      userid: payappUserid,
-      goodname,
-      goodprice: price,
-      recvphone,
-      feedbackUrl,
-      failUrl,
-      var1: uid,
-      var2,
-      rebillCycleType: "Month",
-      rebillCycleMonth,
-      rebillExpire,
-      smsuse: "n",
-      checkretry: "y",
-      charset: "utf-8",
-      memo: "행정법Q 월 정기구독"
-    };
+    return Object.assign(
+      {
+        payMode: "rebill",
+        userid: payappUserid,
+        goodname,
+        goodprice: price,
+        recvphone,
+        feedbackUrl,
+        failUrl,
+        var1: uid,
+        var2,
+        rebillCycleType: "Month",
+        rebillCycleMonth,
+        rebillExpire,
+        smsuse: "n",
+        checkretry: "y",
+        charset: "utf-8",
+        memo: "행정법Q 월 정기구독"
+      },
+      payAppBuyerExtras(request)
+    );
   }
 
-  return {
-    payMode: "onetime",
-    userid: payappUserid,
-    shopname,
-    goodname,
-    price,
-    feedbackUrl,
-    var1: uid,
-    var2,
-    checkretry: "y",
-    charset: "utf-8"
-  };
+  return Object.assign(
+    {
+      payMode: "onetime",
+      userid: payappUserid,
+      shopname,
+      goodname,
+      price,
+      feedbackUrl,
+      var1: uid,
+      var2,
+      checkretry: "y",
+      charset: "utf-8"
+    },
+    payAppBuyerExtras(request)
+  );
 });
 
 /** PayApp 정기결제 해지 (rebillCancel) — 월 구독 등록이 있는 본인만 */
