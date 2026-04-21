@@ -4551,6 +4551,13 @@ button.feedback-tag--link:hover {
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   font-size: 0.82rem;
+  animation: guest-trial-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes guest-trial-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.52; }
+  100% { opacity: 1; }
 }
 
 .free-trial-intro,

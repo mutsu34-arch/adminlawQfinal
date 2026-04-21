@@ -68,6 +68,7 @@
     quizTimerBarTrack: document.getElementById("quiz-timer-bar-track"),
     quizTimerMeta: document.getElementById("quiz-timer-meta"),
     score: document.getElementById("quiz-score"),
+    quizGuestHintTop: document.getElementById("quiz-guest-hint-top"),
     qSource: document.getElementById("q-source"),
     qMeta: document.getElementById("q-meta"),
     qText: document.getElementById("q-text"),
@@ -1544,6 +1545,21 @@
     var total = state.list.length;
     el.progress.textContent = state.index + 1 + " / " + total;
     el.score.textContent = "정답 " + state.correct;
+    if (el.quizGuestHintTop) {
+      if (!isViewerLoggedIn()) {
+        el.quizGuestHintTop.hidden = false;
+        if (state.index < GUEST_PUBLIC_LIMIT) {
+          el.quizGuestHintTop.textContent =
+            "[무료 체험 중] 비회원은 퀴즈 5문항까지 상세 해설을 포함해 볼 수 있습니다.";
+        } else {
+          el.quizGuestHintTop.textContent =
+            "[무료 체험 안내] 6번째 문항부터는 상세 해설이 제한됩니다. 회원가입 후 전체 이용이 가능합니다.";
+        }
+      } else {
+        el.quizGuestHintTop.hidden = true;
+        el.quizGuestHintTop.textContent = "";
+      }
+    }
     var sourceStr = formatQuizSource(q);
     if (el.qSource) {
       el.qSource.textContent = sourceStr ? "출처: " + sourceStr : "";
