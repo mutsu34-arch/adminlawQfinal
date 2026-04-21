@@ -1,5 +1,6 @@
 (function () {
   var ALL = "전체";
+  var GUEST_PUBLIC_LIMIT = 5;
 
   function getBank() {
     return window.QUESTION_BANK || [];
@@ -47,6 +48,10 @@
   function isViewerLoggedIn() {
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     return !!(u && u.email);
+  }
+
+  function isGuestFullQuizPreview() {
+    return !isViewerLoggedIn() && state && typeof state.index === "number" && state.index < GUEST_PUBLIC_LIMIT;
   }
 
   var el = {
@@ -852,7 +857,15 @@
       return;
     }
     if (!isViewerLoggedIn()) {
-      buildDetailBlocks(container, q.detail);
+      if (isGuestFullQuizPreview()) {
+        buildDetailBlocks(container, q.detail);
+      } else {
+        var lockGuest = document.createElement("p");
+        lockGuest.className = "feedback-premium-lock";
+        lockGuest.textContent =
+          "비회원은 퀴즈 상세 해설을 5문항까지 체험할 수 있습니다. 계속 보려면 회원가입 후 이용해 주세요.";
+        container.appendChild(lockGuest);
+      }
       return;
     }
     if (
@@ -876,14 +889,15 @@
   function fillExplainPanel(parts, q, opts) {
     opts = opts || {};
     var guest = !isViewerLoggedIn();
+    var guestLocked = guest && !isGuestFullQuizPreview();
     var rootFB = opts.feedbackRoot || el.feedback;
     var hintEl = opts.hintEl !== undefined ? opts.hintEl : el.feedbackGuestHint;
     var tagsSec = opts.tagsSection !== undefined ? opts.tagsSection : el.feedbackTagsSection;
-    if (rootFB) rootFB.classList.toggle("feedback--guest-lock", guest);
-    if (hintEl) hintEl.hidden = !guest;
+    if (rootFB) rootFB.classList.toggle("feedback--guest-lock", guestLocked);
+    if (hintEl) hintEl.hidden = !guestLocked;
 
     if (parts.answerKey) {
-      if (guest) {
+      if (guestLocked) {
         parts.answerKey.textContent = "";
         parts.answerKey.hidden = true;
       } else {
@@ -891,9 +905,9 @@
         parts.answerKey.hidden = false;
       }
     }
-    if (parts.importanceLine) parts.importanceLine.hidden = guest;
-    if (parts.difficultyLine) parts.difficultyLine.hidden = guest;
-    if (!guest) {
+    if (parts.importanceLine) parts.importanceLine.hidden = guestLocked;
+    if (parts.difficultyLine) parts.difficultyLine.hidden = guestLocked;
+    if (!guestLocked) {
       setImportanceLine(parts.importanceLine, q);
       setDifficultyLine(parts.difficultyLine, q);
     } else {
@@ -913,7 +927,7 @@
     populateDetailContainer(parts.detail, q);
     if (parts.tags) {
       parts.tags.innerHTML = "";
-      if (guest) {
+      if (guestLocked) {
         if (tagsSec) tagsSec.hidden = true;
       } else {
         if (tagsSec) tagsSec.hidden = false;
@@ -937,9 +951,11 @@
     if (guest) {
       el.quizMemoSection.classList.add("quiz-memo--need-login");
       setQuizMemoPanelOpen(false);
-      el.quizMemoPanelToggle.disabled = false;
-      el.quizMemoPanelToggle.removeAttribute("title");
+      el.quizMemoPanelToggle.disabled = true;
+      el.quizMemoPanelToggle.setAttribute("title", "메모는 로그인 후 이용할 수 있습니다.");
       el.quizMemoPanelToggle.removeAttribute("aria-label");
+      if (el.quizMemoText) el.quizMemoText.disabled = true;
+      if (el.quizMemoSave) el.quizMemoSave.disabled = true;
     } else {
       el.quizMemoSection.classList.remove("quiz-memo--need-login");
       el.quizMemoPanelToggle.disabled = false;

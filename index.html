@@ -29,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=20260419-pricing-anchor" />
+  <link rel="stylesheet" href="css/style.css?v=20260421-legal-footer" />
 </head>
 <body>
   <div class="app">
@@ -647,6 +647,72 @@
             </main>
           </div>
 
+          <div id="panel-freequiz" class="panel" hidden>
+            <main class="main main--panel">
+              <section class="card free-trial-intro">
+                <h2 class="card__title">무료 체험</h2>
+                <p class="pricing-lead">
+                  실제 서비스 UI 그대로 5개씩 체험할 수 있습니다. 6번째부터는 잠금 처리되어 요금제 안내로 이어집니다.
+                </p>
+                <div class="free-trial-subtabs" role="tablist" aria-label="무료 체험 콘텐츠 탭">
+                  <button type="button" class="btn btn--small free-trial-subtabs__btn free-trial-subtabs__btn--active" data-free-tab="quiz" aria-selected="true">퀴즈 체험</button>
+                  <button type="button" class="btn btn--small btn--outline free-trial-subtabs__btn" data-free-tab="term" aria-selected="false">용어사전 체험</button>
+                  <button type="button" class="btn btn--small btn--outline free-trial-subtabs__btn" data-free-tab="statute" aria-selected="false">조문사전 체험</button>
+                  <button type="button" class="btn btn--small btn--outline free-trial-subtabs__btn" data-free-tab="case" aria-selected="false">판례사전 체험</button>
+                </div>
+                <p id="free-trial-mock-guide" class="free-trial-mock-guide" hidden></p>
+              </section>
+
+              <section class="free-trial-pane" data-free-pane="quiz" aria-label="퀴즈 무료 체험">
+                <div id="free-trial-quiz-list" class="free-trial-quiz-list"></div>
+                <article class="card free-trial-locked">
+                  <h3 class="free-trial-item__title">6번째 문항부터는 회원 전용</h3>
+                  <p class="pricing-lead">상세 해설, 노트, 찜, 질문 기능은 가입 후 전체 이용 가능합니다.</p>
+                  <div class="modal__actions">
+                    <button type="button" class="btn btn--outline" data-panel-link="quiz">퀴즈로 이동</button>
+                    <button type="button" class="btn btn--primary" data-panel-link="pricing">요금제 보기</button>
+                  </div>
+                </article>
+              </section>
+
+              <section class="free-trial-pane" data-free-pane="term" hidden aria-label="용어사전 무료 체험">
+                <div id="free-trial-term-results"></div>
+                <article class="card free-trial-locked">
+                  <h3 class="free-trial-item__title">6번째 용어부터는 회원 전용</h3>
+                  <p class="pricing-lead">전체 용어사전, 찜, 연관 판례 탐색은 회원 전용입니다.</p>
+                  <div class="modal__actions">
+                    <button type="button" class="btn btn--outline" data-panel-link="dict">용어사전으로 이동</button>
+                    <button type="button" class="btn btn--primary" data-panel-link="pricing">요금제 보기</button>
+                  </div>
+                </article>
+              </section>
+
+              <section class="free-trial-pane" data-free-pane="statute" hidden aria-label="조문사전 무료 체험">
+                <div id="free-trial-statute-results"></div>
+                <article class="card free-trial-locked">
+                  <h3 class="free-trial-item__title">6번째 조문부터는 회원 전용</h3>
+                  <p class="pricing-lead">조문 OX와 전체 조문 탐색은 회원 전용입니다.</p>
+                  <div class="modal__actions">
+                    <button type="button" class="btn btn--outline" data-panel-link="statutes">조문사전으로 이동</button>
+                    <button type="button" class="btn btn--primary" data-panel-link="pricing">요금제 보기</button>
+                  </div>
+                </article>
+              </section>
+
+              <section class="free-trial-pane" data-free-pane="case" hidden aria-label="판례사전 무료 체험">
+                <div id="free-trial-case-results"></div>
+                <article class="card free-trial-locked">
+                  <h3 class="free-trial-item__title">6번째 판례부터는 회원 전용</h3>
+                  <p class="pricing-lead">판례 전문/쟁점 정리와 찜 기능은 회원 전용입니다.</p>
+                  <div class="modal__actions">
+                    <button type="button" class="btn btn--outline" data-panel-link="cases">판례사전으로 이동</button>
+                    <button type="button" class="btn btn--primary" data-panel-link="pricing">요금제 보기</button>
+                  </div>
+                </article>
+              </section>
+            </main>
+          </div>
+
           <div id="panel-qa" class="panel" hidden>
             <div class="card card--qa">
               <h2 class="card__title">Q&amp;A</h2>
@@ -674,7 +740,7 @@
               </div>
               <p id="public-qa-search-status" class="public-qa-search-status" hidden aria-live="polite"></p>
               <p id="public-qa-login-hint" class="public-qa-login-hint" hidden>
-                공개된 질문 목록은 누구나 볼 수 있습니다. 변호사·엘리(AI) 답변을 열람하려면 로그인해 주세요.
+                비회원은 최신 공개 Q&A 5건까지 열람할 수 있습니다. 더 많은 Q&A와 검색은 로그인 후 이용해 주세요.
               </p>
               <div id="public-qa-list" class="public-qa-list" aria-live="polite"></div>
               <p id="public-qa-empty" class="public-qa-empty" hidden>아직 공개된 질문이 없습니다.</p>
@@ -1481,6 +1547,9 @@
                 </div>
               </article>
             </div>
+            <p class="pricing-refund-note">
+              디지털 콘텐츠 특성상 해설 열람 시 환불이 불가합니다.
+            </p>
 
             <div id="pricing-question-packs" class="pricing-question-packs">
               <div id="pricing-lawyer-question-packs" class="card card--pricing-intro">
@@ -1561,18 +1630,6 @@
               </div>
             </div>
 
-            <div class="card card--pricing-support">
-              <h3 class="pricing-subtitle pricing-subtitle--tight">구독 해지·환불</h3>
-              <p class="pricing-lead">
-                <strong>PayApp</strong> 원화 결제는 페이앱·판매자 정책에 따라 해지·환불이 처리됩니다. 아래에서 안내를 확인하거나 문의해 주세요.
-              </p>
-              <div class="pricing-support-actions">
-                <button type="button" class="btn btn--secondary" id="btn-payapp-docs">페이앱 결제 안내</button>
-                <button type="button" class="btn btn--outline" id="btn-payapp-refund-contact">
-                  환불·결제 문의
-                </button>
-              </div>
-            </div>
           </div>
 
           <div id="panel-dashboard" class="panel" hidden>
@@ -2451,6 +2508,17 @@
     </div>
   </div>
 
+  <div class="footer">
+    <p>상호 엘루션(ELLUTION) | 대표 정대영 | 사업자등록번호 588-07-03369</p>
+    <p>통신판매업신고 신고 예정 | 주소 서울특별시 서초구 서초중앙로 49, 609호(서초동, 동양라디안루키)</p>
+    <p>고객문의 ellutionsoft@gmail.com | 전화 010-3932-1358</p>
+    <p>
+      <a href="legal/service-terms.html" target="_blank" rel="noopener noreferrer">이용약관</a>
+      |
+      <a href="legal/privacy-policy.html" target="_blank" rel="noopener noreferrer">개인정보처리방침</a>
+    </p>
+  </div>
+
   <div
     id="quiz-ai-limit-modal"
     class="modal"
@@ -2729,7 +2797,7 @@
   <script src="js/statute-articles-static.js"></script>
   <script src="js/case-ox-form.js?v=3"></script>
   <script src="js/dict-favorites.js?v=1"></script>
-  <script src="js/dict-panels.js?v=37"></script>
+  <script src="js/dict-panels.js?v=38"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -2741,7 +2809,8 @@
   <script src="js/ai-config.js"></script>
   <script src="js/tickets-service.js?v=14"></script>
   <script src="js/payapp-config.js?v=6"></script>
-  <script src="js/payapp-checkout.js?v=6"></script>
+  <script src="js/portone-config.js?v=1"></script>
+  <script src="js/portone-checkout.js?v=1"></script>
   <script src="js/auth.js?v=5"></script>
   <script src="js/user-profile.js?v=20260419"></script>
   <script src="js/dict-remote.js?v=3"></script>
@@ -2765,8 +2834,9 @@
   <script src="js/questions.js"></script>
   <script src="js/dashboard-tickets.js?v=11"></script>
   <script src="js/learning-stats.js?v=3"></script>
-  <script src="js/nav-layout.js?v=7"></script>
-  <script src="js/public-qa.js?v=9"></script>
+  <script src="js/nav-layout.js?v=10"></script>
+  <script src="js/free-trial-ui.js?v=2"></script>
+  <script src="js/public-qa.js?v=10"></script>
   <script src="js/quiz-note-panel.js?v=9"></script>
   <script src="js/dict-favorites-ui.js?v=2"></script>
   <script src="js/quiz-question-memo.js?v=2"></script>
@@ -2774,10 +2844,10 @@
   <script src="js/quiz-wrong-note.js?v=5"></script>
   <script src="js/quiz-master.js?v=2"></script>
   <script src="js/quiz-favorites.js?v=6"></script>
-  <script src="js/app.js?v=38"></script>
+  <script src="js/app.js?v=40"></script>
   <script src="js/scope-favorites.js?v=8"></script>
   <script src="js/ticket-modal.js?v=12"></script>
-  <script src="js/dict-panel-actions.js?v=8"></script>
+  <script src="js/dict-panel-actions.js?v=9"></script>
   <script src="js/quiz-note-card-actions.js?v=6"></script>
   <script src="js/notifications-ui.js?v=4"></script>
   <script src="js/admin-panel.js?v=2"></script>

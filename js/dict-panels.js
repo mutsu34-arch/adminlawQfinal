@@ -245,9 +245,11 @@
       return;
     }
 
+    var guest = isGuestViewer();
+    var cap = guest ? Math.min(items.length, dictGuestLimit()) : items.length;
     var list = document.createElement("div");
     list.className = "dict-term-index__list";
-    for (var i = 0; i < items.length; i++) {
+    for (var i = 0; i < cap; i++) {
       var s = items[i];
       var btn = document.createElement("button");
       btn.type = "button";
@@ -257,6 +259,12 @@
       list.appendChild(btn);
     }
     wrap.appendChild(list);
+    if (guest && items.length > cap) {
+      var lock = document.createElement("p");
+      lock.className = "dict-empty";
+      lock.textContent = "비회원은 조문사전을 5개까지 열람할 수 있습니다. 전체 열람은 회원가입 후 이용해 주세요.";
+      wrap.appendChild(lock);
+    }
     container.appendChild(wrap);
   }
 
@@ -271,7 +279,9 @@
       container.appendChild(p);
       return;
     }
-    for (var i = 0; i < items.length; i++) {
+    var guest = isGuestViewer();
+    var cap = guest ? Math.min(items.length, dictGuestLimit()) : items.length;
+    for (var i = 0; i < cap; i++) {
       var s = items[i];
       var article = document.createElement("article");
       article.className = "dict-result-card dict-result-card--statute";
@@ -331,6 +341,7 @@
       if (!opts.skipNavBack) appendDictNavBack(article, "statute");
       container.appendChild(article);
     }
+    if (guest && items.length > cap) appendDictGuestLockNotice(container, "statute");
   }
 
   function runStatuteSearch() {
@@ -434,9 +445,11 @@
       return;
     }
 
+    var guest = isGuestViewer();
+    var cap = guest ? Math.min(terms.length, dictGuestLimit()) : terms.length;
     var list = document.createElement("div");
     list.className = "dict-term-index__list";
-    for (var i = 0; i < terms.length; i++) {
+    for (var i = 0; i < cap; i++) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn btn--small btn--outline dict-term-index__item";
@@ -445,6 +458,12 @@
       list.appendChild(btn);
     }
     wrap.appendChild(list);
+    if (guest && terms.length > cap) {
+      var lock = document.createElement("p");
+      lock.className = "dict-empty";
+      lock.textContent = "비회원은 용어사전을 5개까지 열람할 수 있습니다. 전체 열람은 회원가입 후 이용해 주세요.";
+      wrap.appendChild(lock);
+    }
     container.appendChild(wrap);
   }
 
@@ -468,7 +487,9 @@
 
     var list = document.createElement("div");
     list.className = "dict-term-index__list";
-    for (var i = 0; i < cases.length; i++) {
+    var guest = isGuestViewer();
+    var cap = guest ? Math.min(cases.length, dictGuestLimit()) : cases.length;
+    for (var i = 0; i < cap; i++) {
       var c = cases[i];
       var btn = document.createElement("button");
       btn.type = "button";
@@ -479,6 +500,12 @@
       list.appendChild(btn);
     }
     wrap.appendChild(list);
+    if (guest && cases.length > cap) {
+      var lock = document.createElement("p");
+      lock.className = "dict-empty";
+      lock.textContent = "비회원은 판례사전을 5개까지 열람할 수 있습니다. 전체 열람은 회원가입 후 이용해 주세요.";
+      wrap.appendChild(lock);
+    }
     container.appendChild(wrap);
   }
 
@@ -562,6 +589,25 @@
     try {
       window.dispatchEvent(new CustomEvent("dict-panel-results-updated", { detail: { kind: kind } }));
     } catch (e) {}
+  }
+
+  function isGuestViewer() {
+    var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    return !(u && u.email);
+  }
+
+  function dictGuestLimit() {
+    return 5;
+  }
+
+  function appendDictGuestLockNotice(container, kind) {
+    if (!container) return;
+    var p = document.createElement("p");
+    p.className = "dict-empty";
+    var label = kind === "term" ? "용어사전" : kind === "statute" ? "조문사전" : "판례사전";
+    p.textContent =
+      "비회원은 " + label + " 콘텐츠를 5개까지 열람할 수 있습니다. 전체 열람은 회원가입 후 이용해 주세요.";
+    container.appendChild(p);
   }
 
   function isAdminUser() {
@@ -1434,7 +1480,9 @@
       container.appendChild(p);
       return;
     }
-    for (var i = 0; i < items.length; i++) {
+    var guest = isGuestViewer();
+    var cap = guest ? Math.min(items.length, dictGuestLimit()) : items.length;
+    for (var i = 0; i < cap; i++) {
       var t = items[i];
       var article = document.createElement("article");
       article.className = "dict-result-card";
@@ -1481,6 +1529,7 @@
       if (!opts.skipNavBack) appendDictNavBack(article, "term");
       container.appendChild(article);
     }
+    if (guest && items.length > cap) appendDictGuestLockNotice(container, "term");
   }
 
   /** 판례 카드: 관리자 입력 판결문 전문 토글 */
@@ -1709,7 +1758,9 @@
       container.appendChild(p);
       return;
     }
-    for (var i = 0; i < items.length; i++) {
+    var guest = isGuestViewer();
+    var cap = guest ? Math.min(items.length, dictGuestLimit()) : items.length;
+    for (var i = 0; i < cap; i++) {
       var c = items[i];
       var article = document.createElement("article");
       article.className = "case-result-card";
@@ -1789,6 +1840,7 @@
       if (!opts.skipNavBack) appendDictNavBack(article, backKind);
       container.appendChild(article);
     }
+    if (guest && items.length > cap) appendDictGuestLockNotice(container, "case");
   }
 
   function hideDictTermLoading() {

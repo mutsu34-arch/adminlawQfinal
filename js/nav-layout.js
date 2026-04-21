@@ -143,11 +143,33 @@
         return;
       }
     }
-    if (!isNavViewerLoggedIn() && panel && panel !== "quiz" && panel !== "pricing") {
+    if (
+      !isNavViewerLoggedIn() &&
+      panel &&
+      panel !== "quiz" &&
+      panel !== "pricing" &&
+      panel !== "qa" &&
+      panel !== "dict" &&
+      panel !== "statutes" &&
+      panel !== "cases"
+    ) {
       window.alert("로그인 후 이용할 수 있습니다.");
       return;
     }
     if (panel) showPanel(panel);
+  }
+
+  function onPanelLinkClick(e) {
+    var btn = e.target && e.target.closest ? e.target.closest("[data-panel-link]") : null;
+    if (!btn) return;
+    var panel = String(btn.getAttribute("data-panel-link") || "").trim();
+    if (!panel) return;
+    var navBtn = document.querySelector('.nav-main__btn[data-panel="' + panel + '"]');
+    if (navBtn && !navBtn.hidden) {
+      navBtn.click();
+    } else {
+      showPanel(panel);
+    }
   }
 
   function scopeAllExams() {
@@ -358,6 +380,7 @@
 
     var nav = $("nav-main");
     if (nav) nav.addEventListener("click", onNavClick);
+    document.body.addEventListener("click", onPanelLinkClick);
 
     renderExamList();
     syncSidebarHighlight();

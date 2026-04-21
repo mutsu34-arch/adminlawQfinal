@@ -677,6 +677,21 @@
     });
   }
 
+  function syncGuestMemoUi() {
+    var guest = !isViewerLoggedIn();
+    ["term", "statute", "case"].forEach(function (k) {
+      var pre = "dict-" + k + "-memo";
+      var t = $(pre + "-toggle");
+      var s = $(pre + "-save");
+      if (t) {
+        t.disabled = guest;
+        if (guest) t.setAttribute("title", "메모는 로그인 후 이용할 수 있습니다.");
+        else t.removeAttribute("title");
+      }
+      if (s) s.disabled = guest;
+    });
+  }
+
   window.addEventListener("dict-panel-results-updated", function (e) {
     var k = e && e.detail && e.detail.kind;
     if (k) syncDictionaryPanelContexts(k);
@@ -686,6 +701,7 @@
     ["term", "statute", "case"].forEach(function (k) {
       syncDictionaryPanelContexts(k);
     });
+    syncGuestMemoUi();
   });
 
   function initDictPanelActions() {
@@ -697,6 +713,7 @@
     syncDictionaryPanelContexts("term");
     syncDictionaryPanelContexts("statute");
     syncDictionaryPanelContexts("case");
+    syncGuestMemoUi();
   }
 
   if (document.readyState === "loading") {

@@ -99,6 +99,16 @@ function sanitizeAnswerForPublic(answer, ticket, viewerUid, askerUid) {
   return out;
 }
 
+function resolveViewerId(request) {
+  if (request && request.auth && request.auth.uid) return String(request.auth.uid);
+  const raw = String((request && request.data && request.data.viewerKey) || "").trim();
+  const normalized = raw.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
+  if (!normalized) {
+    throw new HttpsError("unauthenticated", "viewerKey가 필요합니다.");
+  }
+  return "guest_" + normalized;
+}
+
 /**
  * 질문 티켓 승인 후 공개 Q&A 목록(hanlaw_qa_public)에 반영. Admin SDK 쓰기로 Firestore 클라이언트 규칙에 의존하지 않음.
  */
@@ -351,10 +361,7 @@ async function revealEllyQaAnswerInternal(request, viewerUid, ticketId) {
 }
 
 exports.revealLawyerQaAnswer = onCall({ region: REGION }, async (request) => {
-  if (!request.auth || !request.auth.uid) {
-    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  }
-  const viewerUid = request.auth.uid;
+  const viewerUid = resolveViewerId(request);
   const ticketId = String((request.data && request.data.ticketId) || "").trim();
   if (!ticketId) {
     throw new HttpsError("invalid-argument", "ticketId가 필요합니다.");

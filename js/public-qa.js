@@ -15,6 +15,18 @@
     return !!(u && u.email);
   }
 
+  function publicViewerKey() {
+    try {
+      var k = localStorage.getItem("hanlaw_public_viewer_key");
+      if (k) return String(k);
+      var nk = "guest_" + Math.random().toString(36).slice(2, 12);
+      localStorage.setItem("hanlaw_public_viewer_key", nk);
+      return nk;
+    } catch (e) {
+      return "guest_fallback";
+    }
+  }
+
   function isAdminViewer() {
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     if (!u || !u.email) return false;
@@ -224,16 +236,6 @@
         ansWrap.hidden = false;
         return;
       }
-      if (!isLoggedIn()) {
-        ansBody.innerHTML = "";
-        var needLogin = document.createElement("p");
-        needLogin.textContent = "로그인 후 답변을 확인할 수 있습니다.";
-        ansBody.appendChild(needLogin);
-        statusLine.hidden = true;
-        btn.setAttribute("aria-expanded", "true");
-        ansWrap.hidden = false;
-        return;
-      }
       if (typeof firebase === "undefined" || !firebase.functions) {
         ansBody.innerHTML = "";
         var noFn = document.createElement("p");
@@ -258,7 +260,7 @@
       firebase
         .app()
         .functions(region)
-        .httpsCallable("revealLawyerQaAnswer")({ ticketId: tid })
+        .httpsCallable("revealLawyerQaAnswer")({ ticketId: tid, viewerKey: publicViewerKey() })
         .then(function (res) {
           var r = res && res.data ? res.data : {};
           loading = false;
@@ -378,11 +380,7 @@
     listEl.innerHTML = "";
     renderEmpty(false);
 
-    if (!isLoggedIn()) {
-      setLoginHint(true);
-    } else {
-      setLoginHint(false);
-    }
+    setLoginHint(!isLoggedIn());
 
     var d = getDb();
     if (!d) {
@@ -390,11 +388,12 @@
       return;
     }
 
+    var cap = isLoggedIn() ? 100 : 5;
     unsub = d
       .collection(COLL)
       .where("communityVisible", "==", true)
       .orderBy("publishedAt", "desc")
-      .limit(100)
+      .limit(cap)
       .onSnapshot(
         function (snap) {
           listEl.innerHTML = "";
