@@ -99,12 +99,19 @@
     if (empty) empty.hidden = !on;
   }
 
-  function setLoginHint(on) {
+  function setLoginHint(on, shownCount) {
     var h = document.getElementById("public-qa-login-hint");
     if (!h) return;
     if (on) {
+      var limit = 5;
+      var shown = Math.max(0, parseInt(shownCount, 10) || 0);
+      var remaining = Math.max(0, limit - shown);
       h.textContent =
-        "[무료 체험 중] 비회원은 공개 Q&A를 최대 5개까지 열람할 수 있습니다. 현재 최신 5개만 표시됩니다. 더 많은 Q&A와 검색은 로그인 후 이용해 주세요.";
+        "[무료 체험 중] 비회원은 공개 Q&A를 최대 " +
+        limit +
+        "개까지 열람할 수 있습니다. 현재 " +
+        remaining +
+        "회 남았습니다. 더 많은 Q&A와 검색은 로그인 후 이용해 주세요.";
     } else {
       h.textContent = "";
     }
@@ -387,7 +394,7 @@
     listEl.innerHTML = "";
     renderEmpty(false);
 
-    setLoginHint(!isLoggedIn());
+    setLoginHint(!isLoggedIn(), 0);
 
     var d = getDb();
     if (!d) {
@@ -404,6 +411,7 @@
       .onSnapshot(
         function (snap) {
           listEl.innerHTML = "";
+          setLoginHint(!isLoggedIn(), snap.docs.length);
           if (!snap.docs.length) {
             renderEmpty(true);
             return;

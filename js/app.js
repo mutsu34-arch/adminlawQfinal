@@ -1543,11 +1543,14 @@
       if (!isViewerLoggedIn()) {
         el.quizGuestHintTop.hidden = false;
         if (state.index < GUEST_PUBLIC_LIMIT) {
+          var remaining = Math.max(0, GUEST_PUBLIC_LIMIT - (state.index + 1));
           el.quizGuestHintTop.textContent =
-            "[무료 체험 중] 비회원은 퀴즈 5문항까지 상세 해설을 포함해 볼 수 있습니다.";
+            "[무료 체험 중] 비회원은 퀴즈 5문항까지 상세 해설을 포함해 볼 수 있습니다. 현재 " +
+            remaining +
+            "회 남았습니다.";
         } else {
           el.quizGuestHintTop.textContent =
-            "[무료 체험 안내] 6번째 문항부터는 상세 해설이 제한됩니다. 회원가입 후 전체 이용이 가능합니다.";
+            "[무료 체험 안내] 무료 체험 5회를 모두 사용했습니다. 6번째 문항부터는 상세 해설이 제한됩니다. 회원가입 후 전체 이용이 가능합니다.";
         }
       } else {
         el.quizGuestHintTop.hidden = true;

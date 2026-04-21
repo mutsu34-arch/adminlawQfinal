@@ -614,15 +614,29 @@
       return;
     }
     var label = kind === "term" ? "용어사전" : kind === "statute" ? "조문사전" : "판례사전";
+    var limit = dictGuestLimit();
     var shown = Math.max(0, parseInt(shownCount, 10) || 0);
     var total = Math.max(shown, parseInt(totalCount, 10) || shown);
+    var remaining = Math.max(0, limit - shown);
     el.hidden = false;
-    if (total > dictGuestLimit()) {
+    if (total > limit) {
       el.textContent =
-        "[무료 체험 중] 비회원은 " + label + "을 최대 5개까지 볼 수 있습니다. 현재 " + shown + "개만 표시됩니다.";
+        "[무료 체험 중] 비회원은 " +
+        label +
+        "을 최대 " +
+        limit +
+        "개까지 볼 수 있습니다. 현재 " +
+        remaining +
+        "회 남았습니다.";
     } else {
       el.textContent =
-        "[무료 체험 중] 비회원은 " + label + "을 최대 5개까지 볼 수 있습니다. 현재 " + shown + "개 공개 중입니다.";
+        "[무료 체험 중] 비회원은 " +
+        label +
+        "을 최대 " +
+        limit +
+        "개까지 볼 수 있습니다. 현재 " +
+        remaining +
+        "회 남았습니다.";
     }
   }
 
