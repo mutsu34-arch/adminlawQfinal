@@ -4544,6 +4544,15 @@ button.feedback-tag--link:hover {
   color: var(--muted);
 }
 
+.dict-guest-hint {
+  margin: 0.4rem 0 0.7rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  font-size: 0.82rem;
+}
+
 .free-trial-intro,
 .free-trial-locked,
 .free-trial-refs {

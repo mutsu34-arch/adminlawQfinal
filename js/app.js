@@ -894,7 +894,19 @@
     var hintEl = opts.hintEl !== undefined ? opts.hintEl : el.feedbackGuestHint;
     var tagsSec = opts.tagsSection !== undefined ? opts.tagsSection : el.feedbackTagsSection;
     if (rootFB) rootFB.classList.toggle("feedback--guest-lock", guestLocked);
-    if (hintEl) hintEl.hidden = !guestLocked;
+    if (hintEl) {
+      if (!guest) {
+        hintEl.hidden = true;
+      } else if (isGuestFullQuizPreview()) {
+        hintEl.hidden = false;
+        hintEl.textContent =
+          "무료 체험 중입니다. 비회원은 퀴즈 5문항까지 상세 해설을 볼 수 있습니다.";
+      } else {
+        hintEl.hidden = false;
+        hintEl.textContent =
+          "무료 체험은 5문항까지입니다. 6번째부터는 회원가입 후 상세 해설을 볼 수 있습니다.";
+      }
+    }
 
     if (parts.answerKey) {
       if (guestLocked) {

@@ -350,11 +350,15 @@
     if (!input || !out) return;
     var q = String(input.value || "").trim();
     if (!q) {
-      renderStatuteArticleIndex(out, browseStatutesSorted());
+      var list0 = browseStatutesSorted();
+      renderStatuteArticleIndex(out, list0);
+      setDictGuestHint("statute", Math.min(list0.length, dictGuestLimit()), list0.length);
       emitDictResultsUpdated("statute");
       return;
     }
-    renderStatuteResults(out, searchStatutes(q));
+    var list = searchStatutes(q);
+    renderStatuteResults(out, list);
+    setDictGuestHint("statute", Math.min(list.length, dictGuestLimit()), list.length);
     emitDictResultsUpdated("statute");
   }
 
@@ -598,6 +602,28 @@
 
   function dictGuestLimit() {
     return 5;
+  }
+
+  function setDictGuestHint(kind, shownCount, totalCount) {
+    var id = kind === "term" ? "dict-term-guest-hint" : kind === "statute" ? "dict-statute-guest-hint" : "dict-case-guest-hint";
+    var el = $(id);
+    if (!el) return;
+    if (!isGuestViewer()) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    var label = kind === "term" ? "용어사전" : kind === "statute" ? "조문사전" : "판례사전";
+    var shown = Math.max(0, parseInt(shownCount, 10) || 0);
+    var total = Math.max(shown, parseInt(totalCount, 10) || shown);
+    el.hidden = false;
+    if (total > dictGuestLimit()) {
+      el.textContent =
+        "[무료 체험 중] 비회원은 " + label + "을 최대 5개까지 볼 수 있습니다. 현재 " + shown + "개만 표시됩니다.";
+    } else {
+      el.textContent =
+        "[무료 체험 중] 비회원은 " + label + "을 최대 5개까지 볼 수 있습니다. 현재 " + shown + "개 공개 중입니다.";
+    }
   }
 
   function appendDictGuestLockNotice(container, kind) {
@@ -1873,13 +1899,16 @@
     var local = searchTerms(input.value);
     if (local.length) {
       renderTermResults(out, local);
+      setDictGuestHint("term", Math.min(local.length, dictGuestLimit()), local.length);
       emitDictResultsUpdated("term");
       return;
     }
 
     out.innerHTML = "";
     if (!q) {
-      renderGeneratedTermIndex(out, generatedTermsSorted());
+      var terms0 = generatedTermsSorted();
+      renderGeneratedTermIndex(out, terms0);
+      setDictGuestHint("term", Math.min(terms0.length, dictGuestLimit()), terms0.length);
       emitDictResultsUpdated("term");
       return;
     }
@@ -1890,6 +1919,7 @@
       pGuest.textContent =
         "일치하는 용어가 없습니다. 로그인하면 AI로 행정법 해설을 생성해 볼 수 있습니다(Google Gemini).";
       out.appendChild(pGuest);
+      setDictGuestHint("term", 0, 0);
       emitDictResultsUpdated("term");
       return;
     }
@@ -1900,6 +1930,7 @@
       pFb.textContent =
         "Firebase를 사용할 수 없습니다. 네트워크와 설정을 확인한 뒤 새로고침하세요.";
       out.appendChild(pFb);
+      setDictGuestHint("term", 0, 0);
       emitDictResultsUpdated("term");
       return;
     }
@@ -1913,11 +1944,13 @@
         var d = res && res.data;
         if (!d || !d.ok || !d.record) {
           renderTermResults(out, []);
+          setDictGuestHint("term", 0, 0);
           emitDictResultsUpdated("term");
           return;
         }
         if (d.kind === "case") {
           renderCaseResults(out, [d.record], "term");
+          setDictGuestHint("term", 1, 1);
           emitDictResultsUpdated("term");
           return;
         }
@@ -1926,6 +1959,7 @@
           rec._displaySource = d.source;
         }
         renderTermResults(out, [rec]);
+        setDictGuestHint("term", 1, 1);
         emitDictResultsUpdated("term");
       })
       .catch(function (e) {
@@ -1942,6 +1976,7 @@
         }
         pe.textContent = msg;
         out.appendChild(pe);
+        setDictGuestHint("term", 0, 0);
         emitDictResultsUpdated("term");
       });
   }
@@ -1952,11 +1987,15 @@
     if (!input || !out) return;
     var q = String(input.value || "").trim();
     if (!q) {
-      renderGeneratedCaseIndex(out, browseCasesSorted());
+      var list0 = browseCasesSorted();
+      renderGeneratedCaseIndex(out, list0);
+      setDictGuestHint("case", Math.min(list0.length, dictGuestLimit()), list0.length);
       emitDictResultsUpdated("case");
       return;
     }
-    renderCaseResults(out, searchCases(input.value));
+    var list = searchCases(input.value);
+    renderCaseResults(out, list);
+    setDictGuestHint("case", Math.min(list.length, dictGuestLimit()), list.length);
     emitDictResultsUpdated("case");
   }
 
