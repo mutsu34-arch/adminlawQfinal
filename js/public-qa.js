@@ -101,7 +101,14 @@
 
   function setLoginHint(on) {
     var h = document.getElementById("public-qa-login-hint");
-    if (h) h.hidden = !on;
+    if (!h) return;
+    if (on) {
+      h.textContent =
+        "[무료 체험 중] 비회원은 공개 Q&A를 최대 5개까지 열람할 수 있습니다. 현재 최신 5개만 표시됩니다. 더 많은 Q&A와 검색은 로그인 후 이용해 주세요.";
+    } else {
+      h.textContent = "";
+    }
+    h.hidden = !on;
   }
 
   function setSearchStatus(text, show) {
