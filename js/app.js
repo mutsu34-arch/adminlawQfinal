@@ -62,6 +62,9 @@
     filterTopicSearch: document.getElementById("filter-topic-search"),
     questionCount: document.getElementById("question-count"),
     btnStart: document.getElementById("btn-start"),
+    btnStartFull: document.getElementById("btn-start-full"),
+    btnOpenSetup: document.getElementById("btn-open-setup"),
+    setupConfigWrap: document.getElementById("setup-config-wrap"),
     progress: document.getElementById("quiz-progress"),
     quizTimerPanel: document.getElementById("quiz-timer-panel"),
     quizTimerArcadeFill: document.getElementById("quiz-timer-arcade-fill"),
@@ -896,17 +899,8 @@
     var tagsSec = opts.tagsSection !== undefined ? opts.tagsSection : el.feedbackTagsSection;
     if (rootFB) rootFB.classList.toggle("feedback--guest-lock", guestLocked);
     if (hintEl) {
-      if (!guest) {
-        hintEl.hidden = true;
-      } else if (isGuestFullQuizPreview()) {
-        hintEl.hidden = false;
-        hintEl.textContent =
-          "무료 체험 중입니다. 비회원은 퀴즈 5문항까지 상세 해설을 볼 수 있습니다.";
-      } else {
-        hintEl.hidden = false;
-        hintEl.textContent =
-          "무료 체험은 5문항까지입니다. 6번째부터는 회원가입 후 상세 해설을 볼 수 있습니다.";
-      }
+      hintEl.hidden = true;
+      hintEl.textContent = "";
     }
 
     if (parts.answerKey) {
@@ -1725,6 +1719,41 @@
     renderQuestion();
   }
 
+  function openSetupConfig() {
+    if (!el.setupConfigWrap) return;
+    el.setupConfigWrap.hidden = false;
+    if (el.btnOpenSetup) el.btnOpenSetup.hidden = true;
+  }
+
+  function startQuizFullScope() {
+    try {
+      if (typeof window.applyStudyScopeFromObject === "function") {
+        var allExamIds = (window.EXAM_CATALOG || []).map(function (x) { return x.id; });
+        var allYearsSet = {};
+        (window.EXAM_CATALOG || []).forEach(function (ex) {
+          (ex.years || []).forEach(function (y) { allYearsSet[y] = true; });
+        });
+        var allYears = Object.keys(allYearsSet).map(Number).sort(function (a, b) { return b - a; });
+        window.applyStudyScopeFromObject({ examIds: allExamIds, years: allYears });
+      }
+    } catch (e) {}
+    if (el.filterTopic) el.filterTopic.value = ALL;
+    if (el.filterTopicSearch) el.filterTopicSearch.value = "";
+    if (el.questionCount) el.questionCount.value = "0";
+    var pAll = document.querySelector('input[name="opt-part"][value="all"]');
+    if (pAll) pAll.checked = true;
+    var ordRandom = document.querySelector('input[name="opt-order"][value="random"]');
+    if (ordRandom) ordRandom.checked = true;
+    var nw = document.getElementById("scope-note-wrong");
+    var nf = document.getElementById("scope-note-fav");
+    var nm = document.getElementById("scope-note-master");
+    if (nw) nw.checked = false;
+    if (nf) nf.checked = false;
+    if (nm) nm.checked = false;
+    openSetupConfig();
+    startQuiz();
+  }
+
   function onAnswer(userTrue) {
     clearQuizQuestionTimer();
     var q = state.list[state.index];
@@ -1828,6 +1857,8 @@
   }
 
   function goHome() {
+    if (el.setupConfigWrap) el.setupConfigWrap.hidden = true;
+    if (el.btnOpenSetup) el.btnOpenSetup.hidden = false;
     showScreen("start");
   }
 
@@ -1840,6 +1871,8 @@
   })();
 
   if (el.btnStart) el.btnStart.addEventListener("click", startQuiz);
+  if (el.btnStartFull) el.btnStartFull.addEventListener("click", startQuizFullScope);
+  if (el.btnOpenSetup) el.btnOpenSetup.addEventListener("click", openSetupConfig);
   if (el.qActions) {
     el.qActions.addEventListener("click", function (e) {
       var btn = e.target.closest(".btn--ox");

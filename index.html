@@ -29,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=20260421-guest-hint" />
+  <link rel="stylesheet" href="css/style.css?v=20260421-start-hero" />
 </head>
 <body>
   <div class="app">
@@ -189,7 +189,21 @@
             <main class="main main--panel">
               <section id="screen-start" class="screen screen--active" aria-label="시작 화면">
                 <div class="card card--setup">
-                  <h2 class="card__title">범위 설정</h2>
+                  <h2 class="card__title">행정법Q</h2>
+                  <section class="quiz-start-hero" aria-label="앱 소개">
+                    <p class="quiz-start-hero__lead">
+                      변호사가 직접 만든 행정법 학습 앱, <strong>행정법Q</strong>
+                    </p>
+                    <p class="quiz-start-hero__sub">
+                      실전형 OX, 핵심 해설, 판례·조문·용어사전을 한 번에 학습할 수 있습니다.
+                    </p>
+                    <div class="quiz-start-hero__actions">
+                      <button type="button" id="btn-start-full" class="btn btn--primary">퀴즈 풀기 (전범위)</button>
+                      <button type="button" id="btn-open-setup" class="btn btn--outline">범위 설정하고 풀기</button>
+                    </div>
+                  </section>
+
+                  <div id="setup-config-wrap" hidden>
                   <div class="scope-favorites scope-favorites--quick" aria-labelledby="scope-favorites-list-title">
                     <h3 id="scope-favorites-list-title" class="scope-favorites__title">범위 즐겨찾기</h3>
                     <p class="scope-favorites__hint scope-favorites__hint--compact">
@@ -351,6 +365,7 @@
                   </div>
 
                   <button type="button" id="btn-start" class="btn btn--primary">퀴즈 시작</button>
+                  </div>
                 </div>
               </section>
 
@@ -2848,7 +2863,7 @@
   <script src="js/quiz-wrong-note.js?v=5"></script>
   <script src="js/quiz-master.js?v=2"></script>
   <script src="js/quiz-favorites.js?v=6"></script>
-  <script src="js/app.js?v=41"></script>
+  <script src="js/app.js?v=43"></script>
   <script src="js/scope-favorites.js?v=8"></script>
   <script src="js/ticket-modal.js?v=12"></script>
   <script src="js/dict-panel-actions.js?v=9"></script>

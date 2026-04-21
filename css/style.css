@@ -4554,6 +4554,34 @@ button.feedback-tag--link:hover {
   animation: guest-trial-blink 1.4s ease-in-out infinite;
 }
 
+.quiz-start-hero {
+  margin-bottom: 0.85rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+
+.quiz-start-hero__lead {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.quiz-start-hero__sub {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
+.quiz-start-hero__actions {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 @keyframes guest-trial-blink {
   0% { opacity: 1; }
   50% { opacity: 0.52; }
