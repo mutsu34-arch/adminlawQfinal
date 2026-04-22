@@ -1490,11 +1490,8 @@
             <div id="pricing-subscription-anchor" class="card card--pricing-intro" tabindex="-1">
               <h2 class="card__title">요금제</h2>
               <p class="pricing-lead">
-                자동 결제 없이 선택한 기간만큼만 이용할 수 있습니다. 이미 유료 이용 중이면 만료일 다음부터 이어서 적용됩니다.
-                1·3·6개월 금액은 Functions <code class="pricing-code">PAYAPP_KRW_NONRENEW_1M</code> ·
-                <code class="pricing-code">PAYAPP_KRW_NONRENEW_3M</code> · <code class="pricing-code">PAYAPP_KRW_NONRENEW_6M</code>,
-                1년·2년(일회 결제)은 <code class="pricing-code">PAYAPP_KRW_SUB_YEARLY</code> · <code class="pricing-code">PAYAPP_KRW_SUB_TWO_YEAR</code> 및
-                <code class="pricing-code">js/payapp-config.js</code> 와 맞춰 주세요.
+                선택한 기간만큼 이용할 수 있으며, 이미 유료 이용 중인 경우 만료일 다음부터 이어서 적용됩니다.
+                현재 결제 서비스 전환 작업이 진행 중이며, 결제 재개 시 이 화면에서 바로 안내됩니다.
               </p>
             </div>
             <div class="pricing-grid">
@@ -1507,10 +1504,10 @@
                 <p class="pricing-card__discount-label pricing-card__discount-label--empty" aria-hidden="true">
                   <span class="pricing-card__discount-ghost">정가 ₩00,000 대비 00% 할인</span>
                 </p>
-                <p class="pricing-card__period">1개월 · PayApp</p>
+                <p class="pricing-card__period">1개월 이용권</p>
                 <p class="pricing-card__note">단기 집중 학습에 적합합니다.</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--payapp" data-payapp-sub="nonrenew1m">PayApp으로 결제</button>
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                 </div>
               </article>
               <article class="pricing-card">
@@ -1519,10 +1516,10 @@
                 <p class="pricing-card__price-was" aria-hidden="true">₩45,000</p>
                 <p class="pricing-card__price pricing-card__price--krw-main">₩42,750</p>
                 <p class="pricing-card__discount-label">정가 ₩45,000 대비 5% 할인</p>
-                <p class="pricing-card__period">3개월 · PayApp</p>
+                <p class="pricing-card__period">3개월 이용권</p>
                 <p class="pricing-card__note">중기 플랜입니다.</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--payapp" data-payapp-sub="nonrenew3m">PayApp으로 결제</button>
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                 </div>
               </article>
               <article class="pricing-card pricing-card--featured">
@@ -1531,10 +1528,10 @@
                 <p class="pricing-card__price-was" aria-hidden="true">₩90,000</p>
                 <p class="pricing-card__price pricing-card__price--krw-main">₩81,000</p>
                 <p class="pricing-card__discount-label">정가 ₩90,000 대비 10% 할인</p>
-                <p class="pricing-card__period">6개월 · PayApp</p>
+                <p class="pricing-card__period">6개월 이용권</p>
                 <p class="pricing-card__note">장기 이용에 유리합니다.</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--payapp" data-payapp-sub="nonrenew6m">PayApp으로 결제</button>
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                 </div>
               </article>
               <article class="pricing-card">
@@ -1545,10 +1542,10 @@
                 <p class="pricing-card__discount-label">
                   정가 ₩180,000(월 ₩15,000×12) 대비 약 44% 할인
                 </p>
-                <p class="pricing-card__period">1년 이용 · 결제 1회 · PayApp</p>
+                <p class="pricing-card__period">1년 이용권</p>
                 <p class="pricing-card__note">자동 갱신 없이 1년치 이용 기간이 부여됩니다.</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--payapp" data-payapp-sub="yearly">PayApp으로 결제</button>
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                 </div>
               </article>
               <article class="pricing-card pricing-card--featured">
@@ -1559,10 +1556,10 @@
                 <p class="pricing-card__discount-label">
                   정가 ₩360,000(월 ₩15,000×24) 대비 약 58% 할인
                 </p>
-                <p class="pricing-card__period">2년 이용 · 결제 1회 · PayApp</p>
+                <p class="pricing-card__period">2년 이용권</p>
                 <p class="pricing-card__note">자동 갱신 없이 2년치 이용 기간이 부여됩니다.</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--payapp" data-payapp-sub="twoYear">PayApp으로 결제</button>
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                 </div>
               </article>
             </div>
@@ -1571,32 +1568,29 @@
                 <h2 class="card__title">변호사 질문권</h2>
                 <p class="pricing-lead">
                   변호사에게 질문하기는 질문권 1건이 소모됩니다. 오류 신고는 질문권 없이 이용할 수 있습니다.
-                  <strong>PayApp</strong> 결제 완료 후 서버 피드백으로 지갑에 반영됩니다. 로그인이 필요하며, 구매분은 결제일로부터 1년 유효입니다.
+                  로그인이 필요하며, 구매분은 결제일로부터 1년 유효입니다.
                   퀴즈 출석으로 쌓은 포인트로도 전환할 수 있으며(변호사 질문권 1건당 <strong>5,000점</strong> 차감),
-                  <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 할 수 있습니다.
-                  금액은 Functions <code class="pricing-code">PAYAPP_KRW_Q1</code> · <code class="pricing-code">PAYAPP_KRW_Q10</code> 및
-                  <code class="pricing-code">js/payapp-config.js</code> 표시 문구를 맞춰 주세요.
-                  <a href="https://docs.payapp.kr/dev_center01.html" class="pricing-link" target="_blank" rel="noopener noreferrer">PayApp 개발자 매뉴얼</a>
+                  <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 이용할 수 있습니다.
                 </p>
               </div>
               <div class="pricing-grid">
                 <article class="pricing-card">
                   <h3 class="pricing-card__name">변호사 질문권 1건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-q1">₩5,000</p>
-                  <p class="pricing-card__period">1회 · PayApp</p>
-                  <p class="pricing-card__note">로그인 후 결제 시 서버로 사용자 정보가 전달됩니다.</p>
+                  <p class="pricing-card__price pricing-card__price--krw-main">₩5,000</p>
+                  <p class="pricing-card__period">1회 이용권</p>
+                  <p class="pricing-card__note">로그인 후 이용 가능합니다.</p>
                   <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--payapp" data-payapp-pack="1">PayApp으로 결제</button>
+                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                   </div>
                 </article>
                 <article class="pricing-card pricing-card--featured">
                   <span class="pricing-card__badge">추천</span>
                   <h3 class="pricing-card__name">변호사 질문권 10건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-q10">₩30,000</p>
-                  <p class="pricing-card__period">10회 · PayApp</p>
+                  <p class="pricing-card__price pricing-card__price--krw-main">₩30,000</p>
+                  <p class="pricing-card__period">10회 이용권</p>
                   <p class="pricing-card__note">건당 ₩3,000 수준.</p>
                   <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--payapp" data-payapp-pack="10">PayApp으로 결제</button>
+                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                   </div>
                 </article>
               </div>
@@ -1605,41 +1599,38 @@
                 <h2 class="card__title">엘리(AI) 질문권</h2>
                 <p class="pricing-lead">
                   유료 회원에게는 하루 무료 <strong>4회</strong>가 제공됩니다. 그 이후에는 아래 엘리(AI) 질문권이 차감됩니다.
-                  적립·차감은 <code class="pricing-code">hanlaw_quiz_ai_wallet</code>에서 처리됩니다.
                   퀴즈 출석 포인트로도 전환할 수 있으며(엘리 질문권 1건당 <strong>500점</strong> 차감, 10건 팩 건당 약 ₩500 수준),
-                  <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 할 수 있습니다.
-                  금액(Functions 환경변수): <code class="pricing-code">PAYAPP_KRW_EQ10</code> · <code class="pricing-code">PAYAPP_KRW_EQ50</code> ·
-                  <code class="pricing-code">PAYAPP_KRW_EQ100</code>.
+                  <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 이용할 수 있습니다.
                 </p>
               </div>
               <div class="pricing-grid">
                 <article class="pricing-card">
                   <h3 class="pricing-card__name">엘리 질문권 10건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-eq10">₩5,000</p>
-                  <p class="pricing-card__period">10회 · PayApp</p>
+                  <p class="pricing-card__price pricing-card__price--krw-main">₩5,000</p>
+                  <p class="pricing-card__period">10회 이용권</p>
                   <p class="pricing-card__note">무료 4회 소진 후 건당 차감(구매일로부터 1년 유효). 건당 약 ₩500.</p>
                   <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--payapp" data-payapp-elly-pack="10">PayApp으로 결제</button>
+                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                   </div>
                 </article>
                 <article class="pricing-card pricing-card--featured">
                   <span class="pricing-card__badge">추천</span>
                   <h3 class="pricing-card__name">엘리 질문권 50건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-eq50">₩20,000</p>
-                  <p class="pricing-card__period">50회 · PayApp</p>
+                  <p class="pricing-card__price pricing-card__price--krw-main">₩20,000</p>
+                  <p class="pricing-card__period">50회 이용권</p>
                   <p class="pricing-card__note">건당 약 ₩400 수준.</p>
                   <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--payapp" data-payapp-elly-pack="50">PayApp으로 결제</button>
+                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                   </div>
                 </article>
                 <article class="pricing-card pricing-card--featured">
                   <span class="pricing-card__badge">대용량</span>
                   <h3 class="pricing-card__name">엘리 질문권 100건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main" id="payapp-price-eq100">₩30,000</p>
-                  <p class="pricing-card__period">100회 · PayApp</p>
+                  <p class="pricing-card__price pricing-card__price--krw-main">₩30,000</p>
+                  <p class="pricing-card__period">100회 이용권</p>
                   <p class="pricing-card__note">건당 약 ₩300 수준.</p>
                   <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--payapp" data-payapp-elly-pack="100">PayApp으로 결제</button>
+                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
                   </div>
                 </article>
               </div>
@@ -2538,6 +2529,8 @@
     <p>통신판매업신고 신고 예정 | 주소 서울특별시 서초구 서초중앙로 49, 609호(서초동, 동양라디안루키)</p>
     <p>고객문의 ellutionsoft@gmail.com | 전화 010-3932-1358</p>
     <p>
+      <a href="content/index.html" target="_blank" rel="noopener noreferrer">공개 학습콘텐츠</a>
+      |
       <a href="legal/service-terms.html" target="_blank" rel="noopener noreferrer">이용약관</a>
       |
       <a href="legal/privacy-policy.html" target="_blank" rel="noopener noreferrer">개인정보처리방침</a>
