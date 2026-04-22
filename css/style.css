@@ -4544,6 +4544,33 @@ button.feedback-tag--link:hover {
   color: var(--muted);
 }
 
+.pricing-refund-policy {
+  margin: 0.9rem 0 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.pricing-refund-policy__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.pricing-refund-policy__list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.05rem;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+.pricing-refund-policy__list a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
 .dict-guest-hint {
   margin: 0.4rem 0 0.7rem;
   padding: 0.5rem 0.65rem;

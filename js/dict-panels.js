@@ -357,6 +357,7 @@
       return;
     }
     var list = searchStatutes(q);
+    if (list.length) markDictGuestUsage("statute", q);
     renderStatuteResults(out, list);
     setDictGuestHint("statute", Math.min(list.length, dictGuestLimit()), list.length);
     emitDictResultsUpdated("statute");
@@ -604,6 +605,55 @@
     return 5;
   }
 
+  var DICT_GUEST_USAGE_KEY = "hanlaw_dict_guest_usage_v1";
+  var dictGuestUsageCache = null;
+
+  function readDictGuestUsage() {
+    if (dictGuestUsageCache) return dictGuestUsageCache;
+    var fallback = { term: {}, statute: {}, case: {} };
+    try {
+      var raw = localStorage.getItem(DICT_GUEST_USAGE_KEY);
+      if (!raw) {
+        dictGuestUsageCache = fallback;
+        return dictGuestUsageCache;
+      }
+      var parsed = JSON.parse(raw);
+      dictGuestUsageCache = {
+        term: parsed && parsed.term && typeof parsed.term === "object" ? parsed.term : {},
+        statute: parsed && parsed.statute && typeof parsed.statute === "object" ? parsed.statute : {},
+        case: parsed && parsed.case && typeof parsed.case === "object" ? parsed.case : {}
+      };
+      return dictGuestUsageCache;
+    } catch (_) {
+      dictGuestUsageCache = fallback;
+      return dictGuestUsageCache;
+    }
+  }
+
+  function saveDictGuestUsage() {
+    try {
+      localStorage.setItem(DICT_GUEST_USAGE_KEY, JSON.stringify(readDictGuestUsage()));
+    } catch (_) {}
+  }
+
+  function markDictGuestUsage(kind, token) {
+    if (!isGuestViewer()) return;
+    var k = kind === "term" || kind === "statute" || kind === "case" ? kind : "term";
+    var key = String(token || "").trim().toLowerCase();
+    if (!key) return;
+    var bag = readDictGuestUsage();
+    if (!bag[k][key]) {
+      bag[k][key] = Date.now();
+      saveDictGuestUsage();
+    }
+  }
+
+  function getDictGuestUsedCount(kind) {
+    var k = kind === "term" || kind === "statute" || kind === "case" ? kind : "term";
+    var bag = readDictGuestUsage();
+    return Math.min(dictGuestLimit(), Object.keys(bag[k] || {}).length);
+  }
+
   function setDictGuestHint(kind, shownCount, totalCount) {
     var id = kind === "term" ? "dict-term-guest-hint" : kind === "statute" ? "dict-statute-guest-hint" : "dict-case-guest-hint";
     var el = $(id);
@@ -615,29 +665,17 @@
     }
     var label = kind === "term" ? "용어사전" : kind === "statute" ? "조문사전" : "판례사전";
     var limit = dictGuestLimit();
-    var shown = Math.max(0, parseInt(shownCount, 10) || 0);
-    var total = Math.max(shown, parseInt(totalCount, 10) || shown);
-    var remaining = Math.max(0, limit - shown);
+    var used = getDictGuestUsedCount(kind);
+    var remaining = Math.max(0, limit - used);
     el.hidden = false;
-    if (total > limit) {
-      el.textContent =
-        "[무료 체험 중] 비회원은 " +
-        label +
-        "을 최대 " +
-        limit +
-        "개까지 볼 수 있습니다. 현재 " +
-        remaining +
-        "회 남았습니다.";
-    } else {
-      el.textContent =
-        "[무료 체험 중] 비회원은 " +
-        label +
-        "을 최대 " +
-        limit +
-        "개까지 볼 수 있습니다. 현재 " +
-        remaining +
-        "회 남았습니다.";
-    }
+    el.textContent =
+      "[무료 체험 중] 비회원은 " +
+      label +
+      "을 최대 " +
+      limit +
+      "회 체험할 수 있습니다. 현재 " +
+      remaining +
+      "회 남았습니다.";
   }
 
   function appendDictGuestLockNotice(container, kind) {
@@ -1912,6 +1950,7 @@
     var q = String(input.value || "").trim();
     var local = searchTerms(input.value);
     if (local.length) {
+      if (q) markDictGuestUsage("term", q);
       renderTermResults(out, local);
       setDictGuestHint("term", Math.min(local.length, dictGuestLimit()), local.length);
       emitDictResultsUpdated("term");
@@ -2008,6 +2047,7 @@
       return;
     }
     var list = searchCases(input.value);
+    if (list.length) markDictGuestUsage("case", q);
     renderCaseResults(out, list);
     setDictGuestHint("case", Math.min(list.length, dictGuestLimit()), list.length);
     emitDictResultsUpdated("case");
