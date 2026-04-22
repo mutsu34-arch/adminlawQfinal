@@ -309,8 +309,91 @@
     lastOrderMode: "random",
     lastCount: "0",
     /** index → { userTrue } — 뒤로 가기 시 해설 복원용 */
-    sessionAnswers: {}
+    sessionAnswers: {},
+    suppressQuizUrlSync: false
   };
+
+  function normalizeQuestionId(raw) {
+    return String(raw == null ? "" : raw).trim();
+  }
+
+  function findQuestionInBankById(qid) {
+    var id = normalizeQuestionId(qid);
+    if (!id) return null;
+    var bank = getBank();
+    for (var i = 0; i < bank.length; i++) {
+      if (normalizeQuestionId(bank[i] && bank[i].id) === id) return bank[i];
+    }
+    return null;
+  }
+
+  function parseQuizIdFromPath(pathname) {
+    var m = String(pathname || "").match(/^\/quiz\/([^/?#]+)$/);
+    if (!m || !m[1]) return "";
+    try {
+      return normalizeQuestionId(decodeURIComponent(m[1]));
+    } catch (e) {
+      return normalizeQuestionId(m[1]);
+    }
+  }
+
+  function quizUrlForQuestion(q) {
+    var qid = normalizeQuestionId(q && q.id);
+    if (!qid) return "";
+    return "/quiz/" + encodeURIComponent(qid);
+  }
+
+  function syncQuizUrl(replace) {
+    if (state.suppressQuizUrlSync) return;
+    var q = state.list && state.list[state.index];
+    var nextPath = quizUrlForQuestion(q);
+    if (!nextPath || window.location.pathname === nextPath) return;
+    var fn = replace ? "replaceState" : "pushState";
+    window.history[fn]({ hanlawQuizId: normalizeQuestionId(q.id) }, "", nextPath);
+  }
+
+  function resetQuizUrlIfNeeded() {
+    if (!parseQuizIdFromPath(window.location.pathname)) return;
+    window.history.replaceState({}, "", "/");
+  }
+
+  function openQuizFromUrl(qid) {
+    var q = findQuestionInBankById(qid);
+    if (!q) return false;
+    state.list = [q];
+    state.index = 0;
+    state.correct = 0;
+    state.sessionAnswers = {};
+    if (typeof window.hanlawNavigateToPanel === "function") {
+      window.hanlawNavigateToPanel("quiz");
+    }
+    showScreen("quiz");
+    state.suppressQuizUrlSync = true;
+    renderQuestion();
+    state.suppressQuizUrlSync = false;
+    syncQuizUrl(true);
+    return true;
+  }
+
+  function bindQuizUrlRouting() {
+    var initialQid = parseQuizIdFromPath(window.location.pathname);
+    if (initialQid) openQuizFromUrl(initialQid);
+    window.addEventListener("popstate", function () {
+      var qid = parseQuizIdFromPath(window.location.pathname);
+      if (!qid) return;
+      var i;
+      for (i = 0; i < state.list.length; i++) {
+        if (normalizeQuestionId(state.list[i] && state.list[i].id) === qid) {
+          state.index = i;
+          state.suppressQuizUrlSync = true;
+          renderQuestion();
+          state.suppressQuizUrlSync = false;
+          return;
+        }
+      }
+      openQuizFromUrl(qid);
+    });
+  }
 
   /** 저장 후 mergeBanks로 QUESTION_BANK가 바뀌면 state.list 참조가 옛 객체를 가리킬 수 있음 → 동기 id로 교체 */
   function resyncCurrentQuestionRefFromBank() {
@@ -1608,6 +1691,7 @@
       scheduleQuizQuestionTimerIfNeeded();
     }
     updateQuizNavButtons();
+    syncQuizUrl(false);
   }
 
   function buildDetailBlocks(container, detail) {
@@ -1863,6 +1947,7 @@
     if (el.setupConfigWrap) el.setupConfigWrap.hidden = true;
     if (el.btnOpenSetup) el.btnOpenSetup.hidden = false;
     showScreen("start");
+    resetQuizUrlIfNeeded();
   }
 
   (function bindAppTitleReload() {
@@ -1893,6 +1978,7 @@
   bindNav(el.btnQuizNavNext, nextOrFinish);
   if (el.btnRetry) el.btnRetry.addEventListener("click", retrySame);
   if (el.btnHome) el.btnHome.addEventListener("click", goHome);
+  bindQuizUrlRouting();
 
   function syncQuizMemoAfterAuthChange() {
     if (!el.feedback || el.feedback.hidden || !el.quiz || el.quiz.hidden) return;
