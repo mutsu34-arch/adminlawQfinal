@@ -1,33 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/content/index.html</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/content/quiz-sample.html</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/content/terms-sample.html</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/content/statutes-sample.html</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/content/cases-sample.html</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/content/qa-sample.html</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/legal/service-terms.html</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/legal/privacy-policy.html</loc>
-  </url>
-  <url>
-    <loc>https://adminlawq-b9dad.web.app/legal/refund-policy.html</loc>
-  </url>
-</urlset>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://adminlawq-b9dad.web.app/sitemap-pages.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://adminlawq-b9dad.web.app/sitemap-quiz.xml</loc>
+  </sitemap>
+</sitemapindex>

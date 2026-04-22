@@ -312,6 +312,55 @@
     sessionAnswers: {},
     suppressQuizUrlSync: false
   };
+  var SEO_DEFAULT_TITLE = "행정법Q";
+  var SEO_DEFAULT_DESC =
+    "변호사가 직접 만든 행정법 학습 앱. 실전형 OX 퀴즈, 핵심 해설, 판례·조문·용어사전을 제공합니다.";
+
+  function appOrigin() {
+    return window.location.origin || "https://adminlawq-b9dad.web.app";
+  }
+
+  function ensureHeadMetaByName(name) {
+    var selector = 'meta[name="' + name + '"]';
+    var m = document.head.querySelector(selector);
+    if (!m) {
+      m = document.createElement("meta");
+      m.setAttribute("name", name);
+      document.head.appendChild(m);
+    }
+    return m;
+  }
+
+  function ensureCanonicalLink() {
+    var c = document.head.querySelector('link[rel="canonical"]');
+    if (!c) {
+      c = document.createElement("link");
+      c.setAttribute("rel", "canonical");
+      document.head.appendChild(c);
+    }
+    return c;
+  }
+
+  function updateSeoForQuizQuestion(q) {
+    if (!q) return;
+    var qid = normalizeQuestionId(q.id);
+    if (!qid) return;
+    var topic = String(q.topic || "행정법 퀴즈").trim();
+    var statement = String(q.statement || "").replace(/\s+/g, " ").trim();
+    var shortStmt = statement.length > 90 ? statement.slice(0, 90) + "…" : statement;
+    document.title = topic + " 퀴즈 | 행정법Q";
+    ensureHeadMetaByName("description").setAttribute(
+      "content",
+      "행정법Q " + topic + " 문제: " + shortStmt
+    );
+    ensureCanonicalLink().setAttribute("href", appOrigin() + "/quiz/" + encodeURIComponent(qid));
+  }
+
+  function resetSeoToDefault() {
+    document.title = SEO_DEFAULT_TITLE;
+    ensureHeadMetaByName("description").setAttribute("content", SEO_DEFAULT_DESC);
+    ensureCanonicalLink().setAttribute("href", appOrigin() + "/");
+  }
 
   function normalizeQuestionId(raw) {
     return String(raw == null ? "" : raw).trim();
@@ -355,6 +404,7 @@
   function resetQuizUrlIfNeeded() {
     if (!parseQuizIdFromPath(window.location.pathname)) return;
     window.history.replaceState({}, "", "/");
+    resetSeoToDefault();
   }
 
   function openQuizFromUrl(qid) {
@@ -377,7 +427,13 @@
 
   function bindQuizUrlRouting() {
     var initialQid = parseQuizIdFromPath(window.location.pathname);
-    if (initialQid) openQuizFromUrl(initialQid);
+    if (initialQid) {
+      if (!openQuizFromUrl(initialQid)) {
+        resetQuizUrlIfNeeded();
+      }
+    } else {
+      resetSeoToDefault();
+    }
     window.addEventListener("popstate", function () {
       var qid = parseQuizIdFromPath(window.location.pathname);
       if (!qid) return;
@@ -1619,6 +1675,7 @@
       window.QuizAiAsk.resetMain();
     }
     var q = state.list[state.index];
+    updateSeoForQuizQuestion(q);
     var total = state.list.length;
     el.progress.textContent = state.index + 1 + " / " + total;
     el.score.textContent = "정답 " + state.correct;
@@ -1948,6 +2005,7 @@
     if (el.btnOpenSetup) el.btnOpenSetup.hidden = false;
     showScreen("start");
     resetQuizUrlIfNeeded();
+    resetSeoToDefault();
   }
 
   (function bindAppTitleReload() {
