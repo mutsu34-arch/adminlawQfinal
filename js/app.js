@@ -1,6 +1,14 @@
 (function () {
   var ALL = "전체";
   var GUEST_PUBLIC_LIMIT = 5;
+  function isAdsenseOpenMode() {
+    return !!window.HANLAW_ADSENSE_OPEN_MODE;
+  }
+
+  function guestQuizLimit() {
+    return isAdsenseOpenMode() ? Number.MAX_SAFE_INTEGER : GUEST_PUBLIC_LIMIT;
+  }
+
 
   function getBank() {
     return window.QUESTION_BANK || [];
@@ -51,7 +59,7 @@
   }
 
   function isGuestFullQuizPreview() {
-    return !isViewerLoggedIn() && state && typeof state.index === "number" && state.index < GUEST_PUBLIC_LIMIT;
+    return !isViewerLoggedIn() && state && typeof state.index === "number" && state.index < guestQuizLimit();
   }
 
   var el = {
@@ -366,12 +374,116 @@
     return String(raw == null ? "" : raw).trim();
   }
 
+  function normalizeExplainText(raw) {
+    return String(raw == null ? "" : raw).replace(/\r\n/g, "\n").trim();
+  }
+
+  function sentenceWithPeriod(text) {
+    var s = normalizeExplainText(text);
+    if (!s) return "";
+    if (/[.!?]$/.test(s) || /[다요]$/.test(s)) return s;
+    return s + ".";
+  }
+
+  function pickDefaultImportance(q) {
+    var topic = normalizeExplainText(q && q.topic);
+    if (!topic) return 3;
+    if (topic.indexOf("행정소송") >= 0 || topic.indexOf("행정행위") >= 0) return 4;
+    return 3;
+  }
+
+  function pickDefaultDifficulty(q) {
+    var stmt = normalizeExplainText(q && q.statement);
+    if (!stmt) return 3;
+    if (/항상|반드시|전혀|언제나/.test(stmt)) return 3;
+    return 2;
+  }
+
+  function hasDetailContent(detail) {
+    if (!detail) return false;
+    if (typeof detail === "string") return normalizeExplainText(detail).length > 0;
+    if (typeof detail !== "object") return false;
+    if (normalizeExplainText(detail.body).length > 0) return true;
+    if (normalizeExplainText(detail.legal).length > 0) return true;
+    if (normalizeExplainText(detail.trap).length > 0) return true;
+    if (normalizeExplainText(detail.precedent).length > 0) return true;
+    return false;
+  }
+
+  function buildAutoDetailBody(q) {
+    var statement = normalizeExplainText(q && q.statement);
+    var explanation = sentenceWithPeriod(q && q.explanation);
+    var topic = normalizeExplainText(q && q.topic) || "행정법 일반";
+    var answerText = q && q.answer === true ? "O(참)" : "X(거짓)";
+    var lines = [];
+    lines.push("정답 판단");
+    lines.push("이 문항의 정답은 " + answerText + "입니다.");
+    if (explanation) {
+      lines.push("기본 법리");
+      lines.push(explanation);
+    } else if (statement) {
+      lines.push("기본 법리");
+      lines.push("지문의 표현을 법령 체계와 판례 기준에 비추어 해석하면 정답을 도출할 수 있습니다.");
+    } else {
+      lines.push("기본 법리");
+      lines.push("해당 문항은 행정법 기본 원리에 따라 정답을 판단해야 합니다.");
+    }
+    lines.push("답안 작성 포인트");
+    lines.push(
+      topic +
+        " 영역에서는 결론만 암기하기보다 적용 요건, 예외, 관련 판례 태도를 함께 정리해 두는 것이 안전합니다."
+    );
+    lines.push("오답 방지 포인트");
+    if (q && q.answer === false) {
+      lines.push("지문에 절대적 표현(항상, 반드시, 전혀, 언제나)이 포함된 경우에는 예외 규정 존재 여부를 먼저 확인하시기 바랍니다.");
+    } else {
+      lines.push("정답 지문이라도 적용 요건과 한계를 함께 정리해 두어야 사례형 문제에서 결론을 안정적으로 도출할 수 있습니다.");
+    }
+    return lines.join("\n\n");
+  }
+
+  function buildAutoBasicExplain(q) {
+    var topic = normalizeExplainText(q && q.topic) || "행정법 일반";
+    var explanation = sentenceWithPeriod(q && q.explanation);
+    if (explanation && explanation.length >= 25) return explanation;
+    var answerText = q && q.answer === true ? "옳은 설명" : "틀린 설명";
+    return (
+      "이 문항은 " +
+      topic +
+      " 쟁점에서 " +
+      answerText +
+      "에 해당합니다. 결론만 암기하기보다 적용 요건과 예외를 함께 정리해 두셔야 변형 문제에도 안정적으로 대응할 수 있습니다."
+    );
+  }
+
+  function enrichQuestionForDisplay(raw) {
+    if (!raw || typeof raw !== "object") return raw;
+    var explanation = normalizeExplainText(raw.explanation);
+    var explanationBasic = normalizeExplainText(raw.explanationBasic);
+    var needBasic = !explanationBasic;
+    var shortBasic = explanationBasic.length > 0 && explanationBasic.length < 25;
+    var needDetail = !hasDetailContent(raw.detail);
+    if (!needBasic && !shortBasic && !needDetail) return raw;
+    var q = {};
+    var k;
+    for (k in raw) {
+      if (Object.prototype.hasOwnProperty.call(raw, k)) q[k] = raw[k];
+    }
+    if (needBasic || shortBasic) q.explanationBasic = buildAutoBasicExplain(q);
+    if (needDetail) {
+      q.detail = { body: buildAutoDetailBody(q) };
+    }
+    if (q.importance == null || q.importance === "") q.importance = pickDefaultImportance(q);
+    if (q.difficulty == null || q.difficulty === "") q.difficulty = pickDefaultDifficulty(q);
+    return q;
+  }
+
   function findQuestionInBankById(qid) {
     var id = normalizeQuestionId(qid);
     if (!id) return null;
     var bank = getBank();
     for (var i = 0; i < bank.length; i++) {
-      if (normalizeQuestionId(bank[i] && bank[i].id) === id) return bank[i];
+      if (normalizeQuestionId(bank[i] && bank[i].id) === id) return enrichQuestionForDisplay(bank[i]);
     }
     return null;
   }
@@ -459,7 +571,7 @@
     var bank = getBank();
     for (var i = 0; i < bank.length; i++) {
       if (bank[i].id === id) {
-        state.list[state.index] = bank[i];
+        state.list[state.index] = enrichQuestionForDisplay(bank[i]);
         return;
       }
     }
@@ -1680,10 +1792,10 @@
     el.progress.textContent = state.index + 1 + " / " + total;
     el.score.textContent = "정답 " + state.correct;
     if (el.quizGuestHintTop) {
-      if (!isViewerLoggedIn()) {
+      if (!isViewerLoggedIn() && !isAdsenseOpenMode()) {
         el.quizGuestHintTop.hidden = false;
-        if (state.index < GUEST_PUBLIC_LIMIT) {
-          var remaining = Math.max(0, GUEST_PUBLIC_LIMIT - (state.index + 1));
+        if (state.index < guestQuizLimit()) {
+          var remaining = Math.max(0, guestQuizLimit() - (state.index + 1));
           el.quizGuestHintTop.textContent =
             "[무료 체험 중] 비회원은 퀴즈 5문항까지 상세 해설을 포함해 볼 수 있습니다. 현재 " +
             remaining +
@@ -1855,7 +1967,7 @@
     if (cap > 0 && list.length > cap) {
       list = list.slice(0, cap);
     }
-    state.list = list;
+    state.list = list.map(enrichQuestionForDisplay);
     state.index = 0;
     state.correct = 0;
     state.sessionAnswers = {};

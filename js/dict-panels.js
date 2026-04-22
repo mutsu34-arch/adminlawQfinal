@@ -597,6 +597,7 @@
   }
 
   function isGuestViewer() {
+    if (window.HANLAW_ADSENSE_OPEN_MODE) return false;
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     return !(u && u.email);
   }

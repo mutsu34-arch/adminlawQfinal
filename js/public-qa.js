@@ -17,6 +17,10 @@
     return !!(u && u.email);
   }
 
+  function isAdsenseOpenMode() {
+    return !!window.HANLAW_ADSENSE_OPEN_MODE;
+  }
+
   function publicViewerKey() {
     try {
       var k = localStorage.getItem("hanlaw_public_viewer_key");
@@ -143,6 +147,11 @@
   function setLoginHint(on, shownCount) {
     var h = document.getElementById("public-qa-login-hint");
     if (!h) return;
+    if (isAdsenseOpenMode()) {
+      h.hidden = true;
+      h.textContent = "";
+      return;
+    }
     if (on) {
       var limit = 5;
       var used = qaGuestUsedCount();
@@ -368,7 +377,7 @@
       window.alert("검색어는 2글자 이상 입력하세요.");
       return;
     }
-    if (!isLoggedIn()) {
+    if (!isLoggedIn() && !isAdsenseOpenMode()) {
       window.alert("검색은 로그인 후 이용할 수 있습니다.");
       return;
     }
@@ -445,7 +454,7 @@
       return;
     }
 
-    var cap = isLoggedIn() ? 100 : 5;
+    var cap = isLoggedIn() || isAdsenseOpenMode() ? 100 : 5;
     unsub = d
       .collection(COLL)
       .where("communityVisible", "==", true)

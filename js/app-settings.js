@@ -3,6 +3,10 @@
  * 구버전 hanlaw_font_step(0~4)은 최초 로드 시 v2로 이전합니다.
  */
 (function () {
+  // AdSense 심사 기간에는 비회원 콘텐츠 제한을 완화할 수 있도록 전역 플래그를 둔다.
+  // 심사 종료 후 기존 제한 정책으로 복귀하려면 false로 변경하면 된다.
+  window.HANLAW_ADSENSE_OPEN_MODE = true;
+
   var KEY = "hanlaw_font_step_v2";
   var KEY_LEGACY = "hanlaw_font_step";
   var STEP_MAX = "5";
