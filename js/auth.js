@@ -18,6 +18,9 @@
     signupEmail: document.getElementById("signup-email"),
     signupPassword: document.getElementById("signup-password"),
     signupPassword2: document.getElementById("signup-password2"),
+    signupAgreeAll: document.getElementById("signup-agree-all"),
+    signupAgreeTerms: document.getElementById("signup-agree-terms"),
+    signupAgreePrivacy: document.getElementById("signup-agree-privacy"),
     btnSignup: document.getElementById("btn-email-signup"),
     authMsg: document.getElementById("auth-message"),
     configWarn: document.getElementById("auth-config-warn"),
@@ -266,6 +269,10 @@
     var p1 = el.signupPassword.value;
     var p2 = el.signupPassword2.value;
     setAuthMessage("");
+    if (!isSignupConsentOk()) {
+      setAuthMessage("회원가입을 위해 이용약관과 개인정보처리방침 동의가 필요합니다.", true);
+      return;
+    }
     if (p1.length < 6) {
       setAuthMessage("비밀번호는 6자 이상이어야 합니다.", true);
       return;
@@ -283,6 +290,40 @@
       .then(function () {
         setLoading(false);
       });
+  }
+
+  function isSignupConsentOk() {
+    var termsOk = !!(el.signupAgreeTerms && el.signupAgreeTerms.checked);
+    var privacyOk = !!(el.signupAgreePrivacy && el.signupAgreePrivacy.checked);
+    return termsOk && privacyOk;
+  }
+
+  function onGoogleSignup() {
+    if (!isSignupConsentOk()) {
+      setAuthMessage("회원가입을 위해 이용약관과 개인정보처리방침 동의가 필요합니다.", true);
+      return;
+    }
+    onGoogleLogin();
+  }
+
+  function bindSignupConsent() {
+    var all = el.signupAgreeAll;
+    var terms = el.signupAgreeTerms;
+    var privacy = el.signupAgreePrivacy;
+    if (!all || !terms || !privacy) return;
+
+    function syncAllFromChildren() {
+      all.checked = terms.checked && privacy.checked;
+    }
+
+    all.addEventListener("change", function () {
+      var on = !!all.checked;
+      terms.checked = on;
+      privacy.checked = on;
+    });
+    terms.addEventListener("change", syncAllFromChildren);
+    privacy.addEventListener("change", syncAllFromChildren);
+    syncAllFromChildren();
   }
 
   function onGoogleLogin() {
@@ -351,7 +392,7 @@
   el.btnLogin.addEventListener("click", onEmailLogin);
   el.btnSignup.addEventListener("click", onEmailSignup);
   el.btnGoogle.addEventListener("click", onGoogleLogin);
-  if (el.btnGoogleSignup) el.btnGoogleSignup.addEventListener("click", onGoogleLogin);
+  if (el.btnGoogleSignup) el.btnGoogleSignup.addEventListener("click", onGoogleSignup);
   if (el.btnReset) el.btnReset.addEventListener("click", onPasswordReset);
   el.btnLogout.addEventListener("click", onLogout);
   if (el.btnOpenAuth) {
@@ -384,6 +425,7 @@
   el.signupPassword2.addEventListener("keydown", function (e) {
     if (e.key === "Enter") onEmailSignup();
   });
+  bindSignupConsent();
 
   var ok = initFirebase();
   if (ok && auth) {

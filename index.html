@@ -85,6 +85,24 @@
             <span class="field__label">비밀번호 확인</span>
             <input type="password" id="signup-password2" class="input" autocomplete="new-password" />
           </label>
+          <div class="field auth-consent">
+            <label class="field field--row field--row--checkbox auth-consent__row">
+              <input type="checkbox" id="signup-agree-all" />
+              <span>약관 전체 동의</span>
+            </label>
+            <label class="field field--row field--row--checkbox auth-consent__row">
+              <input type="checkbox" id="signup-agree-terms" />
+              <span>
+                <a href="/legal/service-terms.html" target="_blank" rel="noopener noreferrer">이용약관</a> 동의 (필수)
+              </span>
+            </label>
+            <label class="field field--row field--row--checkbox auth-consent__row">
+              <input type="checkbox" id="signup-agree-privacy" />
+              <span>
+                <a href="/legal/privacy-policy.html" target="_blank" rel="noopener noreferrer">개인정보처리방침</a> 동의 (필수)
+              </span>
+            </label>
+          </div>
           <button type="button" id="btn-email-signup" class="btn btn--primary">회원가입</button>
           <div class="auth-divider"><span>또는</span></div>
           <button type="button" id="btn-google-signup" class="btn btn--google">
