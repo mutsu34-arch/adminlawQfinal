@@ -658,17 +658,8 @@
       });
     }
 
-    var bc = $("dashboard-buy-question-credits");
     var bx = $("dashboard-tickets-drawer-close");
 
-    if (bc) {
-      bc.addEventListener("click", function () {
-        if (!requireUser()) return;
-        if (typeof window.goToQuestionPacksSection === "function") {
-          window.goToQuestionPacksSection();
-        }
-      });
-    }
     if (bx) bx.addEventListener("click", closeDrawer);
 
     var searchEl = $("dashboard-tickets-search");

@@ -13,8 +13,24 @@ function db() {
   return getFirestore();
 }
 
-const QUIZ_AI_DAILY_LIMIT = 4;
 const ELLY_WALLET_BATCH_VALID_MS = 365 * 24 * 60 * 60 * 1000;
+
+function isMembershipPaidActive(m, nowMs) {
+  if (!m || m.membershipTier !== "paid") return false;
+  const until = m.paidUntil;
+  if (until && typeof until.toMillis === "function") {
+    return until.toMillis() >= nowMs;
+  }
+  return true;
+}
+
+/** 유료 구독 플랜별 엘리(AI) 일일 한도(KST). 미설정·기존 회원은 basic. */
+function ellyDailyLimitForMemberData(m) {
+  const t = String((m && m.ellyDailyTier) || "basic").toLowerCase();
+  if (t === "super") return 15;
+  if (t === "ultra") return 30;
+  return 5;
+}
 const MAX_USER_Q = 800;
 const MAX_STATEMENT = 4000;
 const MAX_EXPLAIN = 6000;
@@ -120,13 +136,16 @@ async function reserveEllySlot(uid) {
       };
     }
 
+    const paidOk = isMembershipPaidActive(m, nowMs);
+    const dailyCap = paidOk ? ellyDailyLimitForMemberData(m) : 0;
+
     let count = 0;
     if (usageSnap.exists) {
       const d = usageSnap.data();
       if (d.ymd === today) count = Math.max(0, parseInt(d.count, 10) || 0);
     }
 
-    if (count < QUIZ_AI_DAILY_LIMIT) {
+    if (dailyCap > 0 && count < dailyCap) {
       const next = count + 1;
       t.set(
         usageRef,
@@ -134,7 +153,7 @@ async function reserveEllySlot(uid) {
         { merge: true }
       );
       return {
-        remainingAfter: QUIZ_AI_DAILY_LIMIT - next,
+        remainingAfter: dailyCap - next,
         reservationKind: "free",
         ellyCreditsAfter: sumEllyCredits(
           walletSnap.exists ? walletSnap.data().batches : [],
@@ -148,11 +167,16 @@ async function reserveEllySlot(uid) {
       : [];
     const newBatches = consumeOneFromBatches(batches, nowMs);
     if (!newBatches) {
+      if (!paidOk) {
+        throw new HttpsError(
+          "failed-precondition",
+          "엘리(AI) 질문은 유료 구독 회원만 이용할 수 있습니다. 요금제 탭에서 구독 상품을 확인해 주세요."
+        );
+      }
       throw new HttpsError(
         "resource-exhausted",
-        "무료 " +
-          QUIZ_AI_DAILY_LIMIT +
-          "회를 모두 사용했습니다. 엘리(AI) 질문권을 구매해 주세요. (요금제 탭)"
+        `오늘의 엘리(AI) 질문 한도(${dailyCap}회, 한국시간 기준)를 모두 사용했습니다. ` +
+          "추가로는 엘리(AI) 질문권(구매·출석 포인트 전환)이 차감됩니다."
       );
     }
     t.set(
@@ -506,4 +530,4 @@ const quizAskGemini = onCall({ region: "asia-northeast3" }, async (request) => {
   }
 });
 
-module.exports = { quizAskGemini, QUIZ_AI_DAILY_LIMIT };
+module.exports = { quizAskGemini };

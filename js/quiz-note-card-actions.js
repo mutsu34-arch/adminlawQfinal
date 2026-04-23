@@ -520,7 +520,6 @@
       '<button type="button" class="btn btn--ticket btn--ticket-report note-quiz-chrome__ticket-report">오류 신고하기</button>' +
       '<button type="button" class="btn btn--ticket btn--ticket-suggestion note-quiz-chrome__ticket-suggestion">개선 의견 보내기</button>' +
       '<button type="button" class="btn btn--secondary note-quiz-chrome__ai-toggle" aria-expanded="false">엘리(AI)에게 질문하기</button>' +
-      '<button type="button" class="btn btn--ticket btn--ticket-ask note-quiz-chrome__ticket-ask">변호사에게 질문하기</button>' +
       "</div>" +
       '<div class="quiz-ai-panel note-quiz-chrome__ai-panel" hidden>' +
       '<label class="field"><span class="field__label">엘리(AI)에게 질문 (문항·해설 맥락이 함께 전달됩니다)</span>' +
@@ -543,48 +542,9 @@
     return q;
   }
 
-  function openLawyerAskModal() {
-    if (typeof window.openHanlawTicketModal !== "function") return;
-    var u0 = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
-    if (!u0 || !u0.email) {
-      window.alert("변호사에게 질문하기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
-      return;
-    }
-    function go() {
-      window.openHanlawTicketModal("question");
-    }
-    if (typeof window.waitForQuestionCreditState !== "function") {
-      go();
-      return;
-    }
-    window.waitForQuestionCreditState(function (state) {
-      if (state.loading) {
-        window.alert("질문권 정보를 불러오는 중입니다. 잠시 후 다시 시도하세요.");
-        return;
-      }
-      if ((state.total || 0) < 1) {
-        if (typeof window.showLawyerCreditsNeededModal === "function") {
-          window.showLawyerCreditsNeededModal();
-        } else {
-          var pp =
-            typeof window.getQuestionPackPricesDisplay === "function"
-              ? window.getQuestionPackPricesDisplay()
-              : "";
-          window.alert(
-            "질문권이 없습니다.\n\n· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
-              pp +
-              ", 구매일로부터 1년 유효)."
-          );
-        }
-        return;
-      }
-      go();
-    });
-  }
-
   document.addEventListener("click", function (e) {
     var chromeBtn = e.target.closest(
-      ".note-quiz-chrome__fav, .note-quiz-chrome__master, .note-quiz-chrome__ticket-report, .note-quiz-chrome__ticket-suggestion, .note-quiz-chrome__ticket-ask, .note-quiz-chrome__ai-toggle, .note-quiz-chrome__ai-send"
+      ".note-quiz-chrome__fav, .note-quiz-chrome__master, .note-quiz-chrome__ticket-report, .note-quiz-chrome__ticket-suggestion, .note-quiz-chrome__ai-toggle, .note-quiz-chrome__ai-send"
     );
     if (!chromeBtn) return;
     var article = chromeBtn.closest("[data-note-quiz]");
@@ -638,16 +598,10 @@
       return;
     }
 
-    if (chromeBtn.classList.contains("note-quiz-chrome__ticket-ask")) {
-      ensureContextsForArticle(article);
-      openLawyerAskModal();
-      return;
-    }
-
     if (chromeBtn.classList.contains("note-quiz-chrome__ai-toggle")) {
       ensureContextsForArticle(article);
       if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-        window.alert("엘리(AI)에게 질문하기는 유료 회원에 한해 이용할 수 있습니다.");
+        window.alert("엘리(AI)에게 질문하기는 유료 구독 회원에 한해 이용할 수 있습니다.");
         return;
       }
       var root = article.querySelector(".note-quiz-chrome");

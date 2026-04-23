@@ -14,15 +14,8 @@
     return !!(u && u.email);
   }
 
-  function packPrices() {
-    return typeof window.getQuestionPackPricesDisplay === "function"
-      ? window.getQuestionPackPricesDisplay()
-      : "1건 ₩5,000 · 10건 ₩30,000";
-  }
-
   function openModal(type) {
     currentType = "report";
-    if (type === "question") currentType = "question";
     if (type === "promotion") currentType = "promotion";
     if (type === "suggestion") currentType = "suggestion";
     if (promoNavBtn) {
@@ -32,13 +25,11 @@
     var title = $("ticket-modal-title");
     if (title) {
       title.textContent =
-        currentType === "question"
-          ? "변호사에게 질문하기"
-          : currentType === "promotion"
-            ? "홍보 인증 신청"
-            : currentType === "suggestion"
-              ? "개선 의견 보내기"
-              : "오류 신고하기";
+        currentType === "promotion"
+          ? "홍보 인증 신청"
+          : currentType === "suggestion"
+            ? "개선 의견 보내기"
+            : "오류 신고하기";
     }
     var body = $("ticket-modal-body");
     if (body) body.value = "";
@@ -59,11 +50,6 @@
           "블로그·SNS 등 어디에 어떻게 이 앱을 소개했는지 적어 주세요. (글 제목·날짜를 쓰면 검토에 도움이 됩니다.)";
         if (linksLabel) linksLabel.textContent = "홍보 게시글 URL (선택, 줄바꿈으로 여러 개)";
         if (links) links.placeholder = "공개된 게시글·포스트 주소를 한 줄에 하나씩 입력하세요.";
-      } else if (currentType === "question") {
-        if (bodyLabel) bodyLabel.textContent = "질문 내용";
-        body.placeholder = "알고 싶은 점을 구체적으로 적어 주세요.";
-        if (linksLabel) linksLabel.textContent = "참고 링크 (선택, 줄바꿈으로 여러 개)";
-        if (links) links.placeholder = "관련 자료 URL이 있으면 한 줄에 하나씩 입력하세요.";
       } else {
         if (bodyLabel) bodyLabel.textContent = "내용";
         body.placeholder =
@@ -77,7 +63,7 @@
     });
     var ctx = $("ticket-modal-context");
     if (ctx) {
-      if (currentType === "promotion" || currentType === "question" || currentType === "suggestion") {
+      if (currentType === "promotion" || currentType === "suggestion") {
         ctx.textContent = "";
         ctx.hidden = true;
       } else {
@@ -107,21 +93,14 @@
     var qaPrivacyRow = $("ticket-modal-qa-privacy-row");
     var qaCommunityCb = $("ticket-modal-qa-community");
     if (qaPrivacyRow) {
-      qaPrivacyRow.hidden = currentType !== "question";
+      qaPrivacyRow.hidden = true;
     }
     if (qaCommunityCb) {
       qaCommunityCb.checked = false;
     }
     var qHint = $("ticket-modal-question-hint");
     if (qHint) {
-      if (currentType === "question") {
-        var pp = packPrices();
-        qHint.innerHTML =
-          "변호사에게 질문하기는 질문권 <strong>1건</strong>이 차감됩니다. 추가 질문권은 <strong>요금제</strong>에서 구매할 수 있습니다(" +
-          pp +
-          ", 구매일로부터 1년 유효). 오류 신고는 질문권이 필요하지 않습니다.";
-        qHint.hidden = false;
-      } else if (currentType === "promotion") {
+      if (currentType === "promotion") {
         qHint.innerHTML =
           "이 학습 앱을 <strong>직접 소개한 공개 글·게시물</strong>이 있으면 아래에 요약하고, 링크나 화면 캡처를 함께 올려 주세요. " +
           "관리자 확인 후 승인된 경우에만 <strong>9,000 포인트</strong>가 지급됩니다. " +
@@ -207,17 +186,7 @@
     }
     if (btn) btn.disabled = true;
 
-    var chain = Promise.resolve();
-    if (currentType === "question") {
-      if (typeof window.consumeQuestionCreditCallable !== "function") {
-        fail("질문권 차감 모듈을 불러오지 못했습니다.");
-        if (btn) btn.disabled = false;
-        return;
-      }
-      chain = window.consumeQuestionCreditCallable();
-    }
-
-    chain
+    Promise.resolve()
       .then(function () {
         var opts = {
           type: currentType,
@@ -226,10 +195,6 @@
           files: files,
           quizContext: window.__QUIZ_QUESTION_CONTEXT || null
         };
-        if (currentType === "question") {
-          var cb = $("ticket-modal-qa-community");
-          opts.qaAllowFutureCommunity = !!(cb && cb.checked);
-        }
         return window.createSupportTicket(opts);
       })
       .then(function () {
@@ -240,23 +205,11 @@
         var code = e && e.code;
         var msg = (e && e.message) || "전송에 실패했습니다.";
         if (code === "functions/failed-precondition") {
-          msg = e.message || "질문권이 부족합니다.";
-          if (currentType === "question") {
-            if (msg.indexOf("$2") >= 0 || msg.indexOf("USD") >= 0) {
-              msg =
-                "질문권이 부족합니다. 유료 구독 월간 혜택을 모두 쓰셨거나, 구매한 질문권이 없습니다. " +
-                "요금제에서 추가 구매: " +
-                packPrices() +
-                "(구매일로부터 1년 유효).";
-            } else if (msg.indexOf("₩") < 0 && msg.indexOf("구매") < 0) {
-              msg +=
-                " 요금제에서 질문권을 구매할 수 있습니다(" + packPrices() + ").";
-            }
-          }
+          msg = e.message || msg;
         }
         if (code === "functions/not-found") {
           msg =
-            "질문권 차감 서버(Cloud Functions)가 배포되지 않았습니다. Firebase에 functions를 배포한 뒤 다시 시도하세요.";
+            "티켓 처리 서버(Cloud Functions)가 배포되지 않았습니다. Firebase에 functions를 배포한 뒤 다시 시도하세요.";
         }
         if (code === "functions/unauthenticated") {
           msg = "로그인이 필요합니다.";
@@ -285,7 +238,6 @@
     ].filter(Boolean);
 
     var br = $("btn-ticket-report");
-    var bq = $("btn-ticket-ask");
     var bp = promoNavBtn;
     if (br) {
       br.addEventListener("click", function () {
@@ -294,40 +246,6 @@
           return;
         }
         openModal("report");
-      });
-    }
-    if (bq) {
-      bq.addEventListener("click", function () {
-        var u0 = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
-        if (!u0 || !u0.email) {
-          window.alert("변호사에게 질문하기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
-          return;
-        }
-        if (typeof window.waitForQuestionCreditState !== "function") {
-          openModal("question");
-          return;
-        }
-        window.waitForQuestionCreditState(function (state) {
-          if (state.loading) {
-            window.alert("질문권 정보를 불러오는 중입니다. 잠시 후 다시 시도하세요.");
-            return;
-          }
-          if ((state.total || 0) < 1) {
-            if (typeof window.showLawyerCreditsNeededModal === "function") {
-              window.showLawyerCreditsNeededModal();
-            } else {
-              window.alert(
-                "질문권이 없습니다.\n\n" +
-                  "· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n" +
-                  "· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
-                  packPrices() +
-                  ", 구매일로부터 1년 유효)."
-              );
-            }
-            return;
-          }
-          openModal("question");
-        });
       });
     }
     if (bp) {

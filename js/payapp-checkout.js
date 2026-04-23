@@ -284,13 +284,6 @@
       }
     });
 
-    var dashBuy = document.getElementById("dashboard-buy-question-credits");
-    if (dashBuy) {
-      dashBuy.addEventListener("click", function () {
-        startPayAppPack(1);
-      });
-    }
-
     var docBtn = document.getElementById("btn-payapp-docs");
     if (docBtn) {
       docBtn.addEventListener("click", function () {

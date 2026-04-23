@@ -605,9 +605,6 @@
                       >
                         엘리(AI)에게 질문하기
                       </button>
-                      <button type="button" class="btn btn--ticket btn--ticket-ask" id="btn-ticket-ask">
-                        변호사에게 질문하기
-                      </button>
                     </div>
                     <div id="quiz-ai-panel" class="quiz-ai-panel" hidden>
                       <label class="field">
@@ -794,9 +791,6 @@
                   >
                     엘리(AI)에게 질문하기
                   </button>
-                  <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-term-ticket-ask">
-                    변호사에게 질문하기
-                  </button>
                   <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-term-ticket-report">
                     오류 신고하기
                   </button>
@@ -960,9 +954,6 @@
                   >
                     엘리(AI)에게 질문하기
                   </button>
-                  <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-statute-ticket-ask">
-                    변호사에게 질문하기
-                  </button>
                   <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-statute-ticket-report">
                     오류 신고하기
                   </button>
@@ -1115,9 +1106,6 @@
                     aria-controls="dict-case-eli-panel"
                   >
                     엘리(AI)에게 질문하기
-                  </button>
-                  <button type="button" class="btn btn--ticket btn--ticket-ask" id="dict-case-ticket-ask">
-                    변호사에게 질문하기
                   </button>
                   <button type="button" class="btn btn--ticket btn--ticket-report" id="dict-case-ticket-report">
                     오류 신고하기
@@ -1492,158 +1480,112 @@
             <div id="pricing-subscription-anchor" class="card card--pricing-intro" tabindex="-1">
               <h2 class="card__title">요금제</h2>
               <p class="pricing-lead">
-                선택한 기간만큼 이용할 수 있으며, 이미 유료 이용 중인 경우 만료일 다음부터 이어서 적용됩니다.
-                현재 결제 서비스 전환 작업이 진행 중이며, 결제 재개 시 이 화면에서 바로 안내됩니다.
+                구독은 <strong>1개월 구독권</strong>(1회 결제로 1개월 이용, 자동 갱신 없음)과
+                <strong>정기 구독권</strong>(매월 자동 결제, 해지 시 다음 결제부터 중단)으로 제공합니다.
+                결제 대행사 정책상 연 단위 등 장기 일괄 결제는 제공하지 않습니다.
+                플랜마다 <strong>엘리(AI) 질문하기</strong>의 <strong>일일 한도(한국시간)</strong>가 다릅니다: 베이직 5회, 슈퍼 15회, 울트라 30회.
+                이미 유료 이용 중이면 만료일 다음 날부터 새 구독이 이어집니다.
+                현재 결제 서비스 전환 작업이 진행 중이며, 결제 재개 시 이 화면에서 안내됩니다.
+              </p>
+            </div>
+
+            <div class="card card--pricing-intro" id="pricing-block-onemonth">
+              <h2 class="card__title">1개월 구독권</h2>
+              <p class="pricing-lead">한 번 결제로 30일간 해당 플랜 혜택이 적용됩니다.</p>
+            </div>
+            <div class="pricing-grid">
+              <article class="pricing-card">
+                <h3 class="pricing-card__name">베이직</h3>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩10,000</p>
+                <p class="pricing-card__period">1개월 · 엘리 일일 5회</p>
+                <p class="pricing-card__note">집중 학습 입문에 맞춘 플랜입니다.</p>
+                <div class="pricing-card__pay-actions">
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 준비 중</button>
+                </div>
+              </article>
+              <article class="pricing-card pricing-card--featured">
+                <span class="pricing-card__badge">인기</span>
+                <h3 class="pricing-card__name">슈퍼</h3>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩15,000</p>
+                <p class="pricing-card__period">1개월 · 엘리 일일 15회</p>
+                <p class="pricing-card__note">매일 꾸준히 질문하며 공부하기에 적합합니다.</p>
+                <div class="pricing-card__pay-actions">
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 준비 중</button>
+                </div>
+              </article>
+              <article class="pricing-card">
+                <h3 class="pricing-card__name">울트라</h3>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩20,000</p>
+                <p class="pricing-card__period">1개월 · 엘리 일일 30회</p>
+                <p class="pricing-card__note">질문량이 많은 학습에 맞춘 플랜입니다.</p>
+                <div class="pricing-card__pay-actions">
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 준비 중</button>
+                </div>
+              </article>
+            </div>
+
+            <div class="card card--pricing-intro" id="pricing-block-recurring">
+              <h2 class="card__title">정기 구독권</h2>
+              <p class="pricing-lead">
+                매월 자동 결제되며, <strong>1개월 구독권 정가 대비 20% 할인</strong>된 월 요금입니다. 언제든 해지할 수 있으며 해지 후에는
+                다음 결제일부터 청구되지 않습니다.
               </p>
             </div>
             <div class="pricing-grid">
               <article class="pricing-card">
-                <h3 class="pricing-card__name">1개월</h3>
-                <p class="pricing-card__price-was pricing-card__price-was--empty" aria-hidden="true">
-                  <span class="pricing-card__price-was-ghost">₩00,000</span>
-                </p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩15,000</p>
-                <p class="pricing-card__discount-label pricing-card__discount-label--empty" aria-hidden="true">
-                  <span class="pricing-card__discount-ghost">정가 ₩00,000 대비 00% 할인</span>
-                </p>
-                <p class="pricing-card__period">1개월 이용권</p>
-                <p class="pricing-card__note">단기 집중 학습에 적합합니다.</p>
+                <span class="pricing-card__badge">20% 할인</span>
+                <h3 class="pricing-card__name">베이직</h3>
+                <p class="pricing-card__price-was" aria-hidden="true">₩10,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩8,000</p>
+                <p class="pricing-card__discount-label">1개월 정가 대비 월 20% 할인</p>
+                <p class="pricing-card__period">월 정기 · 엘리 일일 5회</p>
+                <p class="pricing-card__note">월 ₩10,000 → ₩8,000</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
-                </div>
-              </article>
-              <article class="pricing-card">
-                <span class="pricing-card__badge">5% 할인</span>
-                <h3 class="pricing-card__name">3개월</h3>
-                <p class="pricing-card__price-was" aria-hidden="true">₩45,000</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩42,750</p>
-                <p class="pricing-card__discount-label">정가 ₩45,000 대비 5% 할인</p>
-                <p class="pricing-card__period">3개월 이용권</p>
-                <p class="pricing-card__note">중기 플랜입니다.</p>
-                <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 준비 중</button>
                 </div>
               </article>
               <article class="pricing-card pricing-card--featured">
-                <span class="pricing-card__badge">10% 할인</span>
-                <h3 class="pricing-card__name">6개월</h3>
-                <p class="pricing-card__price-was" aria-hidden="true">₩90,000</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩81,000</p>
-                <p class="pricing-card__discount-label">정가 ₩90,000 대비 10% 할인</p>
-                <p class="pricing-card__period">6개월 이용권</p>
-                <p class="pricing-card__note">장기 이용에 유리합니다.</p>
+                <span class="pricing-card__badge">20% 할인</span>
+                <h3 class="pricing-card__name">슈퍼</h3>
+                <p class="pricing-card__price-was" aria-hidden="true">₩15,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩12,000</p>
+                <p class="pricing-card__discount-label">1개월 정가 대비 월 20% 할인</p>
+                <p class="pricing-card__period">월 정기 · 엘리 일일 15회</p>
+                <p class="pricing-card__note">월 ₩15,000 → ₩12,000</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 준비 중</button>
                 </div>
               </article>
               <article class="pricing-card">
-                <span class="pricing-card__badge">약 44% 할인</span>
-                <h3 class="pricing-card__name">1년</h3>
-                <p class="pricing-card__price-was" aria-hidden="true">₩180,000</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩100,000</p>
-                <p class="pricing-card__discount-label">
-                  정가 ₩180,000(월 ₩15,000×12) 대비 약 44% 할인
-                </p>
-                <p class="pricing-card__period">1년 이용권</p>
-                <p class="pricing-card__note">자동 갱신 없이 1년치 이용 기간이 부여됩니다.</p>
+                <span class="pricing-card__badge">20% 할인</span>
+                <h3 class="pricing-card__name">울트라</h3>
+                <p class="pricing-card__price-was" aria-hidden="true">₩20,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩16,000</p>
+                <p class="pricing-card__discount-label">1개월 정가 대비 월 20% 할인</p>
+                <p class="pricing-card__period">월 정기 · 엘리 일일 30회</p>
+                <p class="pricing-card__note">월 ₩20,000 → ₩16,000</p>
                 <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
-                </div>
-              </article>
-              <article class="pricing-card pricing-card--featured">
-                <span class="pricing-card__badge">약 58% 할인</span>
-                <h3 class="pricing-card__name">2년</h3>
-                <p class="pricing-card__price-was" aria-hidden="true">₩360,000</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩150,000</p>
-                <p class="pricing-card__discount-label">
-                  정가 ₩360,000(월 ₩15,000×24) 대비 약 58% 할인
-                </p>
-                <p class="pricing-card__period">2년 이용권</p>
-                <p class="pricing-card__note">자동 갱신 없이 2년치 이용 기간이 부여됩니다.</p>
-                <div class="pricing-card__pay-actions">
-                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
+                  <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 준비 중</button>
                 </div>
               </article>
             </div>
-            <div id="pricing-question-packs" class="pricing-question-packs">
-              <div id="pricing-lawyer-question-packs" class="card card--pricing-intro">
-                <h2 class="card__title">변호사 질문권</h2>
-                <p class="pricing-lead">
-                  변호사에게 질문하기는 질문권 1건이 소모됩니다. 오류 신고는 질문권 없이 이용할 수 있습니다.
-                  로그인이 필요하며, 구매분은 결제일로부터 1년 유효입니다.
-                  퀴즈 출석으로 쌓은 포인트로도 전환할 수 있으며(변호사 질문권 1건당 <strong>5,000점</strong> 차감),
-                  <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 이용할 수 있습니다.
-                </p>
-              </div>
-              <div class="pricing-grid">
-                <article class="pricing-card">
-                  <h3 class="pricing-card__name">변호사 질문권 1건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main">₩5,000</p>
-                  <p class="pricing-card__period">1회 이용권</p>
-                  <p class="pricing-card__note">로그인 후 이용 가능합니다.</p>
-                  <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
-                  </div>
-                </article>
-                <article class="pricing-card pricing-card--featured">
-                  <span class="pricing-card__badge">추천</span>
-                  <h3 class="pricing-card__name">변호사 질문권 10건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main">₩30,000</p>
-                  <p class="pricing-card__period">10회 이용권</p>
-                  <p class="pricing-card__note">건당 ₩3,000 수준.</p>
-                  <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
-                  </div>
-                </article>
-              </div>
 
-              <div id="pricing-elly-question-packs" class="card card--pricing-intro pricing-elly-intro">
-                <h2 class="card__title">엘리(AI) 질문권</h2>
-                <p class="pricing-lead">
-                  유료 회원에게는 하루 무료 <strong>4회</strong>가 제공됩니다. 그 이후에는 아래 엘리(AI) 질문권이 차감됩니다.
-                  퀴즈 출석 포인트로도 전환할 수 있으며(엘리 질문권 1건당 <strong>500점</strong> 차감, 10건 팩 건당 약 ₩500 수준),
-                  <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 이용할 수 있습니다.
-                </p>
-              </div>
-              <div class="pricing-grid">
-                <article class="pricing-card">
-                  <h3 class="pricing-card__name">엘리 질문권 10건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main">₩5,000</p>
-                  <p class="pricing-card__period">10회 이용권</p>
-                  <p class="pricing-card__note">무료 4회 소진 후 건당 차감(구매일로부터 1년 유효). 건당 약 ₩500.</p>
-                  <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
-                  </div>
-                </article>
-                <article class="pricing-card pricing-card--featured">
-                  <span class="pricing-card__badge">추천</span>
-                  <h3 class="pricing-card__name">엘리 질문권 50건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main">₩20,000</p>
-                  <p class="pricing-card__period">50회 이용권</p>
-                  <p class="pricing-card__note">건당 약 ₩400 수준.</p>
-                  <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
-                  </div>
-                </article>
-                <article class="pricing-card pricing-card--featured">
-                  <span class="pricing-card__badge">대용량</span>
-                  <h3 class="pricing-card__name">엘리 질문권 100건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main">₩30,000</p>
-                  <p class="pricing-card__period">100회 이용권</p>
-                  <p class="pricing-card__note">건당 약 ₩300 수준.</p>
-                  <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--outline" disabled aria-disabled="true">결제 서비스 전환 중</button>
-                  </div>
-                </article>
-              </div>
+            <div id="pricing-elly-extra" class="card card--pricing-intro pricing-elly-intro">
+              <h2 class="card__title">엘리(AI) 질문권 (추가)</h2>
+              <p class="pricing-lead">
+                구독의 <strong>일일 한도</strong>를 모두 쓴 뒤에는 엘리(AI) 질문권이 추가로 차감됩니다(구매일 기준 1년 유효).
+                퀴즈 출석 포인트로도 전환할 수 있으며(엘리 질문권 1건당 <strong>500점</strong>),
+                <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 출석 포인트 전환</button>에서 이용할 수 있습니다.
+                결제 재개 후 팩 상품(10·50·100건)이 이 영역에 다시 연결됩니다.
+              </p>
             </div>
 
             <section class="pricing-refund-policy" aria-label="환불정책 요약">
               <h3 class="pricing-refund-policy__title">환불정책 요약</h3>
               <ul class="pricing-refund-policy__list">
-                <li>결제 후 7일 이내, 서비스 이용 내역(상세 해설 열람·질문권 사용 등)이 없으면 100% 환불 가능합니다.</li>
+                <li>결제 후 7일 이내, 서비스 이용 내역(상세 해설 열람·엘리(AI) 질문 등)이 없으면 100% 환불 가능합니다.</li>
                 <li>구독권은 이용 후 중도 해지 시 환불 산식(이용료 일할 차감 + 결제금액 10% 위약금)으로 계산됩니다.</li>
-                <li>질문권은 미사용 건에 한해 7일 이내 환불 가능하며, 답변 완료 건은 환불 대상에서 제외됩니다.</li>
+                <li>엘리(AI) 질문권 등 소모성 상품은 미사용 건에 한해 7일 이내 환불 가능하며, 이용이 시작된 건은 환불 대상에서 제외될 수 있습니다.</li>
                 <li>상세 기준과 절차는 하단의 <a href="/legal/refund-policy.html" target="_blank" rel="noopener noreferrer">환불정책</a> 전문에서 확인해 주세요.</li>
               </ul>
             </section>
@@ -1701,8 +1643,7 @@
                       <span class="dashboard-stat-card__unit">점</span>
                       <p class="dashboard-stat-card__hint">
                         퀴즈 1문제 이상 풀면 그날 출석으로 인정되며 하루 1회 포인트가 쌓입니다.
-                        아래 「출석 포인트 전환」에서 <strong>5,000점</strong>으로 변호사 질문권 1건,
-                        <strong>500점</strong>으로 엘리(AI) 질문권 1건으로 바꿀 수 있습니다(전환 시점부터 1년 유효).
+                        아래 「출석 포인트 전환」에서 <strong>500점</strong>으로 엘리(AI) 질문권 1건으로 바꿀 수 있습니다(전환 시점부터 1년 유효).
                       </p>
                     </div>
                     <div class="dashboard-stat-card">
@@ -1736,7 +1677,7 @@
               <div id="dashboard-my-points" class="dashboard-my-points">
                 <h3 id="dash-heading-points" class="dashboard-subtitle settings-block__title">나의 포인트</h3>
                 <p id="dashboard-my-points-loggedout" class="dashboard-lead" hidden>
-                  로그인하면 출석 포인트 내역과 질문권 전환이 표시됩니다.
+                  로그인하면 출석 포인트 내역과 엘리 질문권 전환이 표시됩니다.
                 </p>
                 <div id="dashboard-my-points-body" class="dashboard-my-points-body" hidden>
                   <p class="dashboard-my-points-summary">
@@ -1753,20 +1694,12 @@
                   </p>
                   <p id="dashboard-point-log-err" class="dashboard-point-log-err" hidden role="status"></p>
                   <div id="dashboard-point-convert-section" class="dashboard-point-convert-section">
-                    <h4 class="dashboard-subheading">포인트로 질문권 전환</h4>
+                    <h4 class="dashboard-subheading">포인트로 엘리 질문권 전환</h4>
                     <p class="dashboard-lead dashboard-point-convert-lead">
-                      모은 출석 포인트로 <strong>변호사 질문권</strong> 또는 <strong>엘리(AI) 질문권</strong>으로 바꿀 수 있습니다.
-                      포인트 전환 시 아래 버튼을 사용하세요. 전환한 질문권은 전환 시점부터 1년간 유효합니다.
+                      모은 출석 포인트로 <strong>엘리(AI) 질문권</strong>으로 바꿀 수 있습니다(구독 일일 한도를 넘긴 뒤 차감).
+                      전환한 질문권은 전환 시점부터 1년간 유효합니다.
                     </p>
                     <div class="dashboard-question-actions">
-                      <button
-                        type="button"
-                        class="btn btn--secondary btn--small dashboard-attendance-convert"
-                        id="btn-dashboard-attendance-convert-lawyer"
-                        disabled
-                      >
-                        변호사 질문권 1건 (5,000점)
-                      </button>
                       <button
                         type="button"
                         class="btn btn--secondary btn--small dashboard-attendance-convert"
@@ -1774,9 +1707,6 @@
                         disabled
                       >
                         엘리 질문권 1건 (500점)
-                      </button>
-                      <button type="button" class="btn btn--outline btn--small" id="dashboard-buy-question-credits">
-                        질문권 구매
                       </button>
                     </div>
                     <p id="dashboard-attendance-convert-msg" class="dashboard-attendance-convert-msg" hidden role="status"></p>
@@ -1789,7 +1719,7 @@
               <h3 id="dash-heading-inquiry" class="dashboard-subtitle settings-block__title">나의 신고·질문</h3>
               <div class="dashboard-inquiry">
                 <p class="dashboard-lead dashboard-inquiry-lead">
-                  오류 신고·변호사 질문·개선 의견·엘리(AI) 질문 내역을 확인할 수 있습니다. 답변은 위 알림 영역에도 표시됩니다.
+                  오류 신고·개선 의견·엘리(AI) 질문 내역을 확인할 수 있습니다. 답변은 위 알림 영역에도 표시됩니다.
                 </p>
                 <div class="dashboard-inquiry-tabs" role="tablist" aria-label="신고·질문 유형">
                   <button
@@ -1802,17 +1732,6 @@
                   >
                     <span class="dashboard-inquiry-tab__label">오류 신고</span>
                     <span class="dashboard-inquiry-tab__hint">버그·오탈자 등</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    class="dashboard-inquiry-tab"
-                    id="dashboard-my-questions"
-                    aria-selected="false"
-                    data-filter="question"
-                  >
-                    <span class="dashboard-inquiry-tab__label">변호사 질문</span>
-                    <span class="dashboard-inquiry-tab__hint">질문권으로 접수</span>
                   </button>
                   <button
                     type="button"
@@ -1865,17 +1784,6 @@
               </div>
               </section>
 
-              <section class="dashboard-block" aria-labelledby="dash-heading-credits">
-              <h3 id="dash-heading-credits" class="dashboard-subtitle settings-block__title">질문권</h3>
-              <p id="dashboard-question-credits-total" class="dashboard-question-credits">보유 질문권: —건</p>
-              <p id="dashboard-question-credits" class="dashboard-question-credits">—</p>
-              <p class="dashboard-lead dashboard-question-credits-hint">
-                유료 구독: 매월 4건(한국시간 월 단위, 매월 1일 기준으로 리셋). 추가 구매분은 결제일로부터 1년간 유효하며, 유료 회원도 구매할 수 있습니다.
-              </p>
-              <p class="dashboard-lead">
-                <button type="button" class="btn btn--link" id="dashboard-goto-question-packs">질문권 구매(요금제)</button>
-              </p>
-              </section>
             </div>
           </div>
 
@@ -2561,32 +2469,7 @@
       <div class="modal__actions">
         <button type="button" class="btn btn--ghost" id="quiz-ai-limit-modal-dismiss">닫기</button>
         <button type="button" class="btn btn--outline" id="quiz-ai-limit-modal-go-point-convert">포인트 전환하기</button>
-        <button type="button" class="btn btn--primary" id="quiz-ai-limit-modal-go-pricing">AI 질문권 구매</button>
-      </div>
-    </div>
-  </div>
-
-  <div
-    id="lawyer-credits-modal"
-    class="modal"
-    hidden
-    aria-hidden="true"
-    role="dialog"
-    aria-labelledby="lawyer-credits-modal-title"
-    aria-modal="true"
-  >
-    <div class="modal__panel card">
-      <div class="modal__head">
-        <h2 class="modal__title" id="lawyer-credits-modal-title">변호사 질문권이 필요합니다</h2>
-        <button type="button" class="modal__close" id="lawyer-credits-modal-close" aria-label="닫기">×</button>
-      </div>
-      <p class="modal__hint" id="lawyer-credits-modal-body">
-        보유한 변호사 질문권이 없습니다. 요금제에서 질문권을 구매한 뒤 이용해 주세요.
-      </p>
-      <div class="modal__actions">
-        <button type="button" class="btn btn--ghost" id="lawyer-credits-modal-dismiss">닫기</button>
-        <button type="button" class="btn btn--outline" id="lawyer-credits-modal-go-point-convert">포인트 전환하기</button>
-        <button type="button" class="btn btn--primary" id="lawyer-credits-modal-go-pricing">질문권 구매하기</button>
+        <button type="button" class="btn btn--primary" id="quiz-ai-limit-modal-go-pricing">요금제 보기</button>
       </div>
     </div>
   </div>
@@ -2603,7 +2486,7 @@
         <label class="ticket-modal-qa-privacy__label">
           <input type="checkbox" id="ticket-modal-qa-community" />
           <span>
-            답변을 받은 뒤 Q&A 게시판에 올릴 수 있도록 허용합니다. 실제 공개는 대시보드 「나의 질문내역」에서 최종 선택합니다.
+            답변을 받은 뒤 Q&A 게시판에 올릴 수 있도록 허용합니다. 실제 공개는 대시보드에서 최종 선택합니다.
           </span>
         </label>
       </div>
@@ -2830,15 +2713,15 @@
   <script src="js/firestore-db.js?v=11"></script>
   <script src="js/ai-config.js"></script>
   <script src="js/tickets-service.js?v=14"></script>
-  <script src="js/payapp-config.js?v=6"></script>
+  <script src="js/payapp-config.js?v=7"></script>
   <script src="js/portone-config.js?v=1"></script>
-  <script src="js/portone-checkout.js?v=1"></script>
+  <script src="js/portone-checkout.js?v=2"></script>
   <script src="js/auth.js?v=5"></script>
   <script src="js/user-profile.js?v=20260419"></script>
   <script src="js/dict-remote.js?v=3"></script>
   <script src="js/statute-tag.js"></script>
   <script src="js/tag-dict-modal.js?v=4"></script>
-  <script src="js/member-tier.js?v=2"></script>
+  <script src="js/member-tier.js?v=3"></script>
   <script>
     window.HANLAW_ADSENSE_DETAIL = window.HANLAW_ADSENSE_DETAIL || {
       client: "",
@@ -2851,13 +2734,13 @@
     };
   </script>
   <script src="js/detail-ad-unlock.js?v=4"></script>
-  <script src="js/question-credits.js?v=6"></script>
-  <script src="js/quiz-ai-ask.js?v=14"></script>
+  <script src="js/question-credits.js?v=7"></script>
+  <script src="js/quiz-ai-ask.js?v=16"></script>
   <script src="js/questions.js"></script>
-  <script src="js/dashboard-tickets.js?v=11"></script>
-  <script src="js/learning-stats.js?v=3"></script>
+  <script src="js/dashboard-tickets.js?v=12"></script>
+  <script src="js/learning-stats.js?v=4"></script>
   <script src="js/nav-layout.js?v=10"></script>
-  <script src="js/free-trial-ui.js?v=2"></script>
+  <script src="js/free-trial-ui.js?v=3"></script>
   <script src="js/public-qa.js?v=14"></script>
   <script src="js/quiz-note-panel.js?v=9"></script>
   <script src="js/dict-favorites-ui.js?v=2"></script>
@@ -2868,9 +2751,9 @@
   <script src="js/quiz-favorites.js?v=6"></script>
   <script src="js/app.js?v=49"></script>
   <script src="js/scope-favorites.js?v=8"></script>
-  <script src="js/ticket-modal.js?v=12"></script>
-  <script src="js/dict-panel-actions.js?v=9"></script>
-  <script src="js/quiz-note-card-actions.js?v=6"></script>
+  <script src="js/ticket-modal.js?v=13"></script>
+  <script src="js/dict-panel-actions.js?v=10"></script>
+  <script src="js/quiz-note-card-actions.js?v=7"></script>
   <script src="js/notifications-ui.js?v=4"></script>
   <script src="js/admin-panel.js?v=2"></script>
   <script src="js/admin-review.js?v=9"></script>

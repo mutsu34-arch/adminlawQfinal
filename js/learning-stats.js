@@ -348,15 +348,10 @@
       }
     }
 
-    var ptsLawyer =
-      typeof window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT === "number"
-        ? window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT
-        : 5000;
     var ptsElly =
       typeof window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT === "number"
         ? window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT
         : 500;
-    var attConvertLawyer = document.getElementById("btn-dashboard-attendance-convert-lawyer");
     var attConvertElly = document.getElementById("btn-dashboard-attendance-convert-elly");
     function setConvertDisabled(btn, minPts) {
       if (!btn) return;
@@ -372,7 +367,6 @@
         btn.disabled = pts < minPts;
       }
     }
-    setConvertDisabled(attConvertLawyer, ptsLawyer);
     setConvertDisabled(attConvertElly, ptsElly);
 
     var row = document.getElementById("dashboard-attendance-row");
@@ -565,11 +559,6 @@
     }
   }
 
-  function ptsLawyerMin() {
-    return typeof window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT === "number"
-      ? window.HANLAW_ATTENDANCE_POINTS_PER_LAWYER_CREDIT
-      : 5000;
-  }
   function ptsEllyMin() {
     return typeof window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT === "number"
       ? window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT
@@ -578,7 +567,6 @@
 
   function bindAttendanceConvert() {
     var msg = document.getElementById("dashboard-attendance-convert-msg");
-    var btnLawyer = document.getElementById("btn-dashboard-attendance-convert-lawyer");
     var btnElly = document.getElementById("btn-dashboard-attendance-convert-elly");
 
     function handleErr(err) {
@@ -590,64 +578,6 @@
         msg.textContent = t;
         msg.hidden = false;
       }
-    }
-
-    if (btnLawyer && btnLawyer.dataset.bound !== "1") {
-      btnLawyer.dataset.bound = "1";
-      btnLawyer.addEventListener("click", function () {
-        if (typeof window.convertAttendancePointsToQuestionCreditCallable !== "function") {
-          if (msg) {
-            msg.textContent = "기능을 불러오지 못했습니다.";
-            msg.hidden = false;
-          }
-          return;
-        }
-        var need = ptsLawyerMin();
-        var ptsNow = Math.max(0, parseInt(attendancePointsSnap, 10) || 0);
-        var ask = window.confirm(
-          "출석 포인트를 변호사 질문권으로 전환할까요?\n\n" +
-            "- 차감 포인트: " +
-            need.toLocaleString("ko-KR") +
-            "점\n" +
-            "- 지급: 변호사 질문권 1건\n" +
-            "- 유효기간: 전환 시점부터 1년\n" +
-            "- 현재 포인트: " +
-            ptsNow.toLocaleString("ko-KR") +
-            "점"
-        );
-        if (!ask) {
-          if (msg) {
-            msg.textContent = "전환을 취소했습니다.";
-            msg.hidden = false;
-          }
-          return;
-        }
-        btnLawyer.disabled = true;
-        if (btnElly) btnElly.disabled = true;
-        if (msg) msg.hidden = true;
-        window
-          .convertAttendancePointsToQuestionCreditCallable()
-          .then(function (data) {
-            if (msg) {
-              var leftPts =
-                data && data.attendancePoints != null
-                  ? Math.max(0, parseInt(data.attendancePoints, 10) || 0)
-                  : null;
-              msg.textContent =
-                "변호사 질문권 1건이 추가되었습니다. " +
-                (leftPts == null
-                  ? ""
-                  : "(남은 출석 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +
-                "전환한 시점부터 1년간 사용할 수 있습니다.";
-              msg.hidden = false;
-            }
-            window.dispatchEvent(new CustomEvent("question-credits-updated"));
-          })
-          .catch(handleErr)
-          .finally(function () {
-            renderLearningDashboard();
-          });
-      });
     }
 
     if (btnElly && btnElly.dataset.bound !== "1") {
@@ -667,7 +597,7 @@
             "- 차감 포인트: " +
             need.toLocaleString("ko-KR") +
             "점\n" +
-            "- 지급: 엘리 질문권 1건(무료 4회 소진 후 차감)\n" +
+            "- 지급: 엘리 질문권 1건(구독 일일 한도 소진 후 차감)\n" +
             "- 유효기간: 전환 시점부터 1년\n" +
             "- 현재 포인트: " +
             ptsNow.toLocaleString("ko-KR") +
@@ -681,7 +611,6 @@
           return;
         }
         btnElly.disabled = true;
-        if (btnLawyer) btnLawyer.disabled = true;
         if (msg) msg.hidden = true;
         window
           .convertAttendancePointsToEllyCreditCallable()

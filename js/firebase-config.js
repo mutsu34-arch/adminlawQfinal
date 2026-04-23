@@ -33,7 +33,7 @@ window.ensureHanlawFirebaseApp = function () {
   }
 };
 
-/** Cloud Functions 리전(질문권 차감 consumeQuestionCredit). functions/index.js 와 동일하게 맞추세요. */
+/** Cloud Functions 리전. functions/index.js 와 동일하게 맞추세요. */
 window.FIREBASE_FUNCTIONS_REGION = "asia-northeast3";
 
 /**

@@ -2,9 +2,16 @@
   var COLLECTION = "hanlaw_members";
   var unsub = null;
 
+  function normalizeEllyDailyTier(raw) {
+    var t = String(raw || "basic").toLowerCase();
+    if (t === "super" || t === "ultra") return t;
+    return "basic";
+  }
+
   window.APP_MEMBERSHIP = {
     tier: "free",
     paidUntil: null,
+    ellyDailyTier: "basic",
     loading: false,
     payappRebillActive: false
   };
@@ -112,14 +119,20 @@
     // 관리자 계정은 항상 유료 권한으로 처리
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var rebillActive = !!(d && d.payappRebillNo);
+    var ellyTier = "basic";
+    if (d && tier === "paid") {
+      ellyTier = normalizeEllyDailyTier(d.ellyDailyTier);
+    }
     if (isAdminEmail(u)) {
       tier = "paid";
       paidUntil = null;
       rebillActive = false;
+      ellyTier = "ultra";
     }
     window.APP_MEMBERSHIP = {
       tier: tier,
       paidUntil: paidUntil,
+      ellyDailyTier: ellyTier,
       loading: false,
       payappRebillActive: rebillActive
     };
@@ -130,7 +143,13 @@
   }
 
   function resetMembership() {
-    window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false, payappRebillActive: false };
+    window.APP_MEMBERSHIP = {
+      tier: "free",
+      paidUntil: null,
+      ellyDailyTier: "basic",
+      loading: false,
+      payappRebillActive: false
+    };
     var badge = $("user-membership");
     if (badge) {
       badge.textContent = "";
@@ -171,7 +190,13 @@
 
     // 관리자 계정은 Firestore 문서와 무관하게 즉시 유료 적용
     if (isAdminEmail(user)) {
-      window.APP_MEMBERSHIP = { tier: "paid", paidUntil: null, loading: false, payappRebillActive: false };
+      window.APP_MEMBERSHIP = {
+        tier: "paid",
+        paidUntil: null,
+        ellyDailyTier: "ultra",
+        loading: false,
+        payappRebillActive: false
+      };
       updateDom();
       window.dispatchEvent(
         new CustomEvent("membership-updated", { detail: window.APP_MEMBERSHIP })
@@ -181,12 +206,24 @@
 
     var db = getDb();
     if (!db) {
-      window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false, payappRebillActive: false };
+      window.APP_MEMBERSHIP = {
+        tier: "free",
+        paidUntil: null,
+        ellyDailyTier: "basic",
+        loading: false,
+        payappRebillActive: false
+      };
       updateDom();
       return;
     }
 
-    window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: true, payappRebillActive: false };
+    window.APP_MEMBERSHIP = {
+      tier: "free",
+      paidUntil: null,
+      ellyDailyTier: "basic",
+      loading: true,
+      payappRebillActive: false
+    };
     updateDom();
 
     unsub = db
@@ -194,7 +231,13 @@
       .doc(user.uid)
       .onSnapshot(applySnapshot, function (err) {
         console.warn("회원 등급 로드 실패:", err);
-        window.APP_MEMBERSHIP = { tier: "free", paidUntil: null, loading: false, payappRebillActive: false };
+        window.APP_MEMBERSHIP = {
+          tier: "free",
+          paidUntil: null,
+          ellyDailyTier: "basic",
+          loading: false,
+          payappRebillActive: false
+        };
         updateDom();
       });
   }

@@ -21,13 +21,13 @@ if (_envProjectId) {
  * 질문권 PAYAPP_KRW_Q1, PAYAPP_KRW_Q10 · 구독 PAYAPP_KRW_SUB_MONTHLY/YEARLY/TWO_YEAR · 비갱신 PAYAPP_KRW_NONRENEW_1M/3M/6M
  * getPayAppQuestionPackCheckout, getPayAppSubscriptionCheckout, cancelPayAppRebill, payappQuestionFeedback
  *
- * 출석 포인트→변호사 질문권: convertAttendancePointsToQuestionCredit · 엘리 질문권: convertAttendancePointsToEllyCredit (대시보드)
+ * 출석 포인트→엘리 질문권: convertAttendancePointsToEllyCredit (대시보드). 변호사 질문권 전환·차감은 종료됨.
  * 개선의견 채택: adminApproveSuggestionTicket (관리자, 출석 포인트 지급)
  * 공개 Q&A: publishLawyerQaPublic(관리자, 비공개 스텁), publishLawyerQaCommunity(질문자 옵트인), publishEllyQaCommunity·unpublishEllyQaCommunity(엘리 질문자 옵트인), searchLawyerQa, revealLawyerQaAnswer, adminBackfillLawyerQaCommunityVisible(관리자 1회)
  * 배포: 프로젝트 루트에서 firebase deploy --only functions,firestore:rules
  *
  * 사전·퀴즈 AI: GEMINI_API_KEY, 선택 GEMINI_MODEL (기본 gemini-2.0-flash, 구형 gemini-1.5-flash-latest 는 1.5-flash 로 치환)
- * 퀴즈 AI: quizAskGemini — 무료 1일 4회(hanlaw_quiz_ai_usage) + 엘리 질문권(hanlaw_quiz_ai_wallet); 기존 구매분 ellyUnlimitedUntil은 서버에서 계속 인정
+ * 퀴즈 AI: quizAskGemini — 유료 구독 플랜별 일일 한도(hanlaw_quiz_ai_usage) + 엘리 질문권(hanlaw_quiz_ai_wallet); ellyUnlimitedUntil·구매 배치 유지
  * 페이앱 엘리: PAYAPP_KRW_EQ10/EQ50/EQ100 — getPayAppEllyQuestionPackCheckout (무제한 1개월 결제는 UI 제거, 웹훅·Callable은 유지 가능)
  * 관리자 문의함 AI 초안: adminDraftTicketAi — GEMINI_API_KEY, 관리자만, 선택 자료실 RAG(PINECONE·quizAskGemini와 동일 retrieveLibraryContextForQuiz)
  * 자료실 RAG: GEMINI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME, 선택 PINECONE_HOST, PINECONE_NAMESPACE, GEMINI_EMBED_MODEL, GEMINI_EMBED_DIM
@@ -111,7 +111,7 @@ const QUESTION_PACK_PRICE_HINT_KO =
 
 /** 한국시간 기준 하루 1회, 퀴즈 1문제 이상 풀이 시 지급되는 출석 포인트 */
 const ATTENDANCE_POINTS_PER_DAY = 100;
-/** 출석 포인트를 변호사 질문권 1건으로 바꿀 때 차감(수동 전환, convertAttendancePointsToQuestionCredit) — 질문권 단가(₩5,000)에 맞춤 */
+/** 레거시(변호사 질문권 전환 종료). 유지 시 과거 문서·환경변수와 숫자만 맞추면 됨. */
 const ATTENDANCE_POINTS_PER_CREDIT = 5000;
 /** 출석 포인트를 엘리(AI) 질문권 1건으로 바꿀 때 차감(convertAttendancePointsToEllyCredit) — 엘리 10건 팩 건당 약 ₩500 수준 */
 const ATTENDANCE_POINTS_PER_ELLY_CREDIT = 500;
@@ -185,73 +185,13 @@ function sumPurchasedCredits(batches, nowMs) {
   return n;
 }
 
-exports.consumeQuestionCredit = onCall(
-  { region: "asia-northeast3" },
-  async (request) => {
-    if (!request.auth || !request.auth.uid) {
-      throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-    }
-    if (isAdminEmailFromAuth(request.auth)) {
-      return { ok: true, adminGratis: true };
-    }
-    const uid = request.auth.uid;
-    const periodKey = kstYearMonth();
-
-    await db.runTransaction(async (t) => {
-      const memRef = db.collection("hanlaw_members").doc(uid);
-      const walletRef = db.collection("hanlaw_question_wallet").doc(uid);
-      const [memSnap, walletSnap] = await t.getAll(memRef, walletRef);
-
-      const paid = memSnap.exists && isPaidMember(memSnap.data());
-      const base = walletSnap.exists ? walletSnap.data() : {};
-      const norm = normalizeWallet(base, periodKey);
-
-      if (paid) {
-        const used = norm.monthlyUsed || 0;
-        if (used < MONTHLY_FREE_FOR_PAID) {
-          t.set(
-            walletRef,
-            {
-              monthlyPeriodKey: periodKey,
-              monthlyUsed: used + 1,
-              batches: norm.batches,
-              updatedAt: FieldValue.serverTimestamp()
-            },
-            { merge: true }
-          );
-          return;
-        }
-      }
-
-      const nowMs = Date.now();
-      const newBatches = consumeOneFromBatches(norm.batches, nowMs);
-      if (!newBatches) {
-        throw new HttpsError(
-          "failed-precondition",
-          "질문권이 부족합니다. 유료 구독 월간 혜택을 모두 쓰셨거나, 구매한 질문권이 없습니다. " +
-            QUESTION_PACK_PRICE_HINT_KO
-        );
-      }
-
-      t.set(
-        walletRef,
-        {
-          monthlyPeriodKey: periodKey,
-          monthlyUsed: norm.monthlyUsed,
-          batches: newBatches,
-          updatedAt: FieldValue.serverTimestamp()
-        },
-        { merge: true }
-      );
-    });
-
-    return { ok: true };
-  }
-);
+exports.consumeQuestionCredit = onCall({ region: "asia-northeast3" }, async () => {
+  throw new HttpsError("failed-precondition", "변호사 질문 기능은 더 이상 제공되지 않습니다.");
+});
 
 /**
  * 로그인 사용자가 퀴즈를 1문제 이상 풀었을 때(클라이언트에서 정답/오답 제출 직후 호출).
- * KST 달력일 기준 하루 1회만 출석 포인트 지급. 질문권 전환은 대시보드에서 별도 버튼(convertAttendancePointsToQuestionCredit).
+ * KST 달력일 기준 하루 1회만 출석 포인트 지급. 엘리 질문권 전환은 대시보드에서 별도 버튼(convertAttendancePointsToEllyCredit).
  */
 exports.recordQuizAttendance = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
@@ -307,73 +247,8 @@ exports.recordQuizAttendance = onCall({ region: "asia-northeast3" }, async (requ
   return result;
 });
 
-/**
- * 출석 포인트를 차감하고 변호사 질문권 1건(구매 배치와 동일, 1년 유효)을 지급합니다.
- */
-exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northeast3" }, async (request) => {
-  if (!request.auth || !request.auth.uid) {
-    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  }
-  const uid = request.auth.uid;
-  const periodKey = kstYearMonth();
-  const attRef = db.collection("hanlaw_attendance_rewards").doc(uid);
-  const walletRef = db.collection("hanlaw_question_wallet").doc(uid);
-  const exp = Timestamp.fromMillis(Date.now() + BATCH_VALID_MS);
-
-  return db.runTransaction(async (t) => {
-    const [attSnap, walletSnap] = await t.getAll(attRef, walletRef);
-    let points = Math.max(
-      0,
-      parseInt(attSnap.exists ? attSnap.data().attendancePoints : 0, 10) || 0
-    );
-    if (points < ATTENDANCE_POINTS_PER_CREDIT) {
-      throw new HttpsError(
-        "failed-precondition",
-        `변호사 질문권으로 바꾸려면 출석 포인트가 ${ATTENDANCE_POINTS_PER_CREDIT.toLocaleString("ko-KR")}점 이상이어야 합니다.`
-      );
-    }
-    points -= ATTENDANCE_POINTS_PER_CREDIT;
-
-    const walletData = walletSnap.exists ? walletSnap.data() : {};
-    const norm = normalizeWallet(walletData, periodKey);
-    const batches = norm.batches.slice();
-    batches.push({
-      amount: 1,
-      expiresAt: exp,
-      // 배열 원소 내부에는 serverTimestamp sentinel 대신 즉시 Timestamp를 기록
-      purchasedAt: Timestamp.now()
-    });
-
-    t.set(
-      attRef,
-      {
-        attendancePoints: points,
-        updatedAt: FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
-    appendPointLog(t, attRef, {
-      delta: -ATTENDANCE_POINTS_PER_CREDIT,
-      reason: REASON.CONVERT_LAWYER,
-      balanceAfter: points
-    });
-    t.set(
-      walletRef,
-      {
-        monthlyPeriodKey: periodKey,
-        monthlyUsed: norm.monthlyUsed,
-        batches,
-        updatedAt: FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
-
-    return {
-      ok: true,
-      attendancePoints: points,
-      creditsAdded: 1
-    };
-  });
+exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northeast3" }, async () => {
+  throw new HttpsError("failed-precondition", "변호사 질문권 전환은 더 이상 제공되지 않습니다.");
 });
 
 /**

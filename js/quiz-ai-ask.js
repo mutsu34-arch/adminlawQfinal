@@ -6,9 +6,24 @@
   var usageUnsub = null;
   var ellyWalletUnsub = null;
   var memberUnsub = null;
-  var lastRemain = 4;
+  var lastRemain = 0;
+  var lastPaidDailyCap = 5;
   var lastEllyCredits = 0;
   var lastEllyUnlimitedUntilMs = 0;
+
+  function capFromEllyDailyTier(raw) {
+    var t = String(raw || "basic").toLowerCase();
+    if (t === "super") return 15;
+    if (t === "ultra") return 30;
+    return 5;
+  }
+
+  function dailyUsageCapForViewer() {
+    if (typeof window.isPaidMember === "function" && window.isPaidMember()) {
+      return lastPaidDailyCap;
+    }
+    return 0;
+  }
 
   /** 퀴즈 AI 답변 상단 고정 안내(HTML 조각, format 결과 앞에 붙임) */
   var QUIZ_AI_ANSWER_DISCLAIMER =
@@ -28,11 +43,13 @@
   }
 
   function computeLeftFromSnap(snap) {
+    var cap = dailyUsageCapForViewer();
     var today = kstTodayYmd();
-    if (!snap || !snap.exists) return 4;
+    if (!snap || !snap.exists) return cap;
     var d = snap.data();
-    if (d.ymd !== today) return 4;
-    return Math.max(0, 4 - (parseInt(d.count, 10) || 0));
+    if (d.ymd !== today) return cap;
+    var used = Math.max(0, parseInt(d.count, 10) || 0);
+    return Math.max(0, cap - used);
   }
 
   function sumEllyBatches(batches) {
@@ -72,13 +89,15 @@
     if (!modal) return;
     function goPricing() {
       hideEllyLimitModal();
-      if (typeof window.goToEllyQuestionPacksSection === "function") {
+      if (typeof window.goToQuestionPacksSection === "function") {
+        window.goToQuestionPacksSection();
+      } else if (typeof window.goToEllyQuestionPacksSection === "function") {
         window.goToEllyQuestionPacksSection();
       } else {
         var navBtn = document.querySelector('.nav-main__btn[data-panel="pricing"]');
         if (navBtn) navBtn.click();
         setTimeout(function () {
-          var sec = document.getElementById("pricing-elly-question-packs");
+          var sec = document.getElementById("pricing-subscription-anchor");
           if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 80);
       }
@@ -109,16 +128,14 @@
     var modal = document.getElementById("quiz-ai-limit-modal");
     if (!modal) {
       window.alert(
-        "무료 한도를 다 썼으니, 내일 질문하거나 질문권을 구매해 주세요.\n" +
-          "출석 포인트 500점으로 엘리 질문권 1건 전환도 가능합니다(대시보드 > 출석 포인트 전환)."
+        "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 출석 포인트로 엘리 질문권을 전환해 주세요(대시보드 > 출석 포인트 전환). 상위 구독 플랜은 요금제 탭에서 확인할 수 있습니다."
       );
       return;
     }
     var body = document.getElementById("quiz-ai-limit-modal-body");
     if (body) {
       body.textContent =
-        "무료 한도를 다 썼으니, 내일 질문하거나 질문권을 구매해 주세요.\n" +
-        "출석 포인트 500점으로 엘리 질문권 1건 전환도 가능합니다(대시보드 > 출석 포인트 전환).";
+        "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 출석 포인트로 엘리 질문권을 전환할 수 있습니다(대시보드 > 출석 포인트 전환). 더 높은 일일 한도가 필요하면 요금제에서 상위 플랜을 확인해 주세요.";
       body.style.whiteSpace = "pre-line";
     }
     modal.hidden = false;
@@ -177,11 +194,9 @@
     var msg;
     if (!isRealFirebaseUser()) {
       msg =
-        "로그인 후 이용 · 유료 회원 한정 · " +
-        HANLAW_ELLIE_AI_LABEL +
-        " 한도 하루 4회(한국시간)";
+        "로그인 후 이용 · 유료 구독 회원 한정 · 플랜별 일일 한도(베이직 5·슈퍼 15·울트라 30회, 한국시간)";
     } else if (typeof window.isPaidMember === "function" && !window.isPaidMember()) {
-      msg = HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.";
+      msg = HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.";
     } else if (hasEllyUnlimited()) {
       var end = new Date(lastEllyUnlimitedUntilMs);
       var ds = end.toLocaleDateString("ko-KR", {
@@ -197,10 +212,13 @@
         "까지 · 한국시간 기준, Google Gemini)";
     } else {
       var credPart = lastEllyCredits > 0 ? " · 보유 엘리 질문권 " + lastEllyCredits + "건" : "";
+      var cap = lastPaidDailyCap;
       msg =
-        "오늘 무료 " +
+        "오늘 " +
         lastRemain +
-        "/4회" +
+        "/" +
+        cap +
+        "회(구독 일일 한도)" +
         credPart +
         " · " +
         HANLAW_ELLIE_AI_LABEL +
@@ -234,7 +252,7 @@
       usageUnsub = null;
     }
     if (!uid || typeof firebase === "undefined" || !firebase.firestore) {
-      lastRemain = 4;
+      lastRemain = 0;
       updateRemainTexts();
       return;
     }
@@ -245,7 +263,7 @@
         updateRemainTexts();
       },
       function () {
-        lastRemain = 4;
+        lastRemain = 0;
         updateRemainTexts();
       }
     );
@@ -289,16 +307,27 @@
     memberUnsub = mref.onSnapshot(
       function (snap) {
         lastEllyUnlimitedUntilMs = 0;
+        lastPaidDailyCap = 5;
         if (snap && snap.exists) {
-          var eu = snap.data().ellyUnlimitedUntil;
+          var dd = snap.data();
+          var eu = dd.ellyUnlimitedUntil;
           if (eu && typeof eu.toMillis === "function") {
             lastEllyUnlimitedUntilMs = eu.toMillis();
+          }
+          if (dd.membershipTier === "paid") {
+            lastPaidDailyCap = capFromEllyDailyTier(dd.ellyDailyTier);
+          }
+        } else {
+          var am = window.APP_MEMBERSHIP || {};
+          if (am.tier === "paid" && am.ellyDailyTier) {
+            lastPaidDailyCap = capFromEllyDailyTier(am.ellyDailyTier);
           }
         }
         updateRemainTexts();
       },
       function () {
         lastEllyUnlimitedUntilMs = 0;
+        lastPaidDailyCap = 5;
         updateRemainTexts();
       }
     );
@@ -342,7 +371,7 @@
 
   function togglePanel() {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
       return;
     }
     var p = document.getElementById(IDS.panel);
@@ -356,7 +385,7 @@
 
   function sendAsk() {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
       return;
     }
     if (!isRealFirebaseUser()) {
@@ -432,6 +461,8 @@
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
           showEllyLimitModal();
+        } else if (code === "functions/failed-precondition" && /유료 구독/.test(msg)) {
+          showEllyLimitModal();
         } else {
           if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
             msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
@@ -447,7 +478,7 @@
 
   function sendFromNoteArticle(article) {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
       return;
     }
     if (!isRealFirebaseUser()) {
@@ -545,6 +576,8 @@
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
           showEllyLimitModal();
+        } else if (code === "functions/failed-precondition" && /유료 구독/.test(msg)) {
+          showEllyLimitModal();
         } else {
           if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
             msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
@@ -592,7 +625,7 @@
 
   function sendDictionaryPanelAsk(kind) {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
       return;
     }
     if (!isRealFirebaseUser()) {
@@ -672,6 +705,8 @@
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
           showEllyLimitModal();
+        } else if (code === "functions/failed-precondition" && /유료 구독/.test(msg)) {
+          showEllyLimitModal();
         } else {
           if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
             msg = "서버에 Gemini API 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.";
@@ -687,7 +722,7 @@
 
   function toggleDictionaryAiPanel(kind) {
     if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 회원에 한해 이용할 수 있습니다.");
+      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
       return;
     }
     var pre = dictionaryEliPrefix(kind);
@@ -776,6 +811,12 @@
       syncUser();
     });
     window.addEventListener("membership-updated", function () {
+      var m = window.APP_MEMBERSHIP || {};
+      if (m.tier === "paid" && m.ellyDailyTier) {
+        lastPaidDailyCap = capFromEllyDailyTier(m.ellyDailyTier);
+      } else {
+        lastPaidDailyCap = 5;
+      }
       updateRemainTexts();
     });
   }

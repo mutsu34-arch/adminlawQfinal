@@ -378,12 +378,6 @@
     return !!(u && u.email);
   }
 
-  function packPrices() {
-    return typeof window.getQuestionPackPricesDisplay === "function"
-      ? window.getQuestionPackPricesDisplay()
-      : "1건 ₩5,000 · 10건 ₩30,000";
-  }
-
   function ensureTicketContext(kind) {
     syncDictionaryPanelContexts(kind);
     return !!(window.__QUIZ_QUESTION_CONTEXT && window.__QUIZ_QUESTION_CONTEXT.questionId);
@@ -416,42 +410,6 @@
         window.openHanlawTicketModal("suggestion");
       }
       return;
-    }
-    if (type === "question") {
-      var u1 = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
-      if (!u1 || !u1.email) {
-        window.alert("변호사에게 질문하기는 로그인한 뒤, 질문권이 있을 때 이용할 수 있습니다.");
-        return;
-      }
-      if (typeof window.waitForQuestionCreditState !== "function") {
-        if (typeof window.openHanlawTicketModal === "function") {
-          window.openHanlawTicketModal("question");
-        }
-        return;
-      }
-      window.waitForQuestionCreditState(function (state) {
-        if (state.loading) {
-          window.alert("질문권 정보를 불러오는 중입니다. 잠시 후 다시 시도하세요.");
-          return;
-        }
-        if ((state.total || 0) < 1) {
-          if (typeof window.showLawyerCreditsNeededModal === "function") {
-            window.showLawyerCreditsNeededModal();
-          } else {
-            window.alert(
-              "질문권이 없습니다.\n\n" +
-                "· 유료 구독 회원: 매월 4건(한국시간 기준 월 단위)이 제공됩니다.\n" +
-                "· 추가로 요금제 탭에서 질문권을 구매할 수 있습니다(" +
-                packPrices() +
-                ", 구매일로부터 1년 유효)."
-            );
-          }
-          return;
-        }
-        if (typeof window.openHanlawTicketModal === "function") {
-          window.openHanlawTicketModal("question");
-        }
-      });
     }
   }
 
@@ -557,12 +515,6 @@
     if (sug) {
       sug.addEventListener("click", function () {
         openTicket(kind, "suggestion");
-      });
-    }
-    var ask = $(pre + "-ticket-ask");
-    if (ask) {
-      ask.addEventListener("click", function () {
-        openTicket(kind, "question");
       });
     }
   }

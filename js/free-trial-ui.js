@@ -113,7 +113,6 @@
       var toolbar = document.createElement("div");
       toolbar.className = "quiz-post-actions__toolbar free-trial-mock-toolbar";
       toolbar.innerHTML =
-        '<button type="button" class="btn btn--ticket btn--ticket-ask" data-free-mock-action="lawyer-question">변호사에게 질문하기</button>' +
         '<button type="button" class="btn btn--ticket btn--ticket-report" data-free-mock-action="error-report">오류 신고하기</button>' +
         '<button type="button" class="btn btn--ticket btn--ticket-suggestion" data-free-mock-action="improve">개선하기</button>' +
         '<button type="button" class="btn btn--outline btn--small" data-free-mock-action="memo">메모</button>' +
@@ -198,7 +197,6 @@
       bar.className = "quiz-post-actions__toolbar free-trial-mock-toolbar";
       bar.innerHTML =
         '<button type="button" class="btn btn--secondary btn--small" data-free-mock-action="ai-ask">엘리(AI)에게 질문하기</button>' +
-        '<button type="button" class="btn btn--ticket btn--ticket-ask" data-free-mock-action="lawyer-question">변호사에게 질문하기</button>' +
         '<button type="button" class="btn btn--ticket btn--ticket-report" data-free-mock-action="error-report">오류 신고하기</button>' +
         '<button type="button" class="btn btn--ticket btn--ticket-suggestion" data-free-mock-action="improve">개선하기</button>' +
         '<button type="button" class="btn btn--outline btn--small" data-free-mock-action="memo">메모</button>' +
@@ -212,8 +210,7 @@
     var box = document.getElementById("free-trial-mock-guide");
     if (!box) return;
     var title = "";
-    if (action === "lawyer-question") title = "변호사 질문";
-    else if (action === "error-report") title = "오류 신고";
+    if (action === "error-report") title = "오류 신고";
     else if (action === "improve") title = "개선 제안";
     else if (action === "memo") title = "메모";
     else if (action === "favorite") title = "찜하기";

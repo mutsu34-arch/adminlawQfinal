@@ -19,12 +19,7 @@
   }
 
   function disableLegacyButtons() {
-    var selectors = [
-      "[data-payapp-pack]",
-      "[data-payapp-elly-pack]",
-      "[data-payapp-sub]",
-      "#dashboard-buy-question-credits"
-    ];
+    var selectors = ["[data-payapp-pack]", "[data-payapp-elly-pack]", "[data-payapp-sub]"];
     var nodes = document.querySelectorAll(selectors.join(","));
     nodes.forEach(function (btn) {
       if (!btn || btn.dataset.portoneBound === "1") return;
@@ -47,7 +42,7 @@
       function (e) {
         var target =
           e.target && e.target.closest
-            ? e.target.closest("[data-payapp-pack],[data-payapp-elly-pack],[data-payapp-sub],#dashboard-buy-question-credits")
+            ? e.target.closest("[data-payapp-pack],[data-payapp-elly-pack],[data-payapp-sub]")
             : null;
         if (!target) return;
         if (isEnabled()) {
