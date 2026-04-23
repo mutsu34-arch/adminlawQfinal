@@ -109,7 +109,7 @@
       } else if (currentType === "suggestion") {
         qHint.innerHTML =
           "<strong>로그인한 회원</strong>만 접수할 수 있습니다. 검토 후 답변이 알림으로 전달됩니다. " +
-          "의견이 <strong>채택</strong>된 경우 출석 포인트가 지급될 수 있습니다(기본 <strong>3,000점</strong>, 운영 정책·관리자 판단에 따름). " +
+          "의견이 <strong>채택</strong>된 경우 포인트가 지급될 수 있습니다(기본 <strong>3,000점</strong>, 운영 정책·관리자 판단에 따름). " +
           "질문권 차감 없이 보낼 수 있습니다.";
         qHint.hidden = false;
       } else {

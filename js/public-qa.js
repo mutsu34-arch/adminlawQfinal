@@ -337,7 +337,7 @@
             statusLine.textContent = "본인이 올린 질문입니다.";
           } else if (r.pointsAwardedToAsker > 0) {
             statusLine.textContent =
-              "이 답변을 처음 확인하셨습니다. 질문을 올리신 분에게 출석 포인트 " +
+              "이 답변을 처음 확인하셨습니다. 질문을 올리신 분에게 포인트 " +
               r.pointsAwardedToAsker +
               "점이 지급되었습니다.";
           } else {

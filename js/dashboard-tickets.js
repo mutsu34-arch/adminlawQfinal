@@ -305,7 +305,7 @@
           var hintElly = document.createElement("p");
           hintElly.className = "dashboard-ticket-item__qa-hint";
           hintElly.textContent =
-            "공개하면 다른 회원이 Q&A에서 이 질문과 엘리(AI) 답변을 열람할 수 있습니다. 다른 사람이 처음으로 답변을 펼쳐 볼 때 질문자에게 출석 포인트 200점이 적립될 수 있습니다.";
+            "공개하면 다른 회원이 Q&A에서 이 질문과 엘리(AI) 답변을 열람할 수 있습니다. 다른 사람이 처음으로 답변을 펼쳐 볼 때 질문자에게 포인트 200점이 적립될 수 있습니다.";
           qaBoxElly.appendChild(hintElly);
 
           var pubBtnElly = document.createElement("button");
@@ -511,7 +511,7 @@
           var hintP = document.createElement("p");
           hintP.className = "dashboard-ticket-item__qa-hint";
           hintP.textContent =
-            "공개하면 다른 회원이 Q&A에서 이 질문과 답변을 열람할 수 있습니다. 다른 사람이 처음으로 답변을 펼쳐 볼 때 질문자에게 출석 포인트가 적립될 수 있습니다.";
+            "공개하면 다른 회원이 Q&A에서 이 질문과 답변을 열람할 수 있습니다. 다른 사람이 처음으로 답변을 펼쳐 볼 때 질문자에게 포인트가 적립될 수 있습니다.";
           qaBox.appendChild(hintP);
 
           var pubBtn = document.createElement("button");

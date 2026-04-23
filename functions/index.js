@@ -21,8 +21,8 @@ if (_envProjectId) {
  * 질문권 PAYAPP_KRW_Q1, PAYAPP_KRW_Q10 · 구독 PAYAPP_KRW_SUB_MONTHLY/YEARLY/TWO_YEAR · 비갱신 PAYAPP_KRW_NONRENEW_1M/3M/6M
  * getPayAppQuestionPackCheckout, getPayAppSubscriptionCheckout, cancelPayAppRebill, payappQuestionFeedback
  *
- * 출석 포인트→엘리 질문권: convertAttendancePointsToEllyCredit (대시보드). 변호사 질문권 전환·차감은 종료됨.
- * 개선의견 채택: adminApproveSuggestionTicket (관리자, 출석 포인트 지급)
+ * 포인트→엘리 질문권: convertAttendancePointsToEllyCredit (대시보드). 변호사 질문권 전환·차감은 종료됨.
+ * 개선의견 채택: adminApproveSuggestionTicket (관리자, 포인트 지급)
  * 공개 Q&A: publishLawyerQaPublic(관리자, 비공개 스텁), publishLawyerQaCommunity(질문자 옵트인), publishEllyQaCommunity·unpublishEllyQaCommunity(엘리 질문자 옵트인), searchLawyerQa, revealLawyerQaAnswer, adminBackfillLawyerQaCommunityVisible(관리자 1회)
  * 배포: 프로젝트 루트에서 firebase deploy --only functions,firestore:rules
  *
@@ -110,15 +110,15 @@ const QUESTION_PACK_PRICE_HINT_KO =
   process.env.QUESTION_PACK_PRICE_HINT_KO ||
   "요금제에서 추가 구매: 10건 ₩5,000 · 20건 ₩10,000 · 30건 ₩15,000(구매일로부터 1개월 유효).";
 
-/** 한국시간 기준 하루 1회, 퀴즈 1문제 이상 풀이 시 지급되는 출석 포인트 */
+/** 한국시간 기준 하루 1회, 퀴즈 1문제 이상 풀이 시 지급되는 포인트 */
 const ATTENDANCE_POINTS_PER_DAY = 100;
 /** 레거시(변호사 질문권 전환 종료). 유지 시 과거 문서·환경변수와 숫자만 맞추면 됨. */
 const ATTENDANCE_POINTS_PER_CREDIT = 5000;
-/** 출석 포인트를 엘리(AI) 질문권 1건으로 바꿀 때 차감(convertAttendancePointsToEllyCredit) — 엘리 10건 팩 건당 약 ₩500 수준 */
+/** 포인트를 엘리(AI) 질문권 1건으로 바꿀 때 차감(convertAttendancePointsToEllyCredit) — 엘리 10건 팩 건당 약 ₩500 수준 */
 const ATTENDANCE_POINTS_PER_ELLY_CREDIT = 500;
 /** 앱 홍보 인증(관리자 승인 시) 지급 포인트 */
 const PROMOTION_REWARD_POINTS = 9000;
-/** 개선의견 채택 시 기본 지급 출석 포인트(관리자가 Callable에서 가감 가능) */
+/** 개선의견 채택 시 기본 지급 포인트(관리자가 Callable에서 가감 가능) */
 const IMPROVEMENT_DEFAULT_POINTS = 3000;
 
 function kstYmd(now = new Date()) {
@@ -192,7 +192,7 @@ exports.consumeQuestionCredit = onCall({ region: "asia-northeast3" }, async () =
 
 /**
  * 로그인 사용자가 퀴즈를 1문제 이상 풀었을 때(클라이언트에서 정답/오답 제출 직후 호출).
- * KST 달력일 기준 하루 1회만 출석 포인트 지급. 엘리 질문권 전환은 대시보드에서 별도 버튼(convertAttendancePointsToEllyCredit).
+ * KST 달력일 기준 하루 1회만 포인트 지급. 엘리 질문권 전환은 대시보드에서 별도 버튼(convertAttendancePointsToEllyCredit).
  */
 exports.recordQuizAttendance = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
@@ -253,7 +253,7 @@ exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northea
 });
 
 /**
- * 출석 포인트를 차감하고 엘리(AI) 질문권 1건(PayApp 엘리 팩과 동일한 배치, 1개월 유효)을 지급합니다.
+ * 포인트를 차감하고 엘리(AI) 질문권 1건(PayApp 엘리 팩과 동일한 배치, 1개월 유효)을 지급합니다.
  */
 exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
@@ -273,7 +273,7 @@ exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3"
     if (points < ATTENDANCE_POINTS_PER_ELLY_CREDIT) {
       throw new HttpsError(
         "failed-precondition",
-        `엘리(AI) 질문권으로 바꾸려면 출석 포인트가 ${ATTENDANCE_POINTS_PER_ELLY_CREDIT.toLocaleString("ko-KR")}점 이상이어야 합니다.`
+        `엘리(AI) 질문권으로 바꾸려면 포인트가 ${ATTENDANCE_POINTS_PER_ELLY_CREDIT.toLocaleString("ko-KR")}점 이상이어야 합니다.`
       );
     }
     points -= ATTENDANCE_POINTS_PER_ELLY_CREDIT;
@@ -390,7 +390,7 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
       title: "홍보 인증이 승인되어 9,000 포인트가 지급되었습니다",
       body:
         adminReply +
-        " (지급 포인트 9,000점. 대시보드에서 출석 포인트를 질문권으로 전환할 수 있습니다.)",
+        " (지급 포인트 9,000점. 대시보드에서 포인트를 질문권으로 전환할 수 있습니다.)",
       read: false,
       createdAt: FieldValue.serverTimestamp()
     });
@@ -408,7 +408,7 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
 });
 
 /**
- * 개선의견(suggestion) 티켓 승인: 답변 알림 + 선택적 채택 시 출석 포인트(기본 IMPROVEMENT_DEFAULT_POINTS).
+ * 개선의견(suggestion) 티켓 승인: 답변 알림 + 선택적 채택 시 포인트(기본 IMPROVEMENT_DEFAULT_POINTS).
  */
 exports.adminApproveSuggestionTicket = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
@@ -491,7 +491,7 @@ exports.adminApproveSuggestionTicket = onCall({ region: "asia-northeast3" }, asy
           : "개선 의견에 대한 답변이 등록되었습니다";
     const bodySuffix =
       adopted && awardPts > 0
-        ? `\n\n(채택 보상 ${awardPts.toLocaleString("ko-KR")}점이 출석 포인트로 지급되었습니다.)`
+        ? `\n\n(채택 보상 ${awardPts.toLocaleString("ko-KR")}점이 포인트로 지급되었습니다.)`
         : "";
 
     t.set(notifRef, {

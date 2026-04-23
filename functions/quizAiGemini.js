@@ -24,6 +24,17 @@ function isMembershipPaidActive(m, nowMs) {
   return true;
 }
 
+function isAdminEmailFromAuth(auth) {
+  const email = auth && auth.token && auth.token.email ? String(auth.token.email).toLowerCase() : "";
+  if (!email) return false;
+  const raw = process.env.ADMIN_EMAILS || "mutsu34@gmail.com";
+  const admins = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return admins.includes(email);
+}
+
 /** 유료 구독 플랜별 엘리(AI) 일일 한도(KST). 미설정·기존 회원은 basic. */
 function ellyDailyLimitForMemberData(m) {
   const t = String((m && m.ellyDailyTier) || "basic").toLowerCase();
@@ -112,7 +123,7 @@ function sumEllyCredits(batches, nowMs) {
 /**
  * @returns {Promise<{ remainingAfter: number|null, reservationKind: 'unlimited'|'free'|'credit', ellyCreditsAfter?: number }>}
  */
-async function reserveEllySlot(uid) {
+async function reserveEllySlot(uid, auth) {
   const usageRef = db().collection("hanlaw_quiz_ai_usage").doc(uid);
   const walletRef = db().collection("hanlaw_quiz_ai_wallet").doc(uid);
   const memRef = db().collection("hanlaw_members").doc(uid);
@@ -136,8 +147,9 @@ async function reserveEllySlot(uid) {
       };
     }
 
-    const paidOk = isMembershipPaidActive(m, nowMs);
-    const dailyCap = paidOk ? ellyDailyLimitForMemberData(m) : 0;
+    const adminOk = isAdminEmailFromAuth(auth);
+    const paidOk = adminOk || isMembershipPaidActive(m, nowMs);
+    const dailyCap = paidOk ? (adminOk ? 30 : ellyDailyLimitForMemberData(m)) : 0;
 
     let count = 0;
     if (usageSnap.exists) {
@@ -176,7 +188,7 @@ async function reserveEllySlot(uid) {
       throw new HttpsError(
         "resource-exhausted",
         `오늘의 엘리(AI) 질문 한도(${dailyCap}회, 한국시간 기준)를 모두 사용했습니다. ` +
-          "추가로는 엘리(AI) 질문권(구매·출석 포인트 전환)이 차감됩니다."
+          "추가로는 엘리(AI) 질문권(구매·포인트 전환)이 차감됩니다."
       );
     }
     t.set(
@@ -462,7 +474,7 @@ const quizAskGemini = onCall({ region: "asia-northeast3" }, async (request) => {
 
   let rem;
   try {
-    rem = await reserveEllySlot(uid);
+    rem = await reserveEllySlot(uid, request.auth);
   } catch (e) {
     if (e instanceof HttpsError) throw e;
     console.error("quizAskGemini reserve", e);

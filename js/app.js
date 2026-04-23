@@ -2041,7 +2041,7 @@
     if (!data || !data.pointsAwarded) return;
     var rest = data.attendancePoints != null ? data.attendancePoints : 0;
     var msg =
-      "오늘 출석이 반영되었습니다. 출석 포인트 +" +
+      "오늘 출석이 반영되었습니다. 포인트 +" +
       data.pointsAwarded +
       "점 (잔여 " +
       rest +

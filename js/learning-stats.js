@@ -593,7 +593,7 @@
         var need = ptsEllyMin();
         var ptsNow = Math.max(0, parseInt(attendancePointsSnap, 10) || 0);
         var ask = window.confirm(
-          "출석 포인트를 엘리(AI) 질문권으로 전환할까요?\n\n" +
+          "포인트를 엘리(AI) 질문권으로 전환할까요?\n\n" +
             "- 차감 포인트: " +
             need.toLocaleString("ko-KR") +
             "점\n" +
@@ -624,7 +624,7 @@
                 "엘리(AI) 질문권 1건이 추가되었습니다. " +
                 (leftPts == null
                   ? ""
-                  : "(남은 출석 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +
+                  : "(남은 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +
                 "전환한 시점부터 1개월간 사용할 수 있습니다.";
               msg.hidden = false;
             }

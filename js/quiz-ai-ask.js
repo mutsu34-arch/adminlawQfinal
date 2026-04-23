@@ -128,14 +128,14 @@
     var modal = document.getElementById("quiz-ai-limit-modal");
     if (!modal) {
       window.alert(
-        "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 출석 포인트로 엘리 질문권을 전환해 주세요(대시보드 > 출석 포인트 전환). 상위 구독 플랜은 요금제 탭에서 확인할 수 있습니다."
+        "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 포인트로 엘리 질문권을 전환해 주세요(대시보드 > 포인트 전환). 상위 구독 플랜은 요금제 탭에서 확인할 수 있습니다."
       );
       return;
     }
     var body = document.getElementById("quiz-ai-limit-modal-body");
     if (body) {
       body.textContent =
-        "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 출석 포인트로 엘리 질문권을 전환할 수 있습니다(대시보드 > 출석 포인트 전환). 더 높은 일일 한도가 필요하면 요금제에서 상위 플랜을 확인해 주세요.";
+        "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 포인트로 엘리 질문권을 전환할 수 있습니다(대시보드 > 포인트 전환). 더 높은 일일 한도가 필요하면 요금제에서 상위 플랜을 확인해 주세요.";
       body.style.whiteSpace = "pre-line";
     }
     modal.hidden = false;

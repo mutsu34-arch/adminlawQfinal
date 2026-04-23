@@ -10,7 +10,7 @@ function db() {
 }
 const REGION = "asia-northeast3";
 
-/** 다른 사용자가 변호사 답변을 처음 열람할 때 질문자에게 지급하는 출석 포인트 */
+/** 다른 사용자가 변호사 답변을 처음 열람할 때 질문자에게 지급하는 포인트 */
 const QA_VIEW_REWARD = 500;
 /** 엘리(AI) 공개 Q&A: 타인이 처음 열람 시 질문자에게 지급 */
 const ELLY_QA_VIEW_REWARD = 200;
