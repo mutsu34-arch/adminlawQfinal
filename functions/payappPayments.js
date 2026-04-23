@@ -632,7 +632,7 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
       if (product.type === "pack") {
         const amount = product.pack;
         const walletRef = db().collection("hanlaw_question_wallet").doc(uid);
-        const exp = Timestamp.fromMillis(Date.now() + ELLY_BATCH_VALID_MS);
+        const exp = Timestamp.fromMillis(Date.now() + BATCH_VALID_MS);
 
         await db().runTransaction(async (t) => {
           const dup = await t.get(dedupRef);
