@@ -133,6 +133,37 @@
                 <div id="notif-dropdown-list" class="notif-dropdown__list"></div>
               </div>
             </div>
+            <div class="header-quick-controls" aria-label="빠른 설정">
+              <button
+                type="button"
+                class="header-quick-theme-btn"
+                id="header-theme-toggle"
+                aria-label="다크 모드와 라이트 모드 전환"
+                title="테마 전환"
+              >
+                <span class="header-quick-theme-btn__sun" aria-hidden="true">☀</span>
+                <span class="header-quick-theme-btn__moon" aria-hidden="true">🌙</span>
+              </button>
+              <div class="header-quick-timer" id="header-quick-timer">
+                <label class="header-quick-timer__toggle">
+                  <input type="checkbox" id="header-quick-timer-enabled" />
+                  <span>타이머</span>
+                </label>
+                <label class="header-quick-timer__seconds" id="header-quick-timer-seconds-wrap" hidden>
+                  <span class="header-quick-timer__label">초</span>
+                  <input
+                    type="number"
+                    id="header-quick-timer-seconds"
+                    class="input header-quick-timer__input"
+                    min="10"
+                    max="600"
+                    step="1"
+                    inputmode="numeric"
+                    aria-label="문항당 제한 시간 초 단위"
+                  />
+                </label>
+              </div>
+            </div>
             <button type="button" id="btn-open-auth" class="btn btn--small btn--primary user-bar__login-btn">
               로그인 · 회원가입
             </button>
@@ -1843,8 +1874,8 @@
                 <h3 id="settings-theme-title" class="settings-block__title">화면 테마</h3>
                 <p class="settings-block__hint">다크 모드와 라이트 모드를 선택합니다.</p>
                 <div class="theme-switch theme-switch--settings" role="group" aria-label="화면 테마">
-                  <button type="button" class="theme-switch__btn" id="theme-btn-dark" aria-pressed="true">다크</button>
-                  <button type="button" class="theme-switch__btn" id="theme-btn-light" aria-pressed="false">라이트</button>
+                  <button type="button" class="theme-switch__btn" id="theme-btn-dark" data-theme-mode="dark" aria-pressed="true">다크</button>
+                  <button type="button" class="theme-switch__btn" id="theme-btn-light" data-theme-mode="light" aria-pressed="false">라이트</button>
                 </div>
               </section>
 
@@ -2692,7 +2723,8 @@
 
   <script src="js/header-quote.js?v=8"></script>
   <script src="js/app-settings.js?v=20260422-adsense-open-mode"></script>
-  <script src="js/theme-toggle.js"></script>
+  <script src="js/theme-toggle.js?v=2"></script>
+  <script src="js/header-quick-controls.js?v=1"></script>
   <script src="js/exam-catalog.js"></script>
   <script src="js/scope.js"></script>
   <script src="js/legal-dictionary-data.js"></script>

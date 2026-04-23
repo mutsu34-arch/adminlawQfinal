@@ -20,12 +20,19 @@
   }
 
   function syncButtons() {
-    var darkBtn = document.getElementById("theme-btn-dark");
-    var lightBtn = document.getElementById("theme-btn-light");
-    if (!darkBtn || !lightBtn) return;
     var onLight = isLight();
-    darkBtn.setAttribute("aria-pressed", onLight ? "false" : "true");
-    lightBtn.setAttribute("aria-pressed", onLight ? "true" : "false");
+    document.querySelectorAll('[data-theme-mode="dark"]').forEach(function (btn) {
+      btn.setAttribute("aria-pressed", onLight ? "false" : "true");
+    });
+    document.querySelectorAll('[data-theme-mode="light"]').forEach(function (btn) {
+      btn.setAttribute("aria-pressed", onLight ? "true" : "false");
+    });
+    var toggle = document.getElementById("header-theme-toggle");
+    if (toggle) {
+      toggle.setAttribute("data-theme", onLight ? "light" : "dark");
+      toggle.setAttribute("aria-label", onLight ? "라이트 모드 사용 중, 다크 모드로 전환" : "다크 모드 사용 중, 라이트 모드로 전환");
+      toggle.title = onLight ? "라이트 모드 (클릭 시 다크 모드)" : "다크 모드 (클릭 시 라이트 모드)";
+    }
   }
 
   function updateMeta() {
@@ -45,10 +52,18 @@
       else if (saved === "dark") root.removeAttribute("data-theme");
     } catch (e) {}
 
-    var darkBtn = document.getElementById("theme-btn-dark");
-    var lightBtn = document.getElementById("theme-btn-light");
-    if (darkBtn) darkBtn.addEventListener("click", function () { setTheme("dark"); });
-    if (lightBtn) lightBtn.addEventListener("click", function () { setTheme("light"); });
+    document.querySelectorAll("[data-theme-mode]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var mode = btn.getAttribute("data-theme-mode");
+        setTheme(mode === "light" ? "light" : "dark");
+      });
+    });
+    var toggle = document.getElementById("header-theme-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", function () {
+        setTheme(isLight() ? "dark" : "light");
+      });
+    }
     syncButtons();
     updateMeta();
   });

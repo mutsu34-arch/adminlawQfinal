@@ -584,6 +584,88 @@ body {
   margin-left: 0;
 }
 
+.header-quick-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.header-quick-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.06rem;
+  min-width: 2.25rem;
+  height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 0.35rem;
+}
+
+.header-quick-theme-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.header-quick-theme-btn__sun,
+.header-quick-theme-btn__moon {
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
+.header-quick-theme-btn[data-theme="dark"] .header-quick-theme-btn__sun {
+  opacity: 0.5;
+}
+
+.header-quick-theme-btn[data-theme="light"] .header-quick-theme-btn__moon {
+  opacity: 0.5;
+}
+
+.header-quick-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.18rem 0.3rem;
+}
+
+.header-quick-timer__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.header-quick-timer__toggle input {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.header-quick-timer__seconds {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.header-quick-timer__label {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.header-quick-timer__input.input {
+  width: 3.2rem;
+  height: 1.7rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.76rem;
+}
+
 .header--app #header-notif-wrap,
 .header--app #user-membership {
   display: none !important;
@@ -597,6 +679,20 @@ body {
 @media (min-width: 641px) {
   .header--app .user-bar__login-btn {
     min-width: 9.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-quick-controls {
+    margin-right: auto;
+  }
+
+  .header-quick-theme-btn {
+    height: 1.9rem;
+  }
+
+  .header-quick-timer__toggle {
+    font-size: 0.72rem;
   }
 }
 

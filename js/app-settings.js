@@ -144,6 +144,14 @@
   }
 
   window.getHanlawQuizTimerConfig = loadQuizTimer;
+  window.setHanlawQuizTimerConfig = function (cfg) {
+    if (!cfg || typeof cfg !== "object") return;
+    saveQuizTimer({
+      enabled: !!cfg.enabled,
+      seconds: clampQuizTimerSeconds(cfg.seconds)
+    });
+    syncQuizTimerControls();
+  };
 
   function migrateLegacyIfNeeded() {
     try {
