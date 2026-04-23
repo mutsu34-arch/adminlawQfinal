@@ -14,11 +14,13 @@
   function getConfig() {
     var c = window.HANLAW_ADSENSE_DETAIL;
     if (!c || typeof c !== "object") c = {};
+    var enabled = c.enabled === true;
     var client = String(c.client || "").trim();
     var slot = String(c.slot || "").trim();
     var policyRaw = String(c.unlockPolicy || "everyDetail").trim().toLowerCase();
     var unlockPolicy = policyRaw === "everydetail" || policyRaw === "every_detail" ? "everyDetail" : "timeWindow";
     return {
+      enabled: enabled,
       client: client,
       slot: slot,
       unlockPolicy: unlockPolicy,
@@ -160,6 +162,19 @@
         : "법리·함정·판례 등 상세 해설은 유료 구독 회원에게 제공됩니다. 아래 광고를 확인한 뒤에는 일정 시간 동안 무료로 열람할 수 있습니다.";
     wrap.appendChild(p1);
 
+    if (!cfg.enabled) {
+      var btnSubOnly = document.createElement("button");
+      btnSubOnly.type = "button";
+      btnSubOnly.className = "btn btn--primary feedback-detail-unlock-btn";
+      btnSubOnly.textContent = "요금제에서 구독하기";
+      btnSubOnly.addEventListener("click", function () {
+        goPricing();
+      });
+      wrap.appendChild(btnSubOnly);
+      container.appendChild(wrap);
+      return;
+    }
+
     var sub = document.createElement("p");
     sub.className = "feedback-detail-lock__sub";
     sub.textContent =
@@ -191,8 +206,6 @@
       btn.disabled = false;
       btn.textContent = "요금제에서 구독하기";
       btn.className = "btn btn--primary feedback-detail-unlock-btn";
-      hint.textContent =
-        "광고 단위가 아직 연결되지 않았습니다. 관리자는 페이지에서 HANLAW_ADSENSE_DETAIL(client, slot)을 설정한 뒤 배포하세요.";
       btn.addEventListener("click", function () {
         goPricing();
       });

@@ -7,12 +7,12 @@
  * - PAYAPP_USERID, PAYAPP_LINK_KEY, PAYAPP_LINK_VALUE
  * - PAYAPP_SHOP_NAME
  * 질문권: PAYAPP_KRW_Q1, PAYAPP_KRW_Q10 (기본 5000, 30000)
- * 엘리(AI) 질문권: PAYAPP_KRW_EQ10, PAYAPP_KRW_EQ50, PAYAPP_KRW_EQ100 (기본 5000, 20000, 30000) — var2 e10|e50|e100, 지갑 hanlaw_quiz_ai_wallet
+ * 엘리(AI) 질문권: PAYAPP_KRW_EQ10, PAYAPP_KRW_EQ20, PAYAPP_KRW_EQ30 (기본 5000, 10000, 15000) — var2 e10|e20|e30, 지갑 hanlaw_quiz_ai_wallet
  * 엘리 무제한 1개월: PAYAPP_KRW_ELLY_PASS_1M (기본 10000) — var2 sub_elly_pass_1m, hanlaw_members.ellyUnlimitedUntil
  * 구독: PAYAPP_KRW_SUB_MONTHLY, PAYAPP_KRW_SUB_YEARLY, PAYAPP_KRW_SUB_TWO_YEAR (기본 10000, 100000, 150000)
  * 비갱신(기간권): PAYAPP_KRW_NONRENEW_1M, PAYAPP_KRW_NONRENEW_3M, PAYAPP_KRW_NONRENEW_6M (기본 15000, 42750, 81000 — 3·6개월은 정가 대비 5%·10% 할인가)
  *
- * var2: 질문권 "1"|"10" · 엘리권 "e10"|"e50"|"e100" · 엘리 1개월권 "sub_elly_pass_1m" · 구독 "sub_monthly"|… · 비갱신 "sub_nonrenew_1m"|…
+ * var2: 질문권 "1"|"10" · 엘리권 "e10"|"e20"|"e30" · 엘리 1개월권 "sub_elly_pass_1m" · 구독 "sub_monthly"|… · 비갱신 "sub_nonrenew_1m"|…
  *
  * 정기결제(PayApp rebill): 월 구독(monthly)만 https://docs.payapp.kr 정기결제 요청(JS) — PayApp.rebill()
  * · 연/2년 구독은 매뉴얼상 정기 주기가 Month·Week·Day뿐이라 기존 일회 결제(payrequest) 유지
@@ -42,6 +42,7 @@ function db() {
 }
 
 const BATCH_VALID_MS = 365 * 24 * 60 * 60 * 1000;
+const ELLY_BATCH_VALID_MS = 30 * 24 * 60 * 60 * 1000;
 const REGION = "asia-northeast3";
 
 function kstYearMonth(now = new Date()) {
@@ -81,6 +82,13 @@ function expectedKrwForEllyPack(pack) {
   if (pack === 10) {
     return Math.max(1000, parseInt(process.env.PAYAPP_KRW_EQ10 || "5000", 10) || 5000);
   }
+  if (pack === 20) {
+    return Math.max(1000, parseInt(process.env.PAYAPP_KRW_EQ20 || "10000", 10) || 10000);
+  }
+  if (pack === 30) {
+    return Math.max(1000, parseInt(process.env.PAYAPP_KRW_EQ30 || "15000", 10) || 15000);
+  }
+  // 레거시 결제 건 정산 호환
   if (pack === 50) {
     return Math.max(1000, parseInt(process.env.PAYAPP_KRW_EQ50 || "20000", 10) || 20000);
   }
@@ -134,8 +142,8 @@ function parseVar2Product(v) {
   if (s === "sub_nonrenew_3m") return { type: "sub_nonrenew", months: 3 };
   if (s === "sub_nonrenew_6m") return { type: "sub_nonrenew", months: 6 };
   if (s === "sub_elly_pass_1m") return { type: "elly_pass" };
-  if (s === "e10" || s === "e50" || s === "e100") {
-    const ellyPack = s === "e10" ? 10 : s === "e50" ? 50 : 100;
+  if (s === "e10" || s === "e20" || s === "e30" || s === "e50" || s === "e100") {
+    const ellyPack = s === "e10" ? 10 : s === "e20" ? 20 : s === "e30" ? 30 : s === "e50" ? 50 : 100;
     return { type: "elly_pack", pack: ellyPack };
   }
   const pack = packFromVar2(v);
@@ -323,22 +331,22 @@ const getPayAppQuestionPackCheckout = onCall({ region: REGION }, async (request)
   );
 });
 
-/** 엘리(AI) 질문권 10·50·100건 — hanlaw_quiz_ai_wallet */
+/** 엘리(AI) 질문권 10·20·30건 — hanlaw_quiz_ai_wallet */
 const getPayAppEllyQuestionPackCheckout = onCall({ region: REGION }, async (request) => {
   if (!request.auth || !request.auth.uid) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   }
   const uid = request.auth.uid;
   const pack = parseInt((request.data && request.data.pack) || 0, 10);
-  if (pack !== 10 && pack !== 50 && pack !== 100) {
-    throw new HttpsError("invalid-argument", "pack은 10, 50 또는 100이어야 합니다.");
+  if (pack !== 10 && pack !== 20 && pack !== 30) {
+    throw new HttpsError("invalid-argument", "pack은 10, 20 또는 30이어야 합니다.");
   }
 
   const { payappUserid, feedbackUrl } = assertPayAppConfigured();
   const shopname = String(process.env.PAYAPP_SHOP_NAME || "행정법Q").trim() || "행정법Q";
   const goodname = "행정법Q 엘리(AI) 질문권 " + pack + "건";
   const price = expectedKrwForEllyPack(pack);
-  const var2 = pack === 10 ? "e10" : pack === 50 ? "e50" : "e100";
+  const var2 = pack === 10 ? "e10" : pack === 20 ? "e20" : "e30";
 
   return Object.assign(
     {
@@ -624,7 +632,7 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
       if (product.type === "pack") {
         const amount = product.pack;
         const walletRef = db().collection("hanlaw_question_wallet").doc(uid);
-        const exp = Timestamp.fromMillis(Date.now() + BATCH_VALID_MS);
+        const exp = Timestamp.fromMillis(Date.now() + ELLY_BATCH_VALID_MS);
 
         await db().runTransaction(async (t) => {
           const dup = await t.get(dedupRef);

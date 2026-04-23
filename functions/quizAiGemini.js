@@ -13,7 +13,7 @@ function db() {
   return getFirestore();
 }
 
-const ELLY_WALLET_BATCH_VALID_MS = 365 * 24 * 60 * 60 * 1000;
+const ELLY_WALLET_BATCH_VALID_MS = 30 * 24 * 60 * 60 * 1000;
 
 function isMembershipPaidActive(m, nowMs) {
   if (!m || m.membershipTier !== "paid") return false;

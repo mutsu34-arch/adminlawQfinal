@@ -598,7 +598,7 @@
             need.toLocaleString("ko-KR") +
             "점\n" +
             "- 지급: 엘리 질문권 1건(구독 일일 한도 소진 후 차감)\n" +
-            "- 유효기간: 전환 시점부터 1년\n" +
+            "- 유효기간: 전환 시점부터 1개월\n" +
             "- 현재 포인트: " +
             ptsNow.toLocaleString("ko-KR") +
             "점"
@@ -625,7 +625,7 @@
                 (leftPts == null
                   ? ""
                   : "(남은 출석 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +
-                "전환한 시점부터 1년간 사용할 수 있습니다.";
+                "전환한 시점부터 1개월간 사용할 수 있습니다.";
               msg.hidden = false;
             }
           })

@@ -261,7 +261,7 @@
       var ellyPackBtn = e.target && e.target.closest ? e.target.closest("[data-payapp-elly-pack]") : null;
       if (ellyPackBtn) {
         var ep = parseInt(ellyPackBtn.getAttribute("data-payapp-elly-pack") || "0", 10);
-        if (ep === 10 || ep === 50 || ep === 100) {
+        if (ep === 10 || ep === 20 || ep === 30) {
           e.preventDefault();
           startPayAppEllyPack(ep);
         }

@@ -33,7 +33,7 @@ function consumeOneFromBatches(batches, nowMs) {
   return next;
 }
 
-/** AI 오류 등으로 차감분을 복구할 때 — 1건을 새 배치로 되돌려 넣음(구매분과 동일 1년 유효) */
+/** AI 오류 등으로 차감분을 복구할 때 — 1건을 새 배치로 되돌려 넣음(구매분과 동일 1개월 유효) */
 function pushCompensatingBatch(batches, expiresAtTs) {
   const next = Array.isArray(batches) ? batches.slice() : [];
   next.push({
