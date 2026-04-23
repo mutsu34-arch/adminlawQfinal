@@ -282,10 +282,22 @@
                     <span class="field__label" id="filter-topic-label">단원·주제</span>
                     <div class="field-topic-row">
                       <select
+                        id="filter-topic-l1"
+                        class="select field-topic-row__select"
+                        aria-labelledby="filter-topic-label"
+                        aria-label="대분류 필터"
+                      ></select>
+                      <select
+                        id="filter-topic-l2"
+                        class="select field-topic-row__select"
+                        aria-labelledby="filter-topic-label"
+                        aria-label="중분류 필터"
+                      ></select>
+                      <select
                         id="filter-topic"
                         class="select field-topic-row__select"
                         aria-labelledby="filter-topic-label"
-                        aria-label="주제 필터"
+                        aria-label="소분류 필터"
                       ></select>
                     </div>
                     <label class="field field--topic-search-inner">

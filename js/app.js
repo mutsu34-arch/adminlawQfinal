@@ -66,6 +66,8 @@
     start: document.getElementById("screen-start"),
     quiz: document.getElementById("screen-quiz"),
     result: document.getElementById("screen-result"),
+    filterTopicL1: document.getElementById("filter-topic-l1"),
+    filterTopicL2: document.getElementById("filter-topic-l2"),
     filterTopic: document.getElementById("filter-topic"),
     filterTopicSearch: document.getElementById("filter-topic-search"),
     questionCount: document.getElementById("question-count"),
@@ -310,6 +312,8 @@
     list: [],
     index: 0,
     correct: 0,
+    lastFilterTopicL1: ALL,
+    lastFilterTopicL2: ALL,
     lastFilterTopic: ALL,
     lastFilterTopicSearch: "",
     lastSequenceMode: "random",
@@ -744,85 +748,97 @@
    * 홍정선 기본행정법 기준 목차(요약 단원명).
    * 데이터에 없는 주제도 선택 드롭다운에 노출해, 단원 중심으로 학습 경로를 먼저 고를 수 있게 합니다.
    */
-  var ADMIN_LAW_TOPIC_ORDER = [
-    "행정법의 의의",
-    "행정법의 법원",
-    "행정법상 법 원칙",
-    "법치행정의 원칙",
-    "평등의 원칙",
-    "비례의 원칙",
-    "신뢰보호의 원칙",
-    "부당결부금지의 원칙",
-    "행정법관계",
-    "개인적 공권",
-    "행정개입청구권",
-    "행정입법",
-    "법규명령",
-    "행정규칙",
-    "행정계획",
-    "행정행위",
-    "기속행위·재량행위",
-    "행정행위의 하자",
-    "행정행위의 효력",
-    "행정행위의 취소·철회",
-    "행정강제",
-    "행정절차",
-    "행정정보공개",
-    "행정조사",
-    "행정벌",
-    "즉시강제",
-    "행정계약",
-    "행정지도",
-    "행정상 사실행위",
-    "국가배상",
-    "손실보상",
-    "행정심판",
-    "행정소송",
-    "취소소송",
-    "무효등확인소송",
-    "부작위위법확인소송",
-    "당사자소송",
-    "객관적 소송",
-    "지방자치법",
-    "지방자치단체의 조직",
-    "지방자치단체의 사무",
-    "지방자치단체의 통제",
-    "공무원법",
-    "공무원의 권리·의무·책임",
-    "경찰법",
-    "경찰조직법",
-    "경찰작용법",
-    "경찰책임",
-    "공물법",
-    "영조물법",
-    "공기업법",
-    "공용부담법",
-    "토지행정법",
-    "경제행정법",
-    "환경행정법",
-    "재무행정법"
+  var ADMIN_LAW_TOPIC_TREE = [
+    {
+      l1: "총론",
+      groups: [
+        { l2: "행정법 기초", topics: ["행정법의 의의", "행정법의 법원", "행정법상 법 원칙", "법치행정의 원칙", "평등의 원칙", "비례의 원칙", "신뢰보호의 원칙", "부당결부금지의 원칙"] },
+        { l2: "행정법관계", topics: ["행정법관계", "개인적 공권", "행정개입청구권"] },
+        { l2: "행정작용법", topics: ["행정입법", "법규명령", "행정규칙", "행정계획", "행정행위", "기속행위·재량행위", "행정행위의 하자", "행정행위의 효력", "행정행위의 취소·철회", "행정강제", "행정절차", "행정정보공개", "행정조사", "행정벌", "즉시강제", "행정계약", "행정지도", "행정상 사실행위"] },
+        { l2: "국가책임", topics: ["국가배상", "손실보상"] }
+      ]
+    },
+    {
+      l1: "쟁송",
+      groups: [
+        { l2: "행정심판", topics: ["행정심판"] },
+        { l2: "행정소송", topics: ["행정소송", "취소소송", "무효등확인소송", "부작위위법확인소송", "당사자소송", "객관적 소송"] }
+      ]
+    },
+    {
+      l1: "각론",
+      groups: [
+        { l2: "행정조직/지방자치", topics: ["지방자치법", "지방자치단체의 조직", "지방자치단체의 사무", "지방자치단체의 통제"] },
+        { l2: "인사/경찰", topics: ["공무원법", "공무원의 권리·의무·책임", "경찰법", "경찰조직법", "경찰작용법", "경찰책임"] },
+        { l2: "특별행정법", topics: ["공물법", "영조물법", "공기업법", "공용부담법", "토지행정법", "경제행정법", "환경행정법", "재무행정법"] }
+      ]
+    }
   ];
 
+  var LEGACY_TOPIC_ALIAS = {
+    "행정법 일반": "행정법의 의의",
+    "비례원칙": "비례의 원칙",
+    "조세·행정": "재무행정법"
+  };
+
+  var ADMIN_LAW_TOPIC_ORDER = [];
+  var TOPIC_PATH_BY_LABEL = {};
+  (function buildTopicIndexes() {
+    ADMIN_LAW_TOPIC_TREE.forEach(function (sec) {
+      (sec.groups || []).forEach(function (g) {
+        (g.topics || []).forEach(function (t) {
+          if (ADMIN_LAW_TOPIC_ORDER.indexOf(t) < 0) ADMIN_LAW_TOPIC_ORDER.push(t);
+          if (!TOPIC_PATH_BY_LABEL[t]) TOPIC_PATH_BY_LABEL[t] = { l1: sec.l1, l2: g.l2, l3: t };
+        });
+      });
+    });
+  })();
   window.HANLAW_ADMIN_LAW_TOPIC_ORDER = ADMIN_LAW_TOPIC_ORDER;
 
-  function buildTopicOptionsForFilter(scoped) {
-    var bankTopics = uniqueSorted(scoped.map(function (q) { return q.topic; }));
-    var seen = {};
+  function normalizeTopicLabel(topic) {
+    var t = String(topic || "").trim();
+    return LEGACY_TOPIC_ALIAS[t] || t;
+  }
+
+  function pathForTopic(topic) {
+    var t = normalizeTopicLabel(topic);
+    return TOPIC_PATH_BY_LABEL[t] || null;
+  }
+
+  function optionsForL2(l1) {
     var out = [];
-    var ci;
-    for (ci = 0; ci < ADMIN_LAW_TOPIC_ORDER.length; ci++) {
-      var ct = ADMIN_LAW_TOPIC_ORDER[ci];
-      out.push(ct);
-      seen[ct] = true;
-    }
-    var bi;
-    for (bi = 0; bi < bankTopics.length; bi++) {
-      var bt = bankTopics[bi];
-      if (!seen[bt]) {
-        out.push(bt);
-        seen[bt] = true;
+    ADMIN_LAW_TOPIC_TREE.forEach(function (sec) {
+      if (l1 !== ALL && sec.l1 !== l1) return;
+      (sec.groups || []).forEach(function (g) {
+        if (out.indexOf(g.l2) < 0) out.push(g.l2);
+      });
+    });
+    return out;
+  }
+
+  function optionsForL3(l1, l2, bankTopics) {
+    var out = [];
+    ADMIN_LAW_TOPIC_TREE.forEach(function (sec) {
+      if (l1 !== ALL && sec.l1 !== l1) return;
+      (sec.groups || []).forEach(function (g) {
+        if (l2 !== ALL && g.l2 !== l2) return;
+        (g.topics || []).forEach(function (t) {
+          if (out.indexOf(t) < 0) out.push(t);
+        });
+      });
+    });
+    (bankTopics || []).forEach(function (raw) {
+      var t = normalizeTopicLabel(raw);
+      if (!t || out.indexOf(t) >= 0) return;
+      var p = pathForTopic(t);
+      if (!p) {
+        if (l1 === ALL && l2 === ALL) out.push(t);
+        return;
       }
-    }
+      if (l1 !== ALL && p.l1 !== l1) return;
+      if (l2 !== ALL && p.l2 !== l2) return;
+      out.push(t);
+    });
     return out;
   }
 
@@ -840,24 +856,35 @@
 
   function initFilters() {
     var scoped = scopedBank();
-    var topics = buildTopicOptionsForFilter(scoped);
+    var bankTopics = uniqueSorted(scoped.map(function (q) { return normalizeTopicLabel(q.topic); }));
+    var prevL1 = el.filterTopicL1 ? String(el.filterTopicL1.value || ALL) : ALL;
+    var prevL2 = el.filterTopicL2 ? String(el.filterTopicL2.value || ALL) : ALL;
     var prev = el.filterTopic ? String(el.filterTopic.value || ALL) : ALL;
     var prevSearch = el.filterTopicSearch ? String(el.filterTopicSearch.value || "") : "";
-    fillSelect(el.filterTopic, topics, true);
+    fillSelect(el.filterTopicL1, uniqueSorted(ADMIN_LAW_TOPIC_TREE.map(function (x) { return x.l1; })), true);
+    if (el.filterTopicL1) el.filterTopicL1.value = prevL1 || ALL;
+    var l1 = el.filterTopicL1 ? String(el.filterTopicL1.value || ALL) : ALL;
+    fillSelect(el.filterTopicL2, optionsForL2(l1), true);
+    if (el.filterTopicL2) {
+      var okL2 = prevL2 === ALL || optionsForL2(l1).indexOf(prevL2) >= 0;
+      el.filterTopicL2.value = okL2 ? prevL2 : ALL;
+    }
+    var l2 = el.filterTopicL2 ? String(el.filterTopicL2.value || ALL) : ALL;
+    fillSelect(el.filterTopic, optionsForL3(l1, l2, bankTopics), true);
     if (prev && prev !== ALL) {
       var ok = false;
       var j;
       for (j = 0; j < el.filterTopic.options.length; j++) {
-        if (el.filterTopic.options[j].value === prev) {
+        if (el.filterTopic.options[j].value === normalizeTopicLabel(prev)) {
           ok = true;
           break;
         }
       }
       if (ok) {
-        el.filterTopic.value = prev;
+        el.filterTopic.value = normalizeTopicLabel(prev);
       } else {
-        ensureFilterTopicOption(prev);
-        el.filterTopic.value = prev;
+        ensureFilterTopicOption(normalizeTopicLabel(prev));
+        el.filterTopic.value = normalizeTopicLabel(prev);
       }
     } else {
       el.filterTopic.value = ALL;
@@ -866,23 +893,33 @@
   }
 
   function topicCurriculumRank(topic) {
-    var t = String(topic || "").trim();
+    var t = normalizeTopicLabel(topic);
     var idx = ADMIN_LAW_TOPIC_ORDER.indexOf(t);
     return idx >= 0 ? idx : -1;
   }
 
   function filterQuestions() {
+    var l1 = el.filterTopicL1 ? String(el.filterTopicL1.value || ALL) : ALL;
+    var l2 = el.filterTopicL2 ? String(el.filterTopicL2.value || ALL) : ALL;
     var tp = el.filterTopic ? el.filterTopic.value : ALL;
     var search =
       el.filterTopicSearch && String(el.filterTopicSearch.value || "").trim();
     var notebookMaps = buildNotebookQuizMaps();
     return getBank().filter(function (q) {
       if (!matchesScope(q) || !passesScopeNotebook(q, null, notebookMaps)) return false;
+      var topicNorm = normalizeTopicLabel(q.topic);
+      var p = pathForTopic(topicNorm);
+      if (l1 !== ALL) {
+        if (!p || p.l1 !== l1) return false;
+      }
+      if (l2 !== ALL) {
+        if (!p || p.l2 !== l2) return false;
+      }
       if (search) {
-        var subj = String(q.topic || "");
+        var subj = String(topicNorm || "");
         if (subj.indexOf(search) === -1) return false;
       } else {
-        if (tp !== ALL && q.topic !== tp) return false;
+        if (tp !== ALL && topicNorm !== tp) return false;
       }
       return true;
     });
@@ -1948,6 +1985,8 @@
       );
       return;
     }
+    state.lastFilterTopicL1 = el.filterTopicL1 ? String(el.filterTopicL1.value || ALL) : ALL;
+    state.lastFilterTopicL2 = el.filterTopicL2 ? String(el.filterTopicL2.value || ALL) : ALL;
     state.lastFilterTopic = el.filterTopic.value;
     state.lastFilterTopicSearch =
       el.filterTopicSearch && el.filterTopicSearch.value != null
@@ -1989,6 +2028,8 @@
       }
     } catch (e) {}
     if (el.filterTopic) el.filterTopic.value = ALL;
+    if (el.filterTopicL1) el.filterTopicL1.value = ALL;
+    if (el.filterTopicL2) el.filterTopicL2.value = ALL;
     if (el.filterTopicSearch) el.filterTopicSearch.value = "";
     if (el.questionCount) el.questionCount.value = "0";
     var ordRandom = document.querySelector('input[name="opt-sequence"][value="random"]');
@@ -2079,6 +2120,9 @@
   }
 
   function retrySame() {
+    if (el.filterTopicL1) el.filterTopicL1.value = state.lastFilterTopicL1 || ALL;
+    if (el.filterTopicL2) el.filterTopicL2.value = state.lastFilterTopicL2 || ALL;
+    initFilters();
     el.filterTopic.value = state.lastFilterTopic;
     if (el.filterTopicSearch) {
       el.filterTopicSearch.value =
@@ -2177,6 +2221,9 @@
     el.start.addEventListener("change", function (e) {
       var t = e.target;
       if (t && t.id && String(t.id).indexOf("scope-note-") === 0) {
+        initFilters();
+      }
+      if (t && (t.id === "filter-topic-l1" || t.id === "filter-topic-l2")) {
         initFilters();
       }
     });

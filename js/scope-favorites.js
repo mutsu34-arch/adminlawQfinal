@@ -144,6 +144,8 @@
       ? window.APP_SCOPE.years.map(Number)
       : [];
     var ft = document.getElementById("filter-topic");
+    var ft1 = document.getElementById("filter-topic-l1");
+    var ft2 = document.getElementById("filter-topic-l2");
     var fts = document.getElementById("filter-topic-search");
     var qc = document.getElementById("question-count");
     var seq = document.querySelector('input[name="opt-sequence"]:checked');
@@ -154,6 +156,8 @@
     return {
       examIds: examIds,
       years: years,
+      filterTopicL1: ft1 ? String(ft1.value || ALL_TOPIC) : ALL_TOPIC,
+      filterTopicL2: ft2 ? String(ft2.value || ALL_TOPIC) : ALL_TOPIC,
       filterTopic: ft ? String(ft.value || ALL_TOPIC) : ALL_TOPIC,
       filterTopicSearch: fts ? String(fts.value || "") : "",
       questionCount: qc ? String(qc.value || "0") : "0",
@@ -168,6 +172,17 @@
   }
 
   function applyFormFields(preset) {
+    var ft1 = document.getElementById("filter-topic-l1");
+    if (ft1) {
+      ft1.value = preset.filterTopicL1 != null ? String(preset.filterTopicL1) : ALL_TOPIC;
+    }
+    var ft2 = document.getElementById("filter-topic-l2");
+    if (ft2) {
+      ft2.value = preset.filterTopicL2 != null ? String(preset.filterTopicL2) : ALL_TOPIC;
+    }
+    if (typeof window.initHanlawQuizFilters === "function") {
+      window.initHanlawQuizFilters();
+    }
     var ft = document.getElementById("filter-topic");
     if (ft) {
       var want = preset.filterTopic != null ? String(preset.filterTopic) : ALL_TOPIC;
@@ -244,9 +259,6 @@
       if (nf) nf.checked = false;
       if (nm) nm.checked = false;
     }
-    if (typeof window.syncHanlawQuizSetupPartTopic === "function") {
-      window.syncHanlawQuizSetupPartTopic();
-    }
     if (typeof window.initHanlawQuizFilters === "function") {
       window.initHanlawQuizFilters();
     }
@@ -296,6 +308,8 @@
       name: label,
       examIds: cur.examIds,
       years: cur.years,
+      filterTopicL1: cur.filterTopicL1,
+      filterTopicL2: cur.filterTopicL2,
       filterTopic: cur.filterTopic,
       filterTopicSearch: cur.filterTopicSearch,
       questionCount: cur.questionCount,
