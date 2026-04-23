@@ -312,9 +312,9 @@
     correct: 0,
     lastFilterTopic: ALL,
     lastFilterTopicSearch: "",
-    lastPartMode: "all",
+    lastSequenceMode: "random",
     lastNotebookScope: { wrong: false, fav: false, master: false },
-    lastOrderMode: "random",
+    lastMetricMode: "importance",
     lastCount: "0",
     /** index → { userTrue } — 뒤로 가기 시 해설 복원용 */
     sessionAnswers: {},
@@ -820,7 +820,6 @@
       el.filterTopic.value = ALL;
     }
     if (el.filterTopicSearch) el.filterTopicSearch.value = prevSearch;
-    syncFilterTopicWithPartMode();
   }
 
   function topicCurriculumRank(topic) {
@@ -829,35 +828,13 @@
     return idx >= 0 ? idx : -1;
   }
 
-  /** 총론만: 교과 목차상 앞쪽 두 단원(행정법 일반, 비례원칙) */
-  function isTopicInGeneralPart(topic) {
-    var r = topicCurriculumRank(topic);
-    return r >= 0 && r <= 1;
-  }
-
-  function getPartMode() {
-    var r = document.querySelector('input[name="opt-part"]:checked');
-    return r && r.value === "general" ? "general" : "all";
-  }
-
-  function syncFilterTopicWithPartMode() {
-    if (!el.filterTopic) return;
-    if (getPartMode() !== "general") return;
-    var tp = el.filterTopic.value;
-    if (tp !== ALL && !isTopicInGeneralPart(tp)) {
-      el.filterTopic.value = ALL;
-    }
-  }
-
   function filterQuestions() {
     var tp = el.filterTopic ? el.filterTopic.value : ALL;
-    var part = getPartMode();
     var search =
       el.filterTopicSearch && String(el.filterTopicSearch.value || "").trim();
     var notebookMaps = buildNotebookQuizMaps();
     return getBank().filter(function (q) {
       if (!matchesScope(q) || !passesScopeNotebook(q, null, notebookMaps)) return false;
-      if (part === "general" && !isTopicInGeneralPart(q.topic)) return false;
       if (search) {
         var subj = String(q.topic || "");
         if (subj.indexOf(search) === -1) return false;
@@ -881,18 +858,20 @@
 
   var ORDER_MODES = {
     progress: true,
-    random: true,
-    importance_desc: true,
-    importance_asc: true,
-    difficulty_asc: true,
-    difficulty_desc: true
+    random: true
   };
 
-  function getOrderMode() {
-    var r = document.querySelector('input[name="opt-order"]:checked');
+  function getSequenceMode() {
+    var r = document.querySelector('input[name="opt-sequence"]:checked');
     var v = r && r.value;
     if (v && ORDER_MODES[v]) return v;
     return "random";
+  }
+
+  function getMetricMode() {
+    var r = document.querySelector('input[name="opt-metric"]:checked');
+    var v = r && r.value;
+    return v === "difficulty" ? "difficulty" : "importance";
   }
 
   /** 같은 단원(주제) 안에서 연도 → 시험 → 문항 ID */
@@ -927,71 +906,44 @@
     return typeof n === "number" && n >= 1 && n <= 5 ? n : 0;
   }
 
-  /** 중요도 낮은 순: 유효 1~5, 없음 99(뒤로) */
-  function importanceKeyAsc(q) {
-    var n = q.importance;
-    return typeof n === "number" && n >= 1 && n <= 5 ? n : 99;
-  }
-
-  /** 난이도 쉬운 순: 유효 1~5, 없음 99(뒤로) */
-  function difficultyKeyAsc(q) {
-    var n = q.difficulty;
-    return typeof n === "number" && n >= 1 && n <= 5 ? n : 99;
-  }
-
   /** 난이도 어려운 순: 유효 1~5, 없음 0(뒤로) */
   function difficultyKeyDesc(q) {
     var n = q.difficulty;
     return typeof n === "number" && n >= 1 && n <= 5 ? n : 0;
   }
 
-  function applyQuestionOrder(filtered, mode) {
-    if (mode === "importance") mode = "importance_desc";
-    if (mode === "difficulty") mode = "difficulty_asc";
+  function metricKeyDesc(q, metricMode) {
+    return metricMode === "difficulty" ? difficultyKeyDesc(q) : importanceKeyDesc(q);
+  }
 
+  function applyQuestionOrder(filtered, sequenceMode, metricMode) {
+    sequenceMode = sequenceMode === "progress" ? "progress" : "random";
+    metricMode = metricMode === "difficulty" ? "difficulty" : "importance";
     var a = filtered.slice();
-    if (mode === "random") return shuffle(a);
-    if (mode === "progress") {
-      a.sort(compareCurriculumProgress);
-      return a;
-    }
-    if (mode === "importance_desc") {
+    if (sequenceMode === "progress") {
       a.sort(function (q1, q2) {
-        var i1 = importanceKeyDesc(q1);
-        var i2 = importanceKeyDesc(q2);
-        if (i2 !== i1) return i2 - i1;
-        return compareCurriculumProgress(q1, q2);
+        var r1 = topicCurriculumRank(q1.topic);
+        var r2 = topicCurriculumRank(q2.topic);
+        var o1 = r1 >= 0 ? r1 : 10000;
+        var o2 = r2 >= 0 ? r2 : 10000;
+        if (o1 !== o2) return o1 - o2;
+        var t1 = String(q1.topic || "");
+        var t2 = String(q2.topic || "");
+        if (t1 !== t2) return t1.localeCompare(t2, "ko");
+        var m1 = metricKeyDesc(q1, metricMode);
+        var m2 = metricKeyDesc(q2, metricMode);
+        if (m2 !== m1) return m2 - m1;
+        return compareProgressOrder(q1, q2);
       });
       return a;
     }
-    if (mode === "importance_asc") {
-      a.sort(function (q1, q2) {
-        var i1 = importanceKeyAsc(q1);
-        var i2 = importanceKeyAsc(q2);
-        if (i1 !== i2) return i1 - i2;
-        return compareCurriculumProgress(q1, q2);
-      });
-      return a;
-    }
-    if (mode === "difficulty_asc") {
-      a.sort(function (q1, q2) {
-        var d1 = difficultyKeyAsc(q1);
-        var d2 = difficultyKeyAsc(q2);
-        if (d1 !== d2) return d1 - d2;
-        return compareCurriculumProgress(q1, q2);
-      });
-      return a;
-    }
-    if (mode === "difficulty_desc") {
-      a.sort(function (q1, q2) {
-        var d1 = difficultyKeyDesc(q1);
-        var d2 = difficultyKeyDesc(q2);
-        if (d2 !== d1) return d2 - d1;
-        return compareCurriculumProgress(q1, q2);
-      });
-      return a;
-    }
-    return shuffle(a);
+    a.sort(function (q1, q2) {
+      var m1 = metricKeyDesc(q1, metricMode);
+      var m2 = metricKeyDesc(q2, metricMode);
+      if (m2 !== m1) return m2 - m1;
+      return Math.random() < 0.5 ? -1 : 1;
+    });
+    return a;
   }
 
   function showScreen(name) {
@@ -1958,11 +1910,11 @@
       el.filterTopicSearch && el.filterTopicSearch.value != null
         ? String(el.filterTopicSearch.value)
         : "";
-    state.lastPartMode = getPartMode();
+    state.lastSequenceMode = getSequenceMode();
     state.lastNotebookScope = getNotebookScopeSelections();
-    state.lastOrderMode = getOrderMode();
+    state.lastMetricMode = getMetricMode();
     state.lastCount = el.questionCount.value;
-    var list = applyQuestionOrder(filtered, state.lastOrderMode);
+    var list = applyQuestionOrder(filtered, state.lastSequenceMode, state.lastMetricMode);
     var cap = parseInt(el.questionCount.value, 10);
     if (cap > 0 && list.length > cap) {
       list = list.slice(0, cap);
@@ -1996,10 +1948,10 @@
     if (el.filterTopic) el.filterTopic.value = ALL;
     if (el.filterTopicSearch) el.filterTopicSearch.value = "";
     if (el.questionCount) el.questionCount.value = "0";
-    var pAll = document.querySelector('input[name="opt-part"][value="all"]');
-    if (pAll) pAll.checked = true;
-    var ordRandom = document.querySelector('input[name="opt-order"][value="random"]');
+    var ordRandom = document.querySelector('input[name="opt-sequence"][value="random"]');
     if (ordRandom) ordRandom.checked = true;
+    var metricImportance = document.querySelector('input[name="opt-metric"][value="importance"]');
+    if (metricImportance) metricImportance.checked = true;
     var nw = document.getElementById("scope-note-wrong");
     var nf = document.getElementById("scope-note-fav");
     var nm = document.getElementById("scope-note-master");
@@ -2090,18 +2042,20 @@
         state.lastFilterTopicSearch != null ? String(state.lastFilterTopicSearch) : "";
     }
     el.questionCount.value = state.lastCount;
-    var part = state.lastPartMode || "all";
-    var pradio = document.querySelector('input[name="opt-part"][value="' + part + '"]');
-    if (pradio) pradio.checked = true;
+    var sequence = state.lastSequenceMode || "random";
+    var seqRadio = document.querySelector('input[name="opt-sequence"][value="' + sequence + '"]');
+    if (seqRadio) seqRadio.checked = true;
     else {
-      var pfb = document.querySelector('input[name="opt-part"][value="all"]');
-      if (pfb) pfb.checked = true;
+      var seqFallback = document.querySelector('input[name="opt-sequence"][value="random"]');
+      if (seqFallback) seqFallback.checked = true;
     }
-    var mode = state.lastOrderMode || "random";
-    if (mode === "importance") mode = "importance_desc";
-    if (mode === "difficulty") mode = "difficulty_asc";
-    var radio = document.querySelector('input[name="opt-order"][value="' + mode + '"]');
-    if (radio) radio.checked = true;
+    var metric = state.lastMetricMode || "importance";
+    var metricRadio = document.querySelector('input[name="opt-metric"][value="' + metric + '"]');
+    if (metricRadio) metricRadio.checked = true;
+    else {
+      var metricFallback = document.querySelector('input[name="opt-metric"][value="importance"]');
+      if (metricFallback) metricFallback.checked = true;
+    }
     var ns = state.lastNotebookScope || { wrong: false, fav: false, master: false };
     var cw = document.getElementById("scope-note-wrong");
     var cf = document.getElementById("scope-note-fav");
@@ -2179,9 +2133,6 @@
   if (el.start) {
     el.start.addEventListener("change", function (e) {
       var t = e.target;
-      if (t && t.getAttribute && t.getAttribute("name") === "opt-part") {
-        syncFilterTopicWithPartMode();
-      }
       if (t && t.id && String(t.id).indexOf("scope-note-") === 0) {
         initFilters();
       }
@@ -2217,7 +2168,7 @@
   /** 범위 즐겨찾기 등 외부에서 현재 폼 기준으로 퀴즈를 시작할 때 */
   window.startHanlawQuizFromSetup = startQuiz;
   window.initHanlawQuizFilters = initFilters;
-  window.syncHanlawQuizSetupPartTopic = syncFilterTopicWithPartMode;
+  window.syncHanlawQuizSetupPartTopic = function () {};
   window.ensureHanlawFilterTopicOption = ensureFilterTopicOption;
 
   window.hanlawAfterLogout = function () {

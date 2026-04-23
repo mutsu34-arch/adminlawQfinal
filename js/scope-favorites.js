@@ -146,8 +146,8 @@
     var ft = document.getElementById("filter-topic");
     var fts = document.getElementById("filter-topic-search");
     var qc = document.getElementById("question-count");
-    var ord = document.querySelector('input[name="opt-order"]:checked');
-    var part = document.querySelector('input[name="opt-part"]:checked');
+    var seq = document.querySelector('input[name="opt-sequence"]:checked');
+    var metric = document.querySelector('input[name="opt-metric"]:checked');
     var nw = document.getElementById("scope-note-wrong");
     var nf = document.getElementById("scope-note-fav");
     var nm = document.getElementById("scope-note-master");
@@ -157,13 +157,13 @@
       filterTopic: ft ? String(ft.value || ALL_TOPIC) : ALL_TOPIC,
       filterTopicSearch: fts ? String(fts.value || "") : "",
       questionCount: qc ? String(qc.value || "0") : "0",
-      partMode: part && part.value ? String(part.value) : "all",
+      sequenceMode: seq && seq.value ? String(seq.value) : "random",
       notebookScope: {
         wrong: !!(nw && nw.checked),
         fav: !!(nf && nf.checked),
         master: !!(nm && nm.checked)
       },
-      orderMode: ord && ord.value ? String(ord.value) : "random"
+      metricMode: metric && metric.value ? String(metric.value) : "importance"
     };
   }
 
@@ -205,16 +205,32 @@
       }
       if (hasC) qc.value = c;
     }
-    var pm = String(preset.partMode != null ? preset.partMode : "all");
-    var pradio = document.querySelector('input[name="opt-part"][value="' + pm + '"]');
-    if (pradio) pradio.checked = true;
+    var seqMode = String(
+      preset.sequenceMode != null
+        ? preset.sequenceMode
+        : preset.orderMode === "progress"
+          ? "progress"
+          : "random"
+    );
+    var seqRadio = document.querySelector('input[name="opt-sequence"][value="' + seqMode + '"]');
+    if (seqRadio) seqRadio.checked = true;
     else {
-      var pfb = document.querySelector('input[name="opt-part"][value="all"]');
-      if (pfb) pfb.checked = true;
+      var seqFallback = document.querySelector('input[name="opt-sequence"][value="random"]');
+      if (seqFallback) seqFallback.checked = true;
     }
-    var mode = String(preset.orderMode || "random");
-    var radio = document.querySelector('input[name="opt-order"][value="' + mode + '"]');
-    if (radio) radio.checked = true;
+    var metricMode = String(
+      preset.metricMode != null
+        ? preset.metricMode
+        : String(preset.orderMode || "").indexOf("difficulty") === 0
+          ? "difficulty"
+          : "importance"
+    );
+    var metricRadio = document.querySelector('input[name="opt-metric"][value="' + metricMode + '"]');
+    if (metricRadio) metricRadio.checked = true;
+    else {
+      var metricFallback = document.querySelector('input[name="opt-metric"][value="importance"]');
+      if (metricFallback) metricFallback.checked = true;
+    }
     var nw = document.getElementById("scope-note-wrong");
     var nf = document.getElementById("scope-note-fav");
     var nm = document.getElementById("scope-note-master");
@@ -283,9 +299,9 @@
       filterTopic: cur.filterTopic,
       filterTopicSearch: cur.filterTopicSearch,
       questionCount: cur.questionCount,
-      partMode: cur.partMode,
+      sequenceMode: cur.sequenceMode,
       notebookScope: cur.notebookScope,
-      orderMode: cur.orderMode
+      metricMode: cur.metricMode
     });
     saveStore(st);
     renderList();

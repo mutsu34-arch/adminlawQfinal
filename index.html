@@ -332,65 +332,36 @@
                     </select>
                   </label>
                   <fieldset class="field field--order">
-                    <legend class="field__label">범위·문제 순서</legend>
-
-                    <div class="order-option-group">
-                      <p id="order-group-part" class="order-option-group__title">총론만 / 전부</p>
-                      <div class="order-option-group__radios" role="radiogroup" aria-labelledby="order-group-part">
-                        <label class="field field--row field--row--radio">
-                          <input type="radio" name="opt-part" value="general" />
-                          <span>총론만 (행정법 일반·비례원칙)</span>
-                        </label>
-                        <label class="field field--row field--row--radio">
-                          <input type="radio" name="opt-part" value="all" checked />
-                          <span>전부</span>
-                        </label>
-                      </div>
-                    </div>
+                    <legend class="field__label">문제 순서 설정</legend>
 
                     <div
                       class="order-options order-options--grouped"
-                      role="radiogroup"
-                      aria-label="문제 순서"
+                      aria-label="문제 순서 조합"
                     >
                       <div class="order-option-group">
-                        <p id="order-group-progress" class="order-option-group__title">진도별 / 랜덤</p>
-                        <div class="order-option-group__radios" aria-labelledby="order-group-progress">
+                        <p id="order-group-sequence" class="order-option-group__title">랜덤 / 진도별</p>
+                        <div class="order-option-group__radios" role="radiogroup" aria-labelledby="order-group-sequence">
                           <label class="field field--row field--row--radio">
-                            <input type="radio" name="opt-order" value="progress" />
-                            <span>진도별 (교과 목차 순, 같은 단원 안에서는 연도·시험 순)</span>
-                          </label>
-                          <label class="field field--row field--row--radio">
-                            <input type="radio" name="opt-order" value="random" checked />
+                            <input type="radio" name="opt-sequence" value="random" checked />
                             <span>랜덤</span>
                           </label>
-                        </div>
-                      </div>
-
-                      <div class="order-option-group">
-                        <p id="order-group-importance" class="order-option-group__title">중요도 — 높은 것부터 / 낮은 것부터</p>
-                        <div class="order-option-group__radios" aria-labelledby="order-group-importance">
                           <label class="field field--row field--row--radio">
-                            <input type="radio" name="opt-order" value="importance_desc" />
-                            <span>높은 것부터 (미표기는 뒤로)</span>
-                          </label>
-                          <label class="field field--row field--row--radio">
-                            <input type="radio" name="opt-order" value="importance_asc" />
-                            <span>낮은 것부터 (미표기는 뒤로)</span>
+                            <input type="radio" name="opt-sequence" value="progress" />
+                            <span>진도별 (교과 목차 순)</span>
                           </label>
                         </div>
                       </div>
 
                       <div class="order-option-group">
-                        <p id="order-group-difficulty" class="order-option-group__title">난이도 — 높은 것부터 / 낮은 것부터</p>
-                        <div class="order-option-group__radios" aria-labelledby="order-group-difficulty">
+                        <p id="order-group-metric" class="order-option-group__title">중요도 / 난이도 기준</p>
+                        <div class="order-option-group__radios" role="radiogroup" aria-labelledby="order-group-metric">
                           <label class="field field--row field--row--radio">
-                            <input type="radio" name="opt-order" value="difficulty_desc" />
-                            <span>높은 것부터 (미표기는 뒤로)</span>
+                            <input type="radio" name="opt-metric" value="importance" checked />
+                            <span>중요도 높은 것부터</span>
                           </label>
                           <label class="field field--row field--row--radio">
-                            <input type="radio" name="opt-order" value="difficulty_asc" />
-                            <span>낮은 것부터 (미표기는 뒤로)</span>
+                            <input type="radio" name="opt-metric" value="difficulty" />
+                            <span>난이도 높은 것부터</span>
                           </label>
                         </div>
                       </div>
