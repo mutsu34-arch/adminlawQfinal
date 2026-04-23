@@ -9,10 +9,10 @@ window.PAYAPP_CONFIG = {
   merchantSupportEmail: "",
   /** 엘리(AI) 질문권 (PAYAPP_KRW_EQ10 / EQ50 / EQ100) — 일일 한도 초과 시 추가용 */
   ellyQuestionPackKrwDisplay: "10건 ₩5,000 · 50건 ₩20,000 · 100건 ₩30,000",
-  /** 월 정기 구독(페이앱 rebill) — 1개월권 대비 20% 높은 금액 */
-  subscriptionKrwDisplay: "정기 구독: 베이직 월 ₩9,600 · 슈퍼 ₩14,400 · 울트라 ₩19,200(1개월권 대비 20% 가산)",
+  /** 월 정기 구독(페이앱 rebill) */
+  subscriptionKrwDisplay: "정기 구독: 베이직 월 ₩10,000 · 슈퍼 ₩15,000 · 울트라 ₩20,000",
   /** 1개월 구독권(일회) */
-  nonRenewKrwDisplay: "1개월권: 베이직 ₩8,000 · 슈퍼 ₩12,000 · 울트라 ₩16,000"
+  nonRenewKrwDisplay: "1개월권: 베이직 ₩12,000 · 슈퍼 ₩18,000 · 울트라 ₩24,000"
 };
 
 window.getPayAppEllyQuestionPackKrwDisplay = function () {
@@ -27,7 +27,7 @@ window.getPayAppSubscriptionKrwDisplay = function () {
 
 window.getPayAppNonRenewKrwDisplay = function () {
   var c = window.PAYAPP_CONFIG || {};
-  return c.nonRenewKrwDisplay || "1개월권: 베이직 ₩8,000 · 슈퍼 ₩12,000 · 울트라 ₩16,000";
+  return c.nonRenewKrwDisplay || "1개월권: 베이직 ₩12,000 · 슈퍼 ₩18,000 · 울트라 ₩24,000";
 };
 
 /** 레거시 호환: 엘리 질문권 팩 가격 표시 */
