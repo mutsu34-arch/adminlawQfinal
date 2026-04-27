@@ -2230,7 +2230,25 @@
                     <button type="button" class="btn btn--outline" id="admin-quote-btn-ai">AI로 명언 생성 (약 8개)</button>
                     <button type="button" class="btn btn--ghost btn--small" id="admin-quote-btn-refresh-staging">목록 새로고침</button>
                   </div>
+                  <label class="field">
+                    <span class="field__label">엑셀 업로드 (.xlsx / .xls)</span>
+                    <input
+                      type="file"
+                      id="admin-quote-excel-file"
+                      class="input"
+                      accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    />
+                  </label>
+                  <p class="admin-json-help">
+                    헤더는 <code class="pricing-code">quote</code> 또는 <code class="pricing-code">명언</code> 열을 사용하세요.
+                    업로드 시 각 행이 검수 대기에 추가됩니다.
+                  </p>
+                  <div class="admin-quote-tools__row">
+                    <button type="button" class="btn btn--secondary" id="admin-quote-btn-upload-excel">엑셀 업로드</button>
+                    <button type="button" class="btn btn--outline" id="admin-quote-btn-download-template">엑셀 샘플 다운로드</button>
+                  </div>
                 </div>
+                <p id="admin-quote-excel-msg" class="admin-msg" role="status" hidden></p>
                 <p id="admin-quote-staging-msg" class="admin-msg" role="status" hidden></p>
                 <h3 class="admin-library-heading">검수 대기</h3>
                 <div id="admin-quote-staging-list" class="admin-quote-staging-list" aria-live="polite"></div>

@@ -110,6 +110,91 @@
     el.classList.toggle("admin-msg--error", !!isError);
   }
 
+  function normHeaderKey(k) {
+    return String(k == null ? "" : k).replace(/^\uFEFF/, "").trim().toLowerCase().replace(/\s/g, "");
+  }
+
+  function pickQuoteTextFromRow(row) {
+    if (!row || typeof row !== "object") return "";
+    var headerMap = {
+      quote: "quote",
+      quotes: "quote",
+      text: "quote",
+      content: "quote",
+      message: "quote",
+      명언: "quote",
+      문구: "quote",
+      내용: "quote"
+    };
+    var picked = "";
+    Object.keys(row).some(function (key) {
+      var nk = normHeaderKey(key);
+      if (headerMap[nk] !== "quote") return false;
+      picked = String(row[key] == null ? "" : row[key]).trim();
+      return !!picked;
+    });
+    return picked;
+  }
+
+  function parseQuoteWorkbook(buffer) {
+    if (typeof XLSX === "undefined") {
+      throw new Error("엑셀 라이브러리(xlsx)를 불러오지 못했습니다.");
+    }
+    var wb = XLSX.read(buffer, { type: "array" });
+    if (!wb.SheetNames || !wb.SheetNames.length) {
+      throw new Error("시트가 없습니다.");
+    }
+    var sheet = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+    var out = [];
+    if (rows.length) {
+      rows.forEach(function (row) {
+        var text = pickQuoteTextFromRow(row);
+        if (text) out.push(text);
+      });
+    } else {
+      var aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+      for (var i = 0; i < aoa.length; i++) {
+        var cell = String((aoa[i] && aoa[i][0]) || "").trim();
+        if (!cell) continue;
+        if (i === 0 && /^(quote|quotes|text|명언|문구|내용)$/i.test(cell)) continue;
+        out.push(cell);
+      }
+    }
+    var uniq = [];
+    var seen = {};
+    out.forEach(function (line) {
+      var s = String(line || "").trim();
+      if (!s || seen[s]) return;
+      seen[s] = true;
+      uniq.push(s);
+    });
+    return uniq;
+  }
+
+  function downloadQuoteTemplate() {
+    if (typeof XLSX === "undefined") {
+      window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+      return;
+    }
+    var head = ["quote"];
+    var sample1 = ["오늘의 한 줄이 내일의 실력을 만든다."];
+    var sample2 = ["원칙을 정확히 알면, 사례는 흔들리지 않는다."];
+    var wsData = XLSX.utils.aoa_to_sheet([head, sample1, sample2]);
+    var wsGuide = XLSX.utils.aoa_to_sheet([
+      ["명언 엑셀 업로드 가이드"],
+      [""],
+      ["필수 헤더", "quote (또는 명언/문구/내용)"],
+      ["권장 형식", "한 행당 명언 1개"],
+      ["최대 길이", "400자 이하 권장"],
+      ["반영 방식", "업로드 시 '검수 대기'에 추가되며 승인 후 앱 반영"]
+    ]);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsData, "quotes");
+    XLSX.utils.book_append_sheet(wb, wsGuide, "guide");
+    XLSX.writeFile(wb, "hanlaw_quotes_template.xlsx");
+  }
+
   function renderStagingList(items) {
     var list = $("admin-quote-staging-list");
     if (!list) return;
@@ -206,6 +291,7 @@
   function bind() {
     var stagingMsg = $("admin-quote-staging-msg");
     var pubMsg = $("admin-quote-published-msg");
+    var excelMsg = $("admin-quote-excel-msg");
 
     var btnAdd = $("admin-quote-btn-add-staging");
     if (btnAdd) {
@@ -269,6 +355,86 @@
     if (btnRefresh) {
       btnRefresh.addEventListener("click", function () {
         loadStaging();
+      });
+    }
+
+    var btnTemplate = $("admin-quote-btn-download-template");
+    if (btnTemplate) {
+      btnTemplate.addEventListener("click", function () {
+        downloadQuoteTemplate();
+      });
+    }
+
+    var btnExcelUpload = $("admin-quote-btn-upload-excel");
+    var excelFile = $("admin-quote-excel-file");
+    if (btnExcelUpload && excelFile) {
+      btnExcelUpload.addEventListener("click", function () {
+        var file = excelFile.files && excelFile.files[0];
+        if (!file) {
+          setMsg(excelMsg, "엑셀 파일(.xlsx/.xls)을 선택해 주세요.", true);
+          return;
+        }
+        var lowerName = String(file.name || "").toLowerCase();
+        if (lowerName.indexOf(".xlsx") === -1 && lowerName.indexOf(".xls") === -1) {
+          setMsg(excelMsg, "엑셀 파일(.xlsx/.xls)만 업로드할 수 있습니다.", true);
+          return;
+        }
+        if (typeof window.adminQuoteAddStaging !== "function") {
+          setMsg(excelMsg, "업로드 함수를 불러오지 못했습니다. Functions 배포를 확인해 주세요.", true);
+          return;
+        }
+        setMsg(excelMsg, "엑셀 읽는 중…", false);
+        btnExcelUpload.disabled = true;
+        var reader = new FileReader();
+        reader.onload = function () {
+          var lines = [];
+          try {
+            lines = parseQuoteWorkbook(new Uint8Array(reader.result));
+          } catch (err) {
+            setMsg(excelMsg, (err && err.message) || "엑셀 파싱에 실패했습니다.", true);
+            btnExcelUpload.disabled = false;
+            return;
+          }
+          if (!lines.length) {
+            setMsg(excelMsg, "유효한 명언 행이 없습니다. 샘플 형식을 확인해 주세요.", true);
+            btnExcelUpload.disabled = false;
+            return;
+          }
+          setMsg(excelMsg, lines.length + "건 검수 대기에 추가 중…", false);
+          var idx = 0;
+          var okCount = 0;
+          var failCount = 0;
+          var firstFail = "";
+          var seq = Promise.resolve();
+          lines.forEach(function (text) {
+            seq = seq.then(function () {
+              idx += 1;
+              return window.adminQuoteAddStaging(text).then(function () {
+                okCount += 1;
+              }).catch(function (e) {
+                failCount += 1;
+                if (!firstFail) {
+                  firstFail = idx + "행: " + ((e && e.message) || "추가 실패");
+                }
+              });
+            });
+          });
+          seq.then(function () {
+            var msg = "업로드 완료: 성공 " + okCount + "건";
+            if (failCount > 0) msg += ", 실패 " + failCount + "건";
+            if (firstFail) msg += " (" + firstFail + ")";
+            setMsg(excelMsg, msg, failCount > 0 && okCount === 0);
+            excelFile.value = "";
+            loadStaging();
+          }).finally(function () {
+            btnExcelUpload.disabled = false;
+          });
+        };
+        reader.onerror = function () {
+          setMsg(excelMsg, "파일을 읽지 못했습니다.", true);
+          btnExcelUpload.disabled = false;
+        };
+        reader.readAsArrayBuffer(file);
       });
     }
 
