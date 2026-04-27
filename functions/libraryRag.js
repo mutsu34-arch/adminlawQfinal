@@ -242,10 +242,14 @@ async function deleteVectorsByFileId(libraryId) {
 /**
  * 퀴즈 AI용: 질문·문항 맥락으로 유사 청크 검색 → 문자열
  */
-async function retrieveLibraryContextForQuiz(userQuestion, quiz) {
+async function retrieveLibraryContextForQuiz(userQuestion, quiz, opts) {
   const gemini = getGemini();
   const index = getPineconeIndex();
   if (!gemini || !index) return "";
+  const options = opts || {};
+  const fileIds = Array.isArray(options.fileIds)
+    ? options.fileIds.map((x) => String(x || "").trim()).filter(Boolean)
+    : [];
 
   const qParts = [
     String(userQuestion || "").slice(0, 1500),
@@ -260,11 +264,15 @@ async function retrieveLibraryContextForQuiz(userQuestion, quiz) {
     const vec = emb[0];
     if (!vec || !vec.length) return "";
     const ns = index.namespace(getNamespace());
-    const qr = await ns.query({
+    const queryArgs = {
       vector: vec,
       topK: 6,
       includeMetadata: true
-    });
+    };
+    if (fileIds.length) {
+      queryArgs.filter = { fileId: { $in: fileIds } };
+    }
+    const qr = await ns.query(queryArgs);
     const matches = qr.matches || [];
     if (!matches.length) return "";
     const lines = matches.map((m, i) => {

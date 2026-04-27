@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css?v=20260423-header-quick-ui-polish" />
+  <link rel="stylesheet" href="/css/style.css?v=20260426-quiz-existing-mobile-head-fix" />
 </head>
 <body>
   <div class="app">
@@ -1607,8 +1607,7 @@
               <h2 class="card__title">엘리(AI) 질문권 (추가)</h2>
               <p class="pricing-lead">
                 구독의 <strong>일일 한도</strong>를 모두 쓴 뒤에는 엘리(AI) 질문권이 추가로 차감됩니다(구매일 기준 1개월 유효, 1건당 500원).
-                퀴즈 포인트로도 전환할 수 있으며(엘리 질문권 1건당 <strong>500점</strong>),
-                <button type="button" class="btn btn--link pricing-inline-link" data-go-dashboard-point-convert>대시보드의 포인트 전환</button>에서 이용할 수 있습니다.
+                퀴즈 포인트로도 전환할 수 있습니다(엘리 질문권 1건당 <strong>500점</strong>).
               </p>
               <div class="pricing-grid" role="list" aria-label="엘리(AI) 질문권 팩">
                 <article class="pricing-card pricing-card--mini" role="listitem">
@@ -1630,6 +1629,9 @@
                   <button type="button" class="btn btn--primary" data-payapp-elly-pack="30">30건 구매</button>
                 </article>
               </div>
+              <p class="pricing-lead">
+                <button type="button" class="btn btn--outline btn--small" data-go-dashboard-point-convert>대시보드의 포인트 전환</button>
+              </p>
             </div>
 
             <section class="pricing-refund-policy" aria-label="환불정책 요약">
@@ -1880,7 +1882,7 @@
 
               <section class="settings-block" aria-labelledby="settings-font-title">
                 <h3 id="settings-font-title" class="settings-block__title">글자 크기</h3>
-                <p class="settings-block__hint">앱 전체의 기본 글자 크기입니다. 브라우저 확대와 함께 쓸 수 있습니다. (이전 「매우 크게」에 가까운 크기가 「기본」입니다.)</p>
+                <p class="settings-block__hint">앱 전체의 기본 글자 크기입니다. 브라우저 확대와 함께 쓸 수 있습니다.</p>
                 <div class="font-step-switch" role="group" aria-label="글자 크기">
                   <button type="button" class="font-step-switch__btn" data-font-step="0" id="font-step-0" aria-pressed="false">작게</button>
                   <button type="button" class="font-step-switch__btn" data-font-step="1" id="font-step-1" aria-pressed="true">기본</button>
@@ -1980,6 +1982,7 @@
               </p>
               <div class="admin-tabs" role="tablist" aria-label="관리자 하위 메뉴">
                 <button type="button" class="admin-tab admin-tab--active" id="admin-tab-single" role="tab">한 건 등록</button>
+                <button type="button" class="admin-tab" id="admin-tab-quiz-create" role="tab">퀴즈 생성</button>
                 <button type="button" class="admin-tab" id="admin-tab-case-dict-create" role="tab">판례사전 생성</button>
                 <button type="button" class="admin-tab" id="admin-tab-term-dict-create" role="tab">용어사전 생성</button>
                 <button type="button" class="admin-tab" id="admin-tab-quotes" role="tab">명언</button>
@@ -2052,6 +2055,79 @@
                   <button type="submit" class="btn btn--primary">Firestore에 저장</button>
                 </form>
               </div>
+              <section id="admin-panel-quiz-create" hidden>
+                <section id="admin-quiz-create-admin" class="dict-case-create-admin" hidden>
+                  <h3 class="dict-term-index__title">기출 기반 퀴즈 생성 (관리자)</h3>
+                  <p class="admin-json-help">
+                    기출 PDF/Excel을 업로드하면 자료실 파이프라인(벡터화, PDF OCR 포함)으로 처리됩니다.
+                    처리 완료 후 AI가 자료를 바탕으로 퀴즈를 생성해 검수 대기에 등록합니다.
+                  </p>
+                  <label class="field">
+                    <span class="field__label">기출문제 파일 (여러 개 선택 가능 · PDF/.xlsx)</span>
+                    <input
+                      type="file"
+                      id="admin-quiz-create-files"
+                      class="input"
+                      multiple
+                      accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    />
+                  </label>
+                  <div
+                    id="admin-quiz-create-dropzone"
+                    class="admin-excel-dropzone"
+                    role="button"
+                    tabindex="0"
+                    aria-label="기출문제 파일 드래그 앤 드롭 영역"
+                  >
+                    여기에 기출 PDF·xlsx 파일을 끌어다 놓아도 됩니다. (여러 파일 가능)
+                  </div>
+                  <div class="dict-case-create-admin__actions">
+                    <button type="button" class="btn btn--secondary" id="admin-quiz-create-upload">파일 업로드·학습 시작</button>
+                    <span id="admin-quiz-create-upload-msg" class="dict-memo-panel__msg" hidden role="status"></span>
+                  </div>
+                  <div class="admin-quiz-existing">
+                    <div class="admin-quiz-existing__head">
+                      <span class="field__label">기존 자료실 파일 선택 (완료 상태만)</span>
+                      <button type="button" class="btn btn--ghost btn--small" id="admin-quiz-create-existing-refresh">목록 새로고침</button>
+                    </div>
+                    <div id="admin-quiz-create-existing-list" class="admin-quiz-existing__list"></div>
+                    <p id="admin-quiz-create-existing-msg" class="admin-json-help" hidden></p>
+                  </div>
+                  <label class="field">
+                    <span class="field__label">생성 지시</span>
+                    <textarea
+                      id="admin-quiz-create-prompt"
+                      class="input textarea"
+                      rows="4"
+                      placeholder="예: 최근 업로드한 기출자료 기준으로 처분성·원고적격 중심 OX 문항을 만들어줘."
+                    ></textarea>
+                  </label>
+                  <label class="field" style="margin-top: -0.25rem">
+                    <span class="check" style="justify-content: flex-start">
+                      <input type="checkbox" id="admin-quiz-create-fast-mode" checked />
+                      <span>빠른 모드 (상세해설 보강 생략, 속도 우선)</span>
+                    </span>
+                  </label>
+                  <div class="admin-row-2">
+                    <label class="field">
+                      <span class="field__label">시험 종류(examId, 파일 자동 인식)</span>
+                      <select id="admin-quiz-create-exam-id" class="select"></select>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">연도(year, 파일 자동 인식)</span>
+                      <input type="number" id="admin-quiz-create-year" class="input" min="1990" max="2100" />
+                    </label>
+                  </div>
+                  <p class="admin-json-help">
+                    주제/생성개수는 수동 입력하지 않습니다. 업로드한 기출문제·해설 파일을 기준으로 문제 1번부터 마지막까지 순차 생성합니다.
+                  </p>
+                  <div class="dict-case-create-admin__actions">
+                    <button type="button" class="btn btn--primary" id="admin-quiz-create-run">AI 퀴즈 생성·검수 대기 등록</button>
+                    <span id="admin-quiz-create-run-msg" class="dict-memo-panel__msg" hidden role="status"></span>
+                  </div>
+                  <div id="admin-quiz-create-preview" class="admin-json-help" hidden></div>
+                </section>
+              </section>
               <section id="admin-panel-case-dict-create" hidden>
                 <section id="dict-case-create-admin" class="dict-case-create-admin" hidden>
                   <h3 class="dict-term-index__title">판례사전 생성 (관리자)</h3>
@@ -2072,7 +2148,7 @@
                       id="dict-case-create-fulltext"
                       class="input textarea"
                       rows="10"
-                      placeholder="판결문 전문 원문(또는 핵심 발췌)을 붙여 넣으세요."
+                      placeholder="선택 입력: 판결문 전문 원문(또는 핵심 발췌). 비워두면 AI가 사건번호로 웹에서 판결문 확인을 시도합니다."
                     ></textarea>
                   </label>
                   <div class="dict-case-create-admin__actions">
@@ -2094,6 +2170,10 @@
               <section id="admin-panel-term-dict-create" hidden>
                 <section id="dict-term-create-admin" class="dict-case-create-admin" hidden>
                   <h3 class="dict-term-index__title">용어사전 생성 (관리자)</h3>
+                  <p class="admin-json-help">
+                    자료실에 업로드된 법률용어사전·교재·기출 자료를 바탕으로 용어를 더 자세히 생성할 수 있습니다.
+                    자동 생성 결과는 검수 대기에 등록되며, 승인 후 사용자에게 공개됩니다.
+                  </p>
                   <label class="field">
                     <span class="field__label">용어/키워드</span>
                     <input
@@ -2108,6 +2188,22 @@
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--primary" id="dict-term-create-run">용어사전 생성</button>
                     <span id="dict-term-create-msg" class="dict-memo-panel__msg" hidden role="status"></span>
+                  </div>
+                  <label class="field">
+                    <span class="field__label">자동 생성 지시 (자료실 기반)</span>
+                    <textarea
+                      id="dict-term-create-prompt"
+                      class="input textarea"
+                      rows="4"
+                      placeholder="예: 업로드된 법률용어사전/행정법 자료를 바탕으로 수험생이 자주 헷갈리는 핵심 용어 위주로 자세히 작성해줘."
+                    ></textarea>
+                  </label>
+                  <label class="field">
+                    <span class="field__label">자동 생성 개수 (1~30)</span>
+                    <input type="number" id="dict-term-create-count" class="input" min="1" max="30" value="10" />
+                  </label>
+                  <div class="dict-case-create-admin__actions">
+                    <button type="button" class="btn btn--secondary" id="dict-term-create-run-batch">자료 기반 용어 자동 생성</button>
                   </div>
                 </section>
               </section>
@@ -2171,7 +2267,48 @@
               </div>
               <div id="admin-panel-excel" class="admin-panel-excel" hidden>
                 <p class="admin-json-help">
-                  첫 번째 행은 열 이름(헤더)이어야 합니다. 영문 헤더(권장) 또는 한글 별칭을 사용할 수 있습니다.
+                  업로드 유형을 선택한 뒤 샘플 엑셀을 내려받아 같은 헤더 구조로 작성해 주세요.
+                  첫 번째 행은 열 이름(헤더)이어야 하며, 업로드 후 형식이 맞는 항목만 반영됩니다.
+                </p>
+                <label class="field">
+                  <span class="field__label">업로드 유형</span>
+                  <select id="admin-excel-kind" class="input">
+                    <option value="quiz">퀴즈</option>
+                    <option value="statute">조문사전</option>
+                    <option value="term">용어사전</option>
+                    <option value="case">판례사전</option>
+                  </select>
+                </label>
+                <p class="admin-json-help" id="admin-excel-help-quiz">
+                  [퀴즈] 필수 열: <code class="pricing-code">id</code>, <code class="pricing-code">examId</code>, <code class="pricing-code">year</code>, <code class="pricing-code">topic</code>, <code class="pricing-code">statement</code>, <code class="pricing-code">answer</code>, <code class="pricing-code">explanation</code>.
+                  정답은 O/X, 참/거짓, TRUE/FALSE, 1/0 등으로 입력 가능합니다.
+                  선택 열: <code class="pricing-code">exam</code>, <code class="pricing-code">explanationBasic</code>, <code class="pricing-code">legal</code>, <code class="pricing-code">trap</code>, <code class="pricing-code">precedent</code>, <code class="pricing-code">detail</code>(JSON 문자열), <code class="pricing-code">tags</code>, <code class="pricing-code">importance</code>, <code class="pricing-code">difficulty</code>.
+                  <code class="pricing-code">examId</code>는 <code class="pricing-code">grade9</code> 같은 코드값을 사용하세요.
+                </p>
+                <p class="admin-json-help" id="admin-excel-help-statute" hidden>
+                  [조문사전] 필수 열: <code class="pricing-code">statuteKey</code>, <code class="pricing-code">body</code>.
+                  선택 열: <code class="pricing-code">docId</code>, <code class="pricing-code">heading</code>, <code class="pricing-code">sourceNote</code>, <code class="pricing-code">ox1_statement</code>, <code class="pricing-code">ox1_answer</code>, <code class="pricing-code">ox1_explanation</code> (ox2~ox3 동일 패턴).
+                  업로드 즉시 조문사전에 반영됩니다.
+                </p>
+                <p class="admin-json-help" id="admin-excel-help-term" hidden>
+                  [용어사전] 필수 열: <code class="pricing-code">term</code>, <code class="pricing-code">definition</code>.
+                  선택 열: <code class="pricing-code">aliases</code>(쉼표 구분), <code class="pricing-code">ox1_statement</code>, <code class="pricing-code">ox1_answer</code>, <code class="pricing-code">ox1_explanation</code> (ox2~ox3 동일 패턴).
+                  업로드 시 검수대기에 등록되며, 검수·승인 탭에서 승인하면 반영됩니다.
+                </p>
+                <p class="admin-json-help" id="admin-excel-help-case" hidden>
+                  [판례사전] 필수 열: <code class="pricing-code">citation</code>.
+                  선택 열: <code class="pricing-code">title</code>, <code class="pricing-code">facts</code>, <code class="pricing-code">issues</code>, <code class="pricing-code">judgment</code>, <code class="pricing-code">caseFullText</code>, <code class="pricing-code">searchKeys</code>, <code class="pricing-code">topicKeywords</code>, <code class="pricing-code">casenoteUrl</code>, <code class="pricing-code">jisCntntsSrno</code>, <code class="pricing-code">scourtPortalUrl</code>,
+                  <code class="pricing-code">ox1_statement</code>, <code class="pricing-code">ox1_answer</code>, <code class="pricing-code">ox1_explanation</code> (ox2~ox5 동일 패턴).
+                  업로드 시 검수대기에 등록되며, 검수·승인 탭에서 승인하면 반영됩니다.
+                </p>
+                <p class="admin-json-help" id="admin-excel-help-common">
+                  퀴즈의 <code class="pricing-code">examId</code>·<code class="pricing-code">year</code>가 비어 있으면 <code class="pricing-code">js/firebase-config.js</code>의 기본값이 들어갑니다.
+                </p>
+                <p class="admin-json-help">
+                  퀴즈 한글 헤더 예: 문항ID 또는 id, 시험ID, 연도, 주제, 문제, 정답, 해설, 법리근거, 함정포인트, 판례요지 …
+                </p>
+                <p class="admin-json-help">
+                  기존 안내(퀴즈): 첫 번째 행은 열 이름(헤더)이어야 합니다. 영문 헤더(권장) 또는 한글 별칭을 사용할 수 있습니다.
                   필수 열: <code class="pricing-code">id</code>, <code class="pricing-code">examId</code>, <code class="pricing-code">year</code>, <code class="pricing-code">topic</code>, <code class="pricing-code">statement</code>, <code class="pricing-code">answer</code>, <code class="pricing-code">explanation</code>.
                   정답은 O/X, 참/거짓, TRUE/FALSE, 1/0 등으로 입력 가능합니다.
                   선택 열: <code class="pricing-code">exam</code>, <code class="pricing-code">explanationBasic</code>, <code class="pricing-code">legal</code>, <code class="pricing-code">trap</code>, <code class="pricing-code">precedent</code>, <code class="pricing-code">detail</code>(JSON 문자열), <code class="pricing-code">tags</code>, <code class="pricing-code">importance</code>, <code class="pricing-code">difficulty</code>.
@@ -2179,11 +2316,11 @@
                   <code class="pricing-code">examId</code>·<code class="pricing-code">year</code>가 비어 있으면 <code class="pricing-code">js/firebase-config.js</code>의 <code class="pricing-code">HANLAW_EXCEL_DEFAULT_EXAM_ID</code>·<code class="pricing-code">HANLAW_EXCEL_DEFAULT_YEAR</code>가 들어갑니다.
                   퀴즈에는 왼쪽 사이드바에서 켠 시험·연도와 이 값이 같을 때만 문항이 나옵니다(예: 기본 연도가 2025인데 2024만 켜 두면 안 보임).
                 </p>
-                <p class="admin-json-help">
-                  한글 헤더 예: 문항ID 또는 id, 시험ID, 연도, 주제, 문제, 정답, 해설, 법리근거, 함정포인트, 판례요지 …
-                </p>
                 <div class="admin-excel-actions">
-                  <button type="button" class="btn btn--secondary" id="admin-btn-excel-template">샘플 엑셀 내려받기</button>
+                  <button type="button" class="btn btn--secondary" id="admin-btn-excel-template">퀴즈 샘플</button>
+                  <button type="button" class="btn btn--secondary" id="admin-btn-excel-template-statute">조문사전 샘플</button>
+                  <button type="button" class="btn btn--secondary" id="admin-btn-excel-template-term">용어사전 샘플</button>
+                  <button type="button" class="btn btn--secondary" id="admin-btn-excel-template-case">판례사전 샘플</button>
                 </div>
                 <label class="field">
                   <span class="field__label">엑셀 파일 (.xlsx / .xls)</span>
@@ -2193,7 +2330,7 @@
                   여기에 엑셀 파일을 끌어다 놓아도 업로드할 수 있습니다.
                 </div>
                 <p id="admin-msg-excel" class="admin-msg" role="status" hidden></p>
-                <button type="button" class="btn btn--primary" id="admin-btn-excel-upload">업로드·검수대기 등록</button>
+                <button type="button" class="btn btn--primary" id="admin-btn-excel-upload">업로드 실행</button>
               </div>
               <div id="admin-panel-review" class="admin-panel-review" hidden>
                 <p class="admin-json-help">
@@ -2247,12 +2384,12 @@
                       <textarea id="admin-review-statement" class="input textarea" rows="4"></textarea>
                     </label>
                     <label class="field">
-                      <span class="field__label">해설</span>
-                      <textarea id="admin-review-explanation" class="input textarea" rows="4"></textarea>
-                    </label>
-                    <label class="field">
                       <span class="field__label">기본 해설 (선택)</span>
                       <textarea id="admin-review-explanation-basic" class="input textarea" rows="2"></textarea>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">상세 해설 · 본문 (기존 해설 포함)</span>
+                      <textarea id="admin-review-explanation" class="input textarea" rows="4"></textarea>
                     </label>
                     <label class="field">
                       <span class="field__label">상세 해설 · 법리 근거 (선택)</span>
@@ -2713,11 +2850,32 @@
           <textarea id="dict-statute-edit-body" class="input textarea dict-term-edit-definition" rows="14"></textarea>
         </label>
         <label class="field">
+          <span class="field__label">준용 규정 (분리 표시)</span>
+          <textarea
+            id="dict-statute-edit-applied-rules"
+            class="input textarea"
+            rows="4"
+            placeholder="예: ○○법 제00조를 준용(준용되는 요건/효과 포함)"
+          ></textarea>
+        </label>
+        <label class="field">
+          <span class="field__label">하위 법령 (분리 표시)</span>
+          <textarea
+            id="dict-statute-edit-subordinate-rules"
+            class="input textarea"
+            rows="4"
+            placeholder="예: 시행령 제00조, 시행규칙 제00조 등"
+          ></textarea>
+        </label>
+        <label class="field">
           <span class="field__label">출처·비고</span>
           <input type="text" id="dict-statute-edit-source-note" class="input" maxlength="500" autocomplete="off" />
         </label>
         <div class="field">
           <span class="field__label">조문 OX 퀴즈 (최대 3문항, 선택)</span>
+          <button type="button" class="btn btn--small btn--outline" id="dict-statute-edit-ai-fill">
+            AI로 조문 생성
+          </button>
           <button type="button" class="btn btn--small btn--outline" id="dict-statute-edit-gen-ox">
             AI로 퀴즈 초안 생성
           </button>
@@ -2755,7 +2913,7 @@
   <script src="/js/statute-articles-static.js"></script>
   <script src="/js/case-ox-form.js?v=3"></script>
   <script src="/js/dict-favorites.js?v=1"></script>
-  <script src="/js/dict-panels.js?v=42"></script>
+  <script src="/js/dict-panels.js?v=50"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -2763,7 +2921,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="/js/firebase-config.js?v=20260414"></script>
   <script src="/js/auth-bridge.js"></script>
-  <script src="/js/firestore-db.js?v=11"></script>
+  <script src="/js/firestore-db.js?v=13"></script>
   <script src="/js/ai-config.js"></script>
   <script src="/js/tickets-service.js?v=14"></script>
   <script src="/js/payapp-config.js?v=9"></script>
@@ -2773,7 +2931,7 @@
   <script src="/js/user-profile.js?v=20260419"></script>
   <script src="/js/dict-remote.js?v=3"></script>
   <script src="/js/statute-tag.js"></script>
-  <script src="/js/tag-dict-modal.js?v=4"></script>
+  <script src="/js/tag-dict-modal.js?v=5"></script>
   <script src="/js/member-tier.js?v=3"></script>
   <script>
     window.HANLAW_ADSENSE_DETAIL = window.HANLAW_ADSENSE_DETAIL || {
@@ -2788,15 +2946,15 @@
       unlockPolicy: "everyDetail"
     };
   </script>
-  <script src="/js/detail-ad-unlock.js?v=5"></script>
+  <script src="/js/detail-ad-unlock.js?v=6"></script>
   <script src="/js/question-credits.js?v=7"></script>
   <script src="/js/quiz-ai-ask.js?v=16"></script>
   <script src="/js/questions.js"></script>
   <script src="/js/dashboard-tickets.js?v=12"></script>
   <script src="/js/learning-stats.js?v=5"></script>
-  <script src="/js/nav-layout.js?v=10"></script>
+  <script src="/js/nav-layout.js?v=11"></script>
   <script src="/js/free-trial-ui.js?v=3"></script>
-  <script src="/js/public-qa.js?v=14"></script>
+  <script src="/js/public-qa.js?v=16"></script>
   <script src="/js/quiz-note-panel.js?v=9"></script>
   <script src="/js/dict-favorites-ui.js?v=2"></script>
   <script src="/js/quiz-question-memo.js?v=2"></script>
@@ -2804,18 +2962,19 @@
   <script src="/js/quiz-wrong-note.js?v=5"></script>
   <script src="/js/quiz-master.js?v=2"></script>
   <script src="/js/quiz-favorites.js?v=6"></script>
-  <script src="/js/app.js?v=50"></script>
+  <script src="/js/app.js?v=52"></script>
   <script src="/js/scope-favorites.js?v=9"></script>
-  <script src="/js/ticket-modal.js?v=13"></script>
+  <script src="/js/ticket-modal.js?v=14"></script>
   <script src="/js/dict-panel-actions.js?v=10"></script>
   <script src="/js/quiz-note-card-actions.js?v=7"></script>
   <script src="/js/notifications-ui.js?v=4"></script>
   <script src="/js/admin-panel.js?v=2"></script>
-  <script src="/js/admin-review.js?v=9"></script>
+  <script src="/js/admin-quiz-create.js?v=10"></script>
+  <script src="/js/admin-review.js?v=10"></script>
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="/js/admin-excel.js?v=6"></script>
-  <script src="/js/admin-tickets.js?v=9"></script>
+  <script src="/js/admin-excel.js?v=7"></script>
+  <script src="/js/admin-tickets.js?v=10"></script>
   <script src="/js/admin-quotes.js?v=5"></script>
 </body>
 </html>

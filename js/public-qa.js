@@ -92,42 +92,6 @@
 
   function fillAnswerArea(ansBody, r) {
     ansBody.innerHTML = "";
-    var hasQuiz =
-      (r.quizTopic && String(r.quizTopic).trim()) ||
-      (r.quizStatement && String(r.quizStatement).trim()) ||
-      (r.questionId && String(r.questionId).trim() && isAdminViewer());
-    if (hasQuiz) {
-      var qb = document.createElement("div");
-      qb.className = "public-qa-item__quiz";
-      if (r.quizTopic && String(r.quizTopic).trim()) {
-        var tp = document.createElement("p");
-        tp.className = "public-qa-item__quiz-meta";
-        tp.textContent = "주제: " + String(r.quizTopic).trim();
-        qb.appendChild(tp);
-      }
-      if (r.quizStatement && String(r.quizStatement).trim()) {
-        var sl = document.createElement("span");
-        sl.className = "public-qa-item__quiz-label";
-        sl.textContent = "해당 퀴즈 지문";
-        qb.appendChild(sl);
-        var st = document.createElement("p");
-        st.className = "public-qa-item__quiz-text quiz-ai-answer";
-        var stmt = String(r.quizStatement).trim();
-        if (typeof window.formatHanlawRichParagraphsHtml === "function") {
-          st.innerHTML = window.formatHanlawRichParagraphsHtml(stmt);
-        } else {
-          st.textContent = stmt;
-        }
-        qb.appendChild(st);
-      }
-      if (r.questionId && String(r.questionId).trim() && isAdminViewer()) {
-        var idp = document.createElement("p");
-        idp.className = "public-qa-item__quiz-meta public-qa-item__quiz-meta--admin";
-        idp.textContent = "문항 ID: " + String(r.questionId).trim();
-        qb.appendChild(idp);
-      }
-      ansBody.appendChild(qb);
-    }
     var ansP = document.createElement("div");
     ansP.className = "public-qa-item__answer-text quiz-ai-answer";
     var ansRaw = stripReply(r.answer || "");

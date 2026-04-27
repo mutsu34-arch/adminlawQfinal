@@ -14,6 +14,17 @@
     return !!(u && u.email);
   }
 
+  function isAdminViewer() {
+    var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!u || !u.email) return false;
+    var emails = window.ADMIN_EMAILS || [];
+    var mail = String(u.email).toLowerCase();
+    for (var i = 0; i < emails.length; i++) {
+      if (String(emails[i]).toLowerCase() === mail) return true;
+    }
+    return false;
+  }
+
   function openModal(type) {
     currentType = "report";
     if (type === "promotion") currentType = "promotion";
@@ -74,7 +85,7 @@
             (q.questionId || "") +
             " · " +
             (q.topic || "") +
-            (q.source ? "\n출처: " + q.source : "") +
+            (isAdminViewer() && q.source ? "\n출처: " + q.source : "") +
             (q.statement
               ? "\n" + String(q.statement).slice(0, 200) + (q.statement.length > 200 ? "…" : "")
               : "");

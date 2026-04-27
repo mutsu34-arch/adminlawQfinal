@@ -5,6 +5,17 @@
     return document.getElementById(id);
   }
 
+  function isAdminViewer() {
+    var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!u || !u.email) return false;
+    var emails = window.ADMIN_EMAILS || [];
+    var mail = String(u.email).toLowerCase();
+    for (var i = 0; i < emails.length; i++) {
+      if (String(emails[i]).toLowerCase() === mail) return true;
+    }
+    return false;
+  }
+
   function normTagKey(tag) {
     return String(tag || "")
       .replace(/^#/, "")
@@ -143,7 +154,7 @@
     }
     root.appendChild(text);
 
-    if (block.sourceNote) {
+    if (block.sourceNote && isAdminViewer()) {
       var sn = document.createElement("p");
       sn.className = "statute-article-popup__source";
       if (typeof window.formatHanlawRichParagraphsHtml === "function") {

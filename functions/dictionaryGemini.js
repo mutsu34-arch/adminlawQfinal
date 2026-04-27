@@ -3,6 +3,7 @@
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const https = require("https");
 const { effectiveGeminiModelId } = require("./geminiModel");
 const { getStoredNickname } = require("./userProfileServer");
 
@@ -54,6 +55,7 @@ function isLikelyCaseTag(s) {
 }
 
 const CASENOTE_ORIGIN = "https://casenote.kr";
+const SCOURT_LX_LIST = "https://lx.scourt.go.kr/search/precedent/get/list";
 const CASENOTE_HIGH_COURTS = [
   "서울고등법원",
   "부산고등법원",
@@ -116,6 +118,119 @@ function computeCasenoteUrl(citation, searchKeys) {
   if (!token) return "";
   const court = inferCasenoteCourt(citation, token);
   return `${CASENOTE_ORIGIN}/${encodeURIComponent(court)}/${encodeURIComponent(token)}`;
+}
+
+function fetchUrlText(url, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      url,
+      {
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+          accept: "text/html,application/xhtml+xml,application/json"
+        }
+      },
+      (res) => {
+        if (!res || !res.statusCode || res.statusCode >= 400) {
+          reject(new Error("HTTP " + (res && res.statusCode ? res.statusCode : "?")));
+          return;
+        }
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      }
+    );
+    req.setTimeout(timeoutMs || 7000, () => req.destroy(new Error("timeout")));
+    req.on("error", (e) => reject(e));
+  });
+}
+
+function stripHtmlToPlain(html) {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function fetchStatuteWebContext(statuteKey) {
+  const q = String(statuteKey || "").trim();
+  if (!q) return { text: "", attempted: 0, succeeded: 0, triedUrls: [], results: [] };
+  const urls = [
+    "https://www.law.go.kr/lsSc.do?query=" + encodeURIComponent(q),
+    "https://www.law.go.kr/lsSc.do?query=" + encodeURIComponent(q + " 준용"),
+    "https://www.law.go.kr/lsSc.do?query=" + encodeURIComponent(q + " 시행령 시행규칙")
+  ];
+  const blocks = [];
+  const triedUrls = [];
+  const results = [];
+  let succeeded = 0;
+  for (let i = 0; i < urls.length; i++) {
+    triedUrls.push(urls[i]);
+    try {
+      const raw = await fetchUrlText(urls[i], 8000);
+      const plain = stripHtmlToPlain(raw);
+      if (!plain) {
+        results.push({ url: urls[i], ok: false, reason: "본문 없음" });
+        continue;
+      }
+      succeeded += 1;
+      results.push({ url: urls[i], ok: true, reason: "수집 성공" });
+      blocks.push("[법령검색 " + (i + 1) + "] " + urls[i] + "\n" + plain.slice(0, 14000));
+    } catch (e) {
+      const msg = String((e && e.message) || "요청 실패").slice(0, 180);
+      results.push({ url: urls[i], ok: false, reason: msg });
+    }
+  }
+  return {
+    text: blocks.join("\n\n"),
+    attempted: urls.length,
+    succeeded,
+    triedUrls,
+    results
+  };
+}
+
+function buildScourtLawListUrl(citation, searchKeys) {
+  const token = pickCaseTokenFromPayload(searchKeys, citation);
+  const searchTxt = token || String(citation || "").trim();
+  if (!searchTxt) return "";
+  const isConst = /헌법재판소|헌재/.test(String(citation || "")) || (token && /\d{4}헌[가바마]/.test(token));
+  let q =
+    "search_txt=" +
+    encodeURIComponent(searchTxt) +
+    "&page_no=1&display=20&search_mode=simple";
+  if (isConst) {
+    q += "&tab_idx=2";
+  } else {
+    q += "&order_by=des&order_column=d&tab_idx=0";
+  }
+  return SCOURT_LX_LIST + "?" + q;
+}
+
+async function retrieveCaseWebContext(citation, searchKeys) {
+  const casenoteUrl = computeCasenoteUrl(citation, searchKeys);
+  const scourtListUrl = buildScourtLawListUrl(citation, searchKeys);
+  const urls = [casenoteUrl, scourtListUrl].filter(Boolean);
+  const blocks = [];
+  for (let i = 0; i < urls.length; i++) {
+    const u = urls[i];
+    try {
+      const raw = await fetchUrlText(u, 8000);
+      const plain = stripHtmlToPlain(raw);
+      if (!plain) continue;
+      blocks.push("[웹수집 " + (i + 1) + "] " + u + "\n" + plain.slice(0, 12000));
+    } catch (e) {
+      // ignore each source and continue
+    }
+  }
+  return blocks.join("\n\n");
 }
 
 function clampStr(v, max) {
@@ -378,6 +493,14 @@ async function generateTermWithGemini(tag, apiKey, modelId, learnerNickname) {
 async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, caseFullText) {
   const gen = new GoogleGenerativeAI(apiKey);
   const fullText = String(caseFullText || "").trim();
+  let webContext = "";
+  if (!fullText) {
+    try {
+      webContext = await retrieveCaseWebContext(tag, [tag]);
+    } catch (e) {
+      webContext = "";
+    }
+  }
   const prompt =
     nicknameHintLine(learnerNickname) +
     "당신은 한국 법학 교육용 요약가입니다.\n" +
@@ -392,9 +515,11 @@ async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, cas
         JSON.stringify(tag) +
         "\n\n[판결문 전문]\n" +
         fullText
-      : "아래 판례 사건번호 또는 판례 식별 문자열을 기준으로 공개된 판례·교재 지식에 기반해 요약하세요.\n" +
+      : "아래 판례 사건번호 또는 판례 식별 문자열을 기준으로 공개 판결문/판례정보를 우선 활용하세요.\n" +
+        "웹수집 텍스트가 있으면 이를 우선 근거로 사용하고, 필요하면 하급심 내용도 반영하세요.\n" +
         "항목: " +
-        JSON.stringify(tag));
+        JSON.stringify(tag) +
+        (webContext ? "\n\n[자동 수집 텍스트(대법원/관련 판례 검색)]\n" + webContext : ""));
   const o = await generateJsonWithModelFallback(gen, modelId, prompt);
   const keys = Array.isArray(o.searchKeys)
     ? o.searchKeys.map((x) => clampStr(x, 80)).slice(0, 12)
@@ -514,6 +639,66 @@ async function generateStatuteOxQuizzesGemini(statuteKey, heading, body, apiKey,
     ox = buildFallbackOxQuizzesStatute({ statuteKey: sk, heading: hd, body: bd });
   }
   return ox;
+}
+
+async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHint, apiKey, modelId) {
+  const gen = new GoogleGenerativeAI(apiKey);
+  const sk = clampStr(statuteKey, 400).trim();
+  const headingRaw = clampStr(headingHint, 500).trim();
+  const bodyRaw = clampStr(bodyHint, MAX_STR).trim();
+  const webInfo = await fetchStatuteWebContext(sk);
+  const webCtx = String(webInfo && webInfo.text ? webInfo.text : "").trim();
+  const prompt =
+    "당신은 한국 행정법 조문사전 편집자입니다.\n" +
+    "아래 조문 키를 기준으로 조문사전용 JSON을 출력하세요. 반드시 JSON만 출력.\n" +
+    "키: heading, body, appliedRules, subordinateRules, sourceNote, oxQuizzes.\n" +
+    "body는 다음 구성으로 작성:\n" +
+    "1) 조문 본문 요약/핵심 문언\n" +
+    "2) 준용 규정(있으면 '준용되는 조문'을 함께)\n" +
+    "3) 관련 하위 법령(시행령/시행규칙)\n" +
+    "4) 수험 포인트(짧게)\n" +
+    "appliedRules에는 준용되는 규정을 분리해 쓰고, subordinateRules에는 시행령·시행규칙 정보를 분리해 쓰세요.\n" +
+    "불확실한 내용은 '확인 필요'로 표시하고 단정 금지.\n" +
+    "oxQuizzes는 1~3개, statement/answer/explanation 형식.\n\n" +
+    "[조문 키]\n" +
+    JSON.stringify(sk) +
+    (headingRaw ? "\n\n[관리자 입력 표제 힌트]\n" + JSON.stringify(headingRaw) : "") +
+    (bodyRaw ? "\n\n[관리자 입력 본문 힌트]\n" + JSON.stringify(bodyRaw.slice(0, 12000)) : "") +
+    (webCtx ? "\n\n[자동 수집 법령검색 텍스트]\n" + webCtx : "");
+
+  const o = await generateJsonWithModelFallback(gen, modelId, prompt);
+  const heading = clampStr(o.heading || headingRaw || sk, 500);
+  const body = clampStr(o.body || bodyRaw || "", MAX_STR);
+  const appliedRules = clampStr(o.appliedRules || "", 3000);
+  const subordinateRules = clampStr(o.subordinateRules || "", 3000);
+  const sourceNote = clampStr(
+    o.sourceNote ||
+      "내부 자동 생성: 법령 검색 텍스트를 참고해 작성됨. 최신 조문은 국가법령정보센터에서 재확인 필요.",
+    500
+  );
+  let oxQuizzes = sanitizeOxQuizzes(o.oxQuizzes, 3);
+  if (oxQuizzes.length < 1 && body) {
+    oxQuizzes = buildFallbackOxQuizzesStatute({
+      statuteKey: sk,
+      heading,
+      body
+    });
+  }
+  return {
+    statuteKey: sk,
+    heading,
+    body,
+    appliedRules,
+    subordinateRules,
+    sourceNote,
+    oxQuizzes,
+    fetchSummary: {
+      attempted: webInfo && webInfo.attempted ? webInfo.attempted : 0,
+      succeeded: webInfo && webInfo.succeeded ? webInfo.succeeded : 0,
+      triedUrls: webInfo && Array.isArray(webInfo.triedUrls) ? webInfo.triedUrls : [],
+      results: webInfo && Array.isArray(webInfo.results) ? webInfo.results : []
+    }
+  };
 }
 
 function firestoreToTermPayload(d) {
@@ -665,6 +850,7 @@ const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async
 module.exports = {
   generateOrGetDictionaryEntry,
   generateStatuteOxQuizzesGemini,
+  generateStatuteEntryFromWebGemini,
   makeSlug,
   normTag,
   isLikelyCaseTag

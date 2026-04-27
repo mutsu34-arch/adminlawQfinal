@@ -2024,6 +2024,107 @@ body {
   color: var(--danger);
 }
 
+.admin-msg-main {
+  display: inline;
+}
+
+.admin-msg-fail-list {
+  margin-top: 0.35rem;
+  line-height: 1.45;
+}
+
+.admin-msg-badge {
+  display: inline-block;
+  padding: 0.06rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(61, 156, 240, 0.12);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-right: 0.15rem;
+}
+
+.admin-msg-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+  font-size: 0.76rem;
+}
+
+.admin-msg-reason {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-left: 0.1rem;
+}
+
+.admin-quiz-existing {
+  margin: 0.65rem 0 0.85rem;
+  padding: 0.6rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+}
+
+.admin-quiz-existing__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
+}
+
+.admin-quiz-existing__head .field__label {
+  margin: 0;
+  display: block;
+  line-height: 1.3;
+  word-break: keep-all;
+  writing-mode: horizontal-tb;
+  flex: 1 1 220px;
+}
+
+.admin-quiz-existing__head .btn {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .admin-quiz-existing__head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+
+  .admin-quiz-existing__head .field__label {
+    flex: 1 1 auto;
+  }
+
+  .admin-quiz-existing__head .btn {
+    align-self: flex-start;
+  }
+}
+
+.admin-quiz-existing__list {
+  max-height: 180px;
+  overflow: auto;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.admin-quiz-existing__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.admin-quiz-existing__meta {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 .admin-json-help {
   margin: 0 0 1rem;
   font-size: 0.82rem;

@@ -1,10 +1,6 @@
-(function () {
+ (function () {
   function normHeaderKey(k) {
-    return String(k == null ? "" : k)
-      .replace(/^\uFEFF/, "")
-      .trim()
-      .toLowerCase()
-      .replace(/\s/g, "");
+    return String(k == null ? "" : k).replace(/^\uFEFF/, "").trim().toLowerCase().replace(/\s/g, "");
   }
 
   var HEADER_TO_FIELD = {
@@ -380,7 +376,7 @@
     return [];
   }
 
-  function downloadTemplate() {
+  function downloadQuizTemplate() {
     if (typeof XLSX === "undefined") {
       window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
       return;
@@ -497,6 +493,245 @@
     XLSX.writeFile(wb, "hanlaw_questions_template_v2.xlsx");
   }
 
+  function parseBoolCell(v) {
+    if (v === true || v === false) return v;
+    var s = String(v == null ? "" : v).trim().toUpperCase();
+    if (!s) return null;
+    if (s === "O" || s === "TRUE" || s === "Y" || s === "1" || s === "참") return true;
+    if (s === "X" || s === "FALSE" || s === "N" || s === "0" || s === "거짓") return false;
+    return null;
+  }
+
+  function splitComma(v) {
+    var s = String(v == null ? "" : v).trim();
+    if (!s) return [];
+    return s
+      .split(/[,;#]/g)
+      .map(function (x) { return String(x || "").trim(); })
+      .filter(Boolean);
+  }
+
+  function parseOxSet(mapped, maxItems) {
+    var out = [];
+    for (var i = 1; i <= maxItems; i++) {
+      var st = String(mapped["ox" + i + "_statement"] || "").trim();
+      var ans = parseBoolCell(mapped["ox" + i + "_answer"]);
+      var ex = String(mapped["ox" + i + "_explanation"] || "").trim();
+      if (!st && ans == null && !ex) continue;
+      if (!st || ans == null || !ex) continue;
+      out.push({ statement: st, answer: ans, explanation: ex, explanationBasic: ex });
+    }
+    return out;
+  }
+
+  function genericRowsFromWorkbook(buffer) {
+    if (typeof XLSX === "undefined") throw new Error("엑셀 라이브러리(xlsx)를 불러오지 못했습니다.");
+    var wb = XLSX.read(buffer, { type: "array" });
+    if (!wb.SheetNames || !wb.SheetNames.length) throw new Error("시트가 없습니다.");
+    var first = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(first, { defval: "", raw: false });
+  }
+
+  var TERM_HEADER_TO_FIELD = {
+    term: "term",
+    용어: "term",
+    aliases: "aliases",
+    동의어: "aliases",
+    별칭: "aliases",
+    definition: "definition",
+    정의: "definition",
+    설명: "definition"
+  };
+
+  var CASE_HEADER_TO_FIELD = {
+    citation: "citation",
+    사건표기: "citation",
+    사건번호: "citation",
+    title: "title",
+    제목: "title",
+    사건명: "title",
+    facts: "facts",
+    사실관계: "facts",
+    issues: "issues",
+    쟁점: "issues",
+    judgment: "judgment",
+    판단: "judgment",
+    결론: "judgment",
+    casefulltext: "caseFullText",
+    판례전문: "caseFullText",
+    searchkeys: "searchKeys",
+    검색키: "searchKeys",
+    topickeywords: "topicKeywords",
+    주제키워드: "topicKeywords",
+    casenoteurl: "casenoteUrl",
+    jiscntntssrno: "jisCntntsSrno",
+    scourtportalurl: "scourtPortalUrl"
+  };
+
+  var STATUTE_HEADER_TO_FIELD = {
+    docid: "docId",
+    statutekey: "statuteKey",
+    조문키: "statuteKey",
+    heading: "heading",
+    표제: "heading",
+    body: "body",
+    본문: "body",
+    sourcenote: "sourceNote",
+    출처: "sourceNote"
+  };
+
+  function mapByHeader(rawRow, headerMap) {
+    var o = {};
+    Object.keys(rawRow || {}).forEach(function (k) {
+      var nk = normHeaderKey(k);
+      var field = headerMap[nk] || null;
+      if (!field && /^ox[1-9]_(statement|answer|explanation)$/.test(nk)) field = nk;
+      if (!field) return;
+      o[field] = rawRow[k];
+    });
+    return o;
+  }
+
+  function parseWorkbookToTerms(buffer) {
+    var rows = genericRowsFromWorkbook(buffer);
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var m = mapByHeader(rows[i], TERM_HEADER_TO_FIELD);
+      var term = String(m.term || "").trim();
+      var definition = String(m.definition || "").trim();
+      if (!term && !definition) continue;
+      if (!term || !definition) throw new Error(i + 2 + "번째 행: term/definition은 필수입니다.");
+      out.push({
+        term: term,
+        definition: definition,
+        aliases: splitComma(m.aliases),
+        oxQuizzes: parseOxSet(m, 3)
+      });
+    }
+    return out;
+  }
+
+  function parseWorkbookToCases(buffer) {
+    var rows = genericRowsFromWorkbook(buffer);
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var m = mapByHeader(rows[i], CASE_HEADER_TO_FIELD);
+      var citation = String(m.citation || "").trim();
+      if (!citation) {
+        if (!String(m.title || "").trim() && !String(m.facts || "").trim()) continue;
+        throw new Error(i + 2 + "번째 행: citation(사건 표기)은 필수입니다.");
+      }
+      out.push({
+        citation: citation,
+        title: String(m.title || "").trim(),
+        facts: String(m.facts || "").trim(),
+        issues: String(m.issues || "").trim(),
+        judgment: String(m.judgment || "").trim(),
+        caseFullText: String(m.caseFullText || "").trim(),
+        searchKeys: splitComma(m.searchKeys),
+        topicKeywords: splitComma(m.topicKeywords),
+        casenoteUrl: String(m.casenoteUrl || "").trim(),
+        jisCntntsSrno: String(m.jisCntntsSrno || "").trim(),
+        scourtPortalUrl: String(m.scourtPortalUrl || "").trim(),
+        oxQuizzes: parseOxSet(m, 5)
+      });
+    }
+    return out;
+  }
+
+  function parseWorkbookToStatutes(buffer) {
+    var rows = genericRowsFromWorkbook(buffer);
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var m = mapByHeader(rows[i], STATUTE_HEADER_TO_FIELD);
+      var statuteKey = String(m.statuteKey || "").trim();
+      var body = String(m.body || "").trim();
+      if (!statuteKey && !body) continue;
+      if (!statuteKey || !body) throw new Error(i + 2 + "번째 행: statuteKey/body는 필수입니다.");
+      out.push({
+        docId: String(m.docId || "").trim(),
+        entry: {
+          statuteKey: statuteKey,
+          heading: String(m.heading || "").trim(),
+          body: body,
+          sourceNote: String(m.sourceNote || "").trim(),
+          oxQuizzes: parseOxSet(m, 3)
+        }
+      });
+    }
+    return out;
+  }
+
+  function downloadTermTemplate() {
+    if (typeof XLSX === "undefined") return window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+    var head = [
+      "term", "aliases", "definition",
+      "ox1_statement", "ox1_answer", "ox1_explanation",
+      "ox2_statement", "ox2_answer", "ox2_explanation",
+      "ox3_statement", "ox3_answer", "ox3_explanation"
+    ];
+    var row = [
+      "기속행위",
+      "기속 처분,재량과 대비",
+      "행정청에게 법규가 단 하나의 법적 효과만을 허용하는 행위",
+      "기속행위에서는 행정청이 법규상 선택 재량을 갖지 않는다.", "O", "기속행위는 요건 충족 시 처분 내용이 법규로 확정된다.",
+      "", "", "",
+      "", "", ""
+    ];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, row]), "용어사전");
+    XLSX.utils.writeFile(wb, "hanlaw_dict_terms_template.xlsx");
+  }
+
+  function downloadCaseTemplate() {
+    if (typeof XLSX === "undefined") return window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+    var head = [
+      "citation", "title", "facts", "issues", "judgment",
+      "caseFullText", "searchKeys", "topicKeywords", "casenoteUrl", "jisCntntsSrno", "scourtPortalUrl",
+      "ox1_statement", "ox1_answer", "ox1_explanation"
+    ];
+    var row = [
+      "대법원 2024두12345",
+      "처분성 판단 기준",
+      "행정청의 내부지침 통보가 문제된 사안",
+      "내부지침 통보가 항고소송 대상 처분인지",
+      "외부에 직접 법효과를 발생시키지 않아 처분성이 부정됨",
+      "",
+      "처분성,항고소송,법효과",
+      "행정소송,처분성",
+      "",
+      "",
+      "",
+      "내부지침이라도 항상 처분성이 인정된다.",
+      "X",
+      "외부적 구속력과 직접적 법효과 유무를 기준으로 판단한다."
+    ];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, row]), "판례사전");
+    XLSX.utils.writeFile(wb, "hanlaw_dict_cases_template.xlsx");
+  }
+
+  function downloadStatuteTemplate() {
+    if (typeof XLSX === "undefined") return window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+    var head = [
+      "docId", "statuteKey", "heading", "body", "sourceNote",
+      "ox1_statement", "ox1_answer", "ox1_explanation"
+    ];
+    var row = [
+      "haengjeongsosongbeop_12",
+      "행정소송법 제12조",
+      "제12조(원고적격)",
+      "취소소송은 처분등의 취소 또는 변경을 구할 법률상 이익이 있는 자가 제기할 수 있다.",
+      "행정소송법",
+      "원고적격은 법률상 이익이 있는지 여부로 판단한다.",
+      "O",
+      "조문의 문언이 '법률상 이익'을 기준으로 규정하고 있다."
+    ];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, row]), "조문사전");
+    XLSX.utils.writeFile(wb, "hanlaw_dict_statutes_template.xlsx");
+  }
+
   function setMsg(el, text, isError) {
     if (!el) return;
     el.textContent = text || "";
@@ -550,11 +785,33 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    var kindEl = document.getElementById("admin-excel-kind");
     var fileEl = document.getElementById("admin-excel-file");
     var dropEl = document.getElementById("admin-excel-dropzone");
     var btnUp = document.getElementById("admin-btn-excel-upload");
     var btnTpl = document.getElementById("admin-btn-excel-template");
+    var btnTplStatute = document.getElementById("admin-btn-excel-template-statute");
+    var btnTplTerm = document.getElementById("admin-btn-excel-template-term");
+    var btnTplCase = document.getElementById("admin-btn-excel-template-case");
     var msgEl = document.getElementById("admin-msg-excel");
+    var helpQuiz = document.getElementById("admin-excel-help-quiz");
+    var helpStatute = document.getElementById("admin-excel-help-statute");
+    var helpTerm = document.getElementById("admin-excel-help-term");
+    var helpCase = document.getElementById("admin-excel-help-case");
+
+    function selectedKind() {
+      var v = kindEl && kindEl.value ? String(kindEl.value) : "quiz";
+      if (v === "term" || v === "case" || v === "statute") return v;
+      return "quiz";
+    }
+
+    function refreshHelp() {
+      var k = selectedKind();
+      if (helpQuiz) helpQuiz.hidden = k !== "quiz";
+      if (helpStatute) helpStatute.hidden = k !== "statute";
+      if (helpTerm) helpTerm.hidden = k !== "term";
+      if (helpCase) helpCase.hidden = k !== "case";
+    }
 
     function setSelectedFile(file) {
       if (!fileEl || !file) return;
@@ -582,50 +839,37 @@
         setMsg(msgEl, "엑셀 파일(.xlsx 또는 .xls)만 지원합니다.", true);
         return;
       }
-      var validate = window.AdminQuestionUtils && window.AdminQuestionUtils.validateCore;
-      if (!validate) {
-        setMsg(msgEl, "검증 모듈을 불러오지 못했습니다.", true);
-        return;
-      }
-
       var reader = new FileReader();
       reader.onload = function () {
         try {
-          var questions = dedupeQuestionIdsInOrder(
-            parseWorkbookToQuestions(new Uint8Array(reader.result))
-          );
-          if (!questions.length) {
-            setMsg(
-              msgEl,
-              "유효한 데이터 행이 없습니다. ① 첫 줄(또는 그 아래 줄)에 열 이름이 있어야 하며, 반드시 id·statement(또는 문항id·문제·본문 등 인식되는 이름)와 데이터가 있어야 합니다. ② 상단에 제목 행만 있고 헤더가 2행째인 경우도 자동 인식합니다. ③ 「샘플 엑셀 내려받기」로 만든 파일 형식을 권장합니다.",
-              true
-            );
-            return;
-          }
-          var ok = [];
-          for (var i = 0; i < questions.length; i++) {
-            var err = validate(questions[i]);
-            if (err) {
-              setMsg(msgEl, i + 2 + "번째 행(헤더 제외): " + err, true);
+          var k = selectedKind();
+          if (k === "quiz") {
+            var validate = window.AdminQuestionUtils && window.AdminQuestionUtils.validateCore;
+            if (!validate) {
+              setMsg(msgEl, "검증 모듈을 불러오지 못했습니다.", true);
               return;
             }
-            ok.push(questions[i]);
-          }
-          setMsg(msgEl, ok.length + "건 검수대기 등록 중…", false);
-          window
-            .adminStageQuizBatch(ok)
-            .then(function (res) {
+            var questions = dedupeQuestionIdsInOrder(parseWorkbookToQuestions(new Uint8Array(reader.result)));
+            if (!questions.length) {
+              setMsg(msgEl, "유효한 데이터 행이 없습니다. 퀴즈 샘플 엑셀 형식을 사용해 주세요.", true);
+              return;
+            }
+            var ok = [];
+            for (var i = 0; i < questions.length; i++) {
+              var err = validate(questions[i]);
+              if (err) return setMsg(msgEl, i + 2 + "번째 행(헤더 제외): " + err, true);
+              ok.push(questions[i]);
+            }
+            setMsg(msgEl, ok.length + "건 검수대기 등록 중…", false);
+            window.adminStageQuizBatch(ok).then(function (res) {
               var okCount = parseInt(res && res.okCount, 10) || 0;
               var failRows = (res && res.failRows) || [];
               if (okCount > 0) applyScopeToUploaded(ok.slice(0, okCount));
               var msg = okCount + "건이 검수대기로 등록되었습니다.";
-              if (failRows.length) {
-                msg += " 실패 " + failRows.length + "건(예: " + failRows[0].index + "행 " + failRows[0].reason + ")";
-              }
+              if (failRows.length) msg += " 실패 " + failRows.length + "건(예: " + failRows[0].index + "행 " + failRows[0].reason + ")";
               setMsg(msgEl, msg + " '검수·승인' 탭에서 승인하면 퀴즈에 반영됩니다.", false);
               fileEl.value = "";
-            })
-            .catch(function (e) {
+            }).catch(function (e) {
               var code = e && (e.code || (e.details && e.details.code)) ? String(e.code || e.details.code) : "";
               var msg = (e && e.message) || "";
               if (msg.toUpperCase() === "INTERNAL" || code.indexOf("internal") >= 0) {
@@ -643,6 +887,55 @@
                 true
               );
             });
+            return;
+          }
+
+          if (k === "term" || k === "case") {
+            if (typeof window.adminStageDictBatch !== "function") {
+              setMsg(msgEl, "사전 스테이징 함수가 없습니다. Functions/클라이언트를 배포해 주세요.", true);
+              return;
+            }
+            var rows = k === "term" ? parseWorkbookToTerms(new Uint8Array(reader.result)) : parseWorkbookToCases(new Uint8Array(reader.result));
+            if (!rows.length) return setMsg(msgEl, "유효한 데이터 행이 없습니다. 샘플 형식을 확인해 주세요.", true);
+            setMsg(msgEl, rows.length + "건 검수대기 등록 중…", false);
+            window.adminStageDictBatch(k, rows).then(function (res2) {
+              var okCount2 = parseInt(res2 && res2.okCount, 10) || 0;
+              var failRows2 = (res2 && res2.failRows) || [];
+              var label = k === "term" ? "용어사전" : "판례사전";
+              var msg2 = label + " " + okCount2 + "건이 검수대기로 등록되었습니다.";
+              if (failRows2.length) msg2 += " 실패 " + failRows2.length + "건(예: " + failRows2[0].index + "행 " + failRows2[0].reason + ")";
+              setMsg(msgEl, msg2 + " '검수·승인' 탭에서 승인하면 반영됩니다.", false);
+              fileEl.value = "";
+            }).catch(function (e2) {
+              setMsg(msgEl, (e2 && e2.message) || "검수대기 등록 실패", true);
+            });
+            return;
+          }
+
+          var statutes = parseWorkbookToStatutes(new Uint8Array(reader.result));
+          if (!statutes.length) return setMsg(msgEl, "유효한 데이터 행이 없습니다. 샘플 형식을 확인해 주세요.", true);
+          if (typeof window.saveLegalStatuteRemote !== "function") {
+            return setMsg(msgEl, "조문 저장 함수를 찾지 못했습니다.", true);
+          }
+          setMsg(msgEl, statutes.length + "건 조문 저장 중…", false);
+          var seq = Promise.resolve();
+          var saved = 0;
+          statutes.forEach(function (row) {
+            seq = seq.then(function () {
+              return window.saveLegalStatuteRemote(row.entry, row.docId).then(function () {
+                saved += 1;
+              });
+            });
+          });
+          seq.then(function () {
+            setMsg(msgEl, "조문사전 " + saved + "건이 즉시 반영되었습니다.", false);
+            fileEl.value = "";
+            try {
+              window.dispatchEvent(new CustomEvent("dict-remote-updated"));
+            } catch (e3) {}
+          }).catch(function (e4) {
+            setMsg(msgEl, (e4 && e4.message) || "조문 저장 실패", true);
+          });
         } catch (e) {
           setMsg(msgEl, (e && e.message) || "파일을 읽지 못했습니다.", true);
         }
@@ -651,7 +944,16 @@
     }
 
     if (btnTpl) {
-      btnTpl.addEventListener("click", downloadTemplate);
+      btnTpl.addEventListener("click", downloadQuizTemplate);
+    }
+    if (btnTplStatute) {
+      btnTplStatute.addEventListener("click", downloadStatuteTemplate);
+    }
+    if (btnTplTerm) {
+      btnTplTerm.addEventListener("click", downloadTermTemplate);
+    }
+    if (btnTplCase) {
+      btnTplCase.addEventListener("click", downloadCaseTemplate);
     }
 
     if (btnUp && fileEl) {
@@ -701,5 +1003,7 @@
         }
       });
     }
+    if (kindEl) kindEl.addEventListener("change", refreshHelp);
+    refreshHelp();
   });
 })();

@@ -472,6 +472,18 @@
     });
   };
 
+  /** 관리자 전용: 조문 키를 기준으로 조문 본문·준용·하위법령 설명 초안 생성 */
+  window.generateDictStatuteFromWeb = function (opts) {
+    opts = opts || {};
+    return getCallable("generateDictStatuteFromWeb")({
+      statuteKey: opts.statuteKey,
+      headingHint: opts.headingHint,
+      bodyHint: opts.bodyHint
+    }).then(function (r) {
+      return r.data || {};
+    });
+  };
+
   window.adminStageQuizBatch = function (rows) {
     return getCallable("adminStageQuizBatch")({ rows: Array.isArray(rows) ? rows : [] }).then(function (r) {
       return r.data || {};
@@ -509,6 +521,15 @@
         return r.data || {};
       }
     );
+  };
+
+  window.adminStageDictBatch = function (entityType, rows) {
+    return getCallable("adminStageDictBatch")({
+      entityType: entityType || "term",
+      rows: Array.isArray(rows) ? rows : []
+    }).then(function (r) {
+      return r.data || {};
+    });
   };
 
   window.adminListDictStaging = function (entityType, status, limit) {

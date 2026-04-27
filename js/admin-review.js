@@ -60,6 +60,29 @@
     return one;
   }
 
+  function normalizeText(raw) {
+    return String(raw == null ? "" : raw).replace(/\r\n/g, "\n").trim();
+  }
+
+  function mergeDetailBody(mainText, legal, trap, precedent) {
+    var chunks = [];
+    var main = normalizeText(mainText);
+    var l = normalizeText(legal);
+    var t = normalizeText(trap);
+    var p = normalizeText(precedent);
+    if (main) chunks.push(main);
+    if (l) chunks.push("법리 근거: " + l);
+    if (t) chunks.push("함정 포인트: " + t);
+    if (p) chunks.push("판례 요지: " + p);
+    return chunks.join("\n\n").trim();
+  }
+
+  function pickDetailMainText(payload) {
+    var p = payload || {};
+    var d = p.detail && typeof p.detail === "object" ? p.detail : {};
+    return normalizeText(d.body || p.explanation || "");
+  }
+
   function setMode(next) {
     mode = next === "term" || next === "case" ? next : "quiz";
     var bq = $("admin-review-type-quiz");
@@ -184,8 +207,8 @@
     var p = item.payload || {};
     if (mode === "quiz") {
       $("admin-review-statement").value = p.statement || "";
-      $("admin-review-explanation").value = p.explanation || "";
       $("admin-review-explanation-basic").value = p.explanationBasic || "";
+      $("admin-review-explanation").value = pickDetailMainText(p);
       var det = p.detail || {};
       $("admin-review-detail-legal").value = det.legal || "";
       $("admin-review-detail-trap").value = det.trap || "";
@@ -276,21 +299,24 @@
     var p = Object.assign({}, selected.payload);
     if (mode === "quiz") {
       p.statement = $("admin-review-statement").value.trim();
-      p.explanation = $("admin-review-explanation").value.trim();
+      var detailMain = $("admin-review-explanation").value.trim();
       var basic = $("admin-review-explanation-basic").value.trim();
       if (basic) p.explanationBasic = basic;
       else delete p.explanationBasic;
       var legal = $("admin-review-detail-legal").value.trim();
       var trap = $("admin-review-detail-trap").value.trim();
       var precedent = $("admin-review-detail-precedent").value.trim();
-      if (legal || trap || precedent) {
+      var mergedDetailBody = mergeDetailBody(detailMain, legal, trap, precedent);
+      if (mergedDetailBody || legal || trap || precedent) {
         p.detail = {};
+        if (mergedDetailBody) p.detail.body = mergedDetailBody;
         if (legal) p.detail.legal = legal;
         if (trap) p.detail.trap = trap;
         if (precedent) p.detail.precedent = precedent;
       } else {
         delete p.detail;
       }
+      p.explanation = basic || detailMain || legal || trap || precedent || "";
       p.topic = $("admin-review-topic").value.trim();
       var tagsRaw = $("admin-review-tags").value.trim();
       if (tagsRaw) {

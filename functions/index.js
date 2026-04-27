@@ -39,14 +39,20 @@ if (_envProjectId) {
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { consumeOneFromBatches } = require("./walletBatches");
 const { appendPointLog, REASON } = require("./attendancePointLedger");
 
 initializeApp();
 const db = getFirestore();
 
-const { generateOrGetDictionaryEntry, generateStatuteOxQuizzesGemini } = require("./dictionaryGemini");
-const { effectiveGeminiModelId } = require("./geminiModel");
+const {
+  generateOrGetDictionaryEntry,
+  generateStatuteOxQuizzesGemini,
+  generateStatuteEntryFromWebGemini
+} = require("./dictionaryGemini");
+const { effectiveGeminiModelId, uniqueGeminiModelCandidates } = require("./geminiModel");
+const { retrieveLibraryContextForQuiz } = require("./libraryRag");
 exports.generateOrGetDictionaryEntry = generateOrGetDictionaryEntry;
 
 const { quizAskGemini } = require("./quizAiGemini");
@@ -572,8 +578,728 @@ function sanitizeQuizPayload(raw) {
     const n = parseInt(src.difficulty, 10);
     if (Number.isFinite(n)) out.difficulty = Math.max(1, Math.min(5, n));
   }
+  if (src.sourceQuestionNo != null && src.sourceQuestionNo !== "") {
+    const n = parseInt(src.sourceQuestionNo, 10);
+    if (Number.isFinite(n) && n >= 1 && n <= 500) out.sourceQuestionNo = n;
+  }
+  if (src.sourceChoiceNo != null && src.sourceChoiceNo !== "") {
+    const n = parseInt(src.sourceChoiceNo, 10);
+    if (Number.isFinite(n) && n >= 1 && n <= 5) out.sourceChoiceNo = n;
+  }
   return out;
 }
+
+function parseBoolLoose(v) {
+  if (v === true || v === false) return v;
+  const s = String(v == null ? "" : v).trim().toUpperCase();
+  if (s === "O" || s === "TRUE" || s === "1" || s === "Y" || s === "참") return true;
+  if (s === "X" || s === "FALSE" || s === "0" || s === "N" || s === "거짓") return false;
+  return null;
+}
+
+function pairKey(questionNo, choiceNo) {
+  return String(questionNo) + "-" + String(choiceNo);
+}
+
+function parseIntInRange(v, min, max) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n)) return null;
+  if (n < min || n > max) return null;
+  return n;
+}
+
+function extractQuestionNumbers(text) {
+  const src = String(text || "");
+  const set = new Set();
+  const patterns = [
+    /(?:^|\n)\s*(\d{1,3})\s*[.)]/g,
+    /(?:^|\n)\s*(\d{1,3})\s*번\s*문(?:제)?/g,
+    /문(?:항|제)\s*(\d{1,3})/g
+  ];
+  for (let i = 0; i < patterns.length; i++) {
+    const re = patterns[i];
+    let m;
+    while ((m = re.exec(src))) {
+      const q = parseIntInRange(m[1], 1, 500);
+      if (q != null) set.add(q);
+    }
+  }
+  const arr = Array.from(set);
+  arr.sort((a, b) => a - b);
+  return arr;
+}
+
+function inferQuestionNoFromRow(row) {
+  if (!row) return null;
+  const direct = parseIntInRange(row.sourceQuestionNo, 1, 500);
+  if (direct != null) return direct;
+  const blob = [String(row.id || ""), String(row.topic || ""), String(row.statement || "")].join("\n");
+  let m = blob.match(/(\d{1,3})\s*번\s*문(?:제)?/);
+  if (m && m[1]) return parseIntInRange(m[1], 1, 500);
+  m = blob.match(/(?:^|\n)\s*(\d{1,3})\s*[.)]/);
+  if (m && m[1]) return parseIntInRange(m[1], 1, 500);
+  return null;
+}
+
+function inferChoiceNoFromRow(row) {
+  if (!row) return null;
+  const direct = parseIntInRange(row.sourceChoiceNo, 1, 5);
+  if (direct != null) return direct;
+  const statement = String(row.statement || "");
+  const mDigit = statement.match(/(?:보기|선지|지문|선택지)?\s*([1-5])\s*[.)]/);
+  if (mDigit && mDigit[1]) return parseIntInRange(mDigit[1], 1, 5);
+  if (statement.includes("①")) return 1;
+  if (statement.includes("②")) return 2;
+  if (statement.includes("③")) return 3;
+  if (statement.includes("④")) return 4;
+  if (statement.includes("⑤")) return 5;
+  return null;
+}
+
+function detectChoiceCountFromContext(text) {
+  const s = String(text || "");
+  if (s.includes("⑤")) return 5;
+  return 4;
+}
+
+function extractJsonArrayFromText(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return [];
+  try {
+    const parsed = JSON.parse(s);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {}
+  const m = s.match(/```json\s*([\s\S]*?)```/i) || s.match(/```\s*([\s\S]*?)```/i);
+  if (m && m[1]) {
+    try {
+      const parsed = JSON.parse(String(m[1]).trim());
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {}
+  }
+  const l = s.indexOf("[");
+  const r = s.lastIndexOf("]");
+  if (l >= 0 && r > l) {
+    try {
+      const parsed = JSON.parse(s.slice(l, r + 1));
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {}
+  }
+  return [];
+}
+
+function inferExamIdLoose(text) {
+  const s = String(text || "").toLowerCase();
+  if (!s) return "";
+  if (s.includes("변호사")) return "lawyer";
+  if (s.includes("국가직") && s.includes("9급")) return "grade9";
+  if (s.includes("국가공무원") && s.includes("9급")) return "grade9";
+  if (s.includes("9급")) return "grade9";
+  if (s.includes("국가직") && s.includes("7급")) return "grade7";
+  if (s.includes("국가공무원") && s.includes("7급")) return "grade7";
+  if (s.includes("7급")) return "grade7";
+  if (s.includes("국가직") && s.includes("5급")) return "grade5";
+  if (s.includes("국가공무원") && s.includes("5급")) return "grade5";
+  if (s.includes("5급")) return "grade5";
+  if (s.includes("소방")) return "fire";
+  if (s.includes("경찰")) return "police";
+  if (s.includes("지방")) return "local";
+  if (s.includes("관세") || s.includes("세관")) return "customs";
+  if (s.includes("교육청")) return "edu";
+  return "";
+}
+
+function inferYearLoose(text) {
+  const m = String(text || "").match(/(19|20)\d{2}/);
+  if (!m) return null;
+  const y = parseInt(m[0], 10);
+  if (!Number.isFinite(y) || y < 1990 || y > 2100) return null;
+  return y;
+}
+
+async function generateLibraryQuizRows(apiKey, modelId, prompt) {
+  const gen = new GoogleGenerativeAI(apiKey);
+  const candidates = uniqueGeminiModelCandidates();
+  const ordered = [];
+  [modelId]
+    .concat(candidates)
+    .forEach((m) => {
+      const mm = String(m || "").trim();
+      if (!mm || ordered.includes(mm)) return;
+      ordered.push(mm);
+    });
+
+  let lastErr = null;
+  for (let i = 0; i < ordered.length; i++) {
+    const mid = ordered[i];
+    try {
+      const model = gen.getGenerativeModel({
+        model: mid,
+        generationConfig: { temperature: 0.35, maxOutputTokens: 8192 }
+      });
+      const res = await model.generateContent(prompt);
+      const txt = String(res && res.response && res.response.text ? res.response.text() : "").trim();
+      const rows = extractJsonArrayFromText(txt);
+      if (rows.length) return rows;
+      throw new Error("모델 출력에서 JSON 배열을 추출하지 못했습니다.");
+    } catch (e) {
+      lastErr = e;
+      const msg = String((e && e.message) || e || "").toLowerCase();
+      if ((msg.includes("models/") && msg.includes("not found")) || msg.includes("no longer available")) {
+        continue;
+      }
+    }
+  }
+  throw lastErr || new Error("Gemini 모델 호출에 실패했습니다.");
+}
+
+async function generateLibraryTermRows(apiKey, modelId, prompt) {
+  const gen = new GoogleGenerativeAI(apiKey);
+  const candidates = uniqueGeminiModelCandidates();
+  const ordered = [];
+  [modelId]
+    .concat(candidates)
+    .forEach((m) => {
+      const mm = String(m || "").trim();
+      if (!mm || ordered.includes(mm)) return;
+      ordered.push(mm);
+    });
+
+  let lastErr = null;
+  for (let i = 0; i < ordered.length; i++) {
+    const mid = ordered[i];
+    try {
+      const model = gen.getGenerativeModel({
+        model: mid,
+        generationConfig: { temperature: 0.35, maxOutputTokens: 8192 }
+      });
+      const res = await model.generateContent(prompt);
+      const txt = String(res && res.response && res.response.text ? res.response.text() : "").trim();
+      const rows = extractJsonArrayFromText(txt);
+      if (rows.length) return rows;
+      throw new Error("모델 출력에서 JSON 배열을 추출하지 못했습니다.");
+    } catch (e) {
+      lastErr = e;
+      const msg = String((e && e.message) || e || "").toLowerCase();
+      if ((msg.includes("models/") && msg.includes("not found")) || msg.includes("no longer available")) {
+        continue;
+      }
+    }
+  }
+  throw lastErr || new Error("Gemini 모델 호출에 실패했습니다.");
+}
+
+function defaultExplainFromStatement(statement, answer, topic) {
+  const st = String(statement || "").trim();
+  const tp = String(topic || "행정법").trim();
+  const ans = answer === true ? "O(참)" : "X(거짓)";
+  const brief = st ? st.slice(0, 120) : "해당 지문";
+  return {
+    explanation:
+      "정답은 " +
+      ans +
+      "입니다. " +
+      brief +
+      " 지문은 " +
+      tp +
+      "의 기본 법리와 판례 태도를 기준으로 판단해야 하며, 문언의 절대적 표현 여부와 예외를 함께 확인해야 합니다.",
+    explanationBasic: "정답은 " + ans + "이며, 문언의 요건·예외를 함께 검토해야 합니다."
+  };
+}
+
+async function enrichLibraryQuizRows(apiKey, modelId, rows, userPrompt, ragContext, examId, year) {
+  if (!Array.isArray(rows) || !rows.length) return [];
+  const out = [];
+  const batchSize = 20;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const prompt = [
+      "당신은 행정법 기출문제 해설 편집자입니다.",
+      "아래 입력 문항 배열을 받아 해설 필드를 채운 JSON 배열만 출력하세요.",
+      "마크다운/설명 금지, JSON 배열만 출력.",
+      "",
+      "[입력 배열의 각 원소에서 유지할 필드]",
+      "- sourceQuestionNo, sourceChoiceNo, topic, statement, answer",
+      "",
+      "[추가/보강할 필드]",
+      "- explanation(필수), explanationBasic(필수), legal(선택), trap(선택), precedent(선택), importance(1~5), difficulty(1~5), tags",
+      "",
+      "[규칙]",
+      "- explanation은 2~5문장, 근거 없는 추측 금지.",
+      "- explanationBasic은 1문장 핵심.",
+      "- 출력 배열 길이는 입력과 같아야 함.",
+      "- 시험종류(examId): " + examId + ", 연도(year): " + year,
+      "",
+      "[생성 지시]",
+      userPrompt,
+      "",
+      "[자료실 발췌(RAG)]",
+      String(ragContext || "").slice(0, 12000),
+      "",
+      "[입력 문항 배열]",
+      JSON.stringify(batch)
+    ].join("\n");
+    let enriched = [];
+    try {
+      enriched = await generateLibraryQuizRows(apiKey, modelId, prompt);
+    } catch (_) {
+      enriched = [];
+    }
+    const byKey = {};
+    for (let j = 0; j < enriched.length; j++) {
+      const r = enriched[j] || {};
+      const qNo = parseIntInRange(r.sourceQuestionNo, 1, 500);
+      const cNo = parseIntInRange(r.sourceChoiceNo, 1, 5);
+      if (qNo == null || cNo == null) continue;
+      byKey[pairKey(qNo, cNo)] = r;
+    }
+    for (let j = 0; j < batch.length; j++) {
+      const base = batch[j] || {};
+      const qNo = parseIntInRange(base.sourceQuestionNo, 1, 500);
+      const cNo = parseIntInRange(base.sourceChoiceNo, 1, 5);
+      const key = qNo != null && cNo != null ? pairKey(qNo, cNo) : "";
+      const add = key && byKey[key] ? byKey[key] : {};
+      const ans = typeof base.answer === "boolean" ? base.answer : parseBoolLoose(base.answer) === true;
+      const fallback = defaultExplainFromStatement(base.statement, ans, base.topic);
+      out.push({
+        sourceQuestionNo: qNo,
+        sourceChoiceNo: cNo,
+        topic: String(add.topic || base.topic || "").trim(),
+        statement: String(add.statement || base.statement || "").trim(),
+        answer: parseBoolLoose(add.answer) == null ? ans : parseBoolLoose(add.answer),
+        explanation: String(add.explanation || "").trim() || fallback.explanation,
+        explanationBasic: String(add.explanationBasic || "").trim() || fallback.explanationBasic,
+        legal: String(add.legal || "").trim(),
+        trap: String(add.trap || "").trim(),
+        precedent: String(add.precedent || "").trim(),
+        tags: Array.isArray(add.tags) ? add.tags : [],
+        importance: add.importance,
+        difficulty: add.difficulty
+      });
+    }
+  }
+  return out;
+}
+
+exports.adminGenerateQuizFromLibrary = onCall(
+  { region: "asia-northeast3", timeoutSeconds: 300, memory: "1GiB" },
+  async (request) => {
+  assertAdminCallable(request);
+  const data = request.data || {};
+  const userPrompt = String(data.prompt || "").trim();
+  const examIdInput = String(data.examId || "").trim().toLowerCase();
+  const topicInput = String(data.topic || "").trim();
+  const yearInput = parseInt(data.year, 10);
+  const inferredExamId = String(data.inferredExamId || "").trim().toLowerCase();
+  const inferredYearRaw = parseInt(data.inferredYear, 10);
+  const inferredYear = Number.isFinite(inferredYearRaw) ? inferredYearRaw : null;
+  const generateAll = data.generateAll !== false;
+  const questionOnly = parseIntInRange(data.questionOnly, 1, 500);
+  const expectedCountInput = parseInt(data.expectedCount, 10);
+  const scanOnly = data.scanOnly === true;
+  const fastMode = data.fastMode !== false;
+  const fileIds = Array.isArray(data.fileIds)
+    ? data.fileIds.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 30)
+    : [];
+  if (!userPrompt) throw new HttpsError("invalid-argument", "생성 지시(prompt)가 필요합니다.");
+
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    throw new HttpsError("failed-precondition", "서버에 GEMINI_API_KEY가 설정되지 않았습니다.");
+  }
+
+  const t0 = Date.now();
+  let ragContext = "";
+  try {
+    ragContext = await retrieveLibraryContextForQuiz(
+      userPrompt,
+      { topic: topicInput || "행정법 기출문제", statement: "" },
+      fileIds.length ? { fileIds } : undefined
+    );
+  } catch (e) {
+    console.warn("adminGenerateQuizFromLibrary RAG", e && e.message);
+  }
+  if (!String(ragContext || "").trim()) {
+    throw new HttpsError(
+      "failed-precondition",
+      "자료실 컨텍스트를 찾지 못했습니다. 파일 업로드 후 '학습 중'이 '완료'가 된 뒤 다시 시도하세요."
+    );
+  }
+  const ragMs = Date.now() - t0;
+  console.info("adminGenerateQuizFromLibrary phase:rag", {
+    scanOnly,
+    questionOnly: questionOnly || null,
+    fastMode,
+    ragChars: String(ragContext || "").length,
+    elapsedMs: ragMs
+  });
+
+  const inferredFromTextExam = inferExamIdLoose(userPrompt + "\n" + ragContext.slice(0, 4000));
+  const inferredFromTextYear = inferYearLoose(userPrompt + "\n" + ragContext.slice(0, 4000));
+  const inferredQuestionNos = extractQuestionNumbers(ragContext);
+  const detectedChoiceCount = detectChoiceCountFromContext(ragContext);
+  const resolvedExamId = examIdInput || inferredExamId || inferredFromTextExam;
+  const resolvedYear = Number.isFinite(yearInput)
+    ? yearInput
+    : Number.isFinite(inferredYear)
+      ? inferredYear
+      : inferredFromTextYear;
+  if (!resolvedExamId) {
+    throw new HttpsError("invalid-argument", "시험 종류를 자동 인식하지 못했습니다. 파일명에 시험명을 포함해 주세요.");
+  }
+  if (!Number.isFinite(resolvedYear)) {
+    throw new HttpsError("invalid-argument", "연도를 자동 인식하지 못했습니다. 파일명에 연도(예: 2026)를 포함해 주세요.");
+  }
+  if (scanOnly) {
+    return {
+      ok: true,
+      examId: resolvedExamId,
+      year: resolvedYear,
+      questionNos: inferredQuestionNos,
+      detectedChoiceCount
+    };
+  }
+  const expectedCount = Number.isFinite(expectedCountInput)
+    ? Math.max(1, Math.min(500, expectedCountInput))
+    : inferredQuestionNos.length
+      ? Math.min(500, inferredQuestionNos.length * detectedChoiceCount)
+      : 120;
+
+  const modelId = effectiveGeminiModelId();
+  const collectedRows = [];
+  const collectedPairSet = new Set();
+  const failRows = [];
+
+  function buildMissingPairs(maxQuestionNo) {
+    const out = [];
+    const qStart = questionOnly || 1;
+    const qEnd = questionOnly || maxQuestionNo;
+    for (let qNo = qStart; qNo <= qEnd; qNo++) {
+      const cStart = 1;
+      const cEnd = detectedChoiceCount || 4;
+      for (let cNo = cStart; cNo <= cEnd; cNo++) {
+        const key = pairKey(qNo, cNo);
+        if (!collectedPairSet.has(key)) out.push(key);
+      }
+    }
+    return out;
+  }
+
+  const maxQuestionNo = inferredQuestionNos.length ? inferredQuestionNos[inferredQuestionNos.length - 1] : null;
+  const maxRounds = questionOnly ? (fastMode ? 1 : 2) : (generateAll ? (fastMode ? 3 : 6) : 2);
+  const ragForGeneration = String(ragContext || "").slice(0, fastMode ? (questionOnly ? 5000 : 10000) : (questionOnly ? 8000 : 16000));
+  for (let round = 0; round < maxRounds; round++) {
+    const missingPairs = maxQuestionNo ? buildMissingPairs(maxQuestionNo) : [];
+    if (round > 0 && generateAll && maxQuestionNo && !missingPairs.length) break;
+    const missingHint = missingPairs.length ? missingPairs.slice(0, 120).join(", ") : "(미지정)";
+    const generationPrompt = [
+      "당신은 행정법 기출문제 편집자입니다.",
+      "아래 자료 발췌를 바탕으로 먼저 문항 구조만 추출하세요.",
+      "마크다운/설명/코드블록 금지, JSON 배열만 출력.",
+      "",
+      "[반드시 지킬 출력 스키마]",
+      "[",
+      "  {",
+      '    "id": "ai-고유값",',
+      '    "sourceQuestionNo": 1 이상의 정수,',
+      '    "sourceChoiceNo": 1~5 정수,',
+      '    "topic": "주제",',
+      '    "statement": "문제 지문(OX 판단문)",',
+      '    "answer": true 또는 false',
+      "  }",
+      "]",
+      "",
+      "[규칙]",
+      "- 각 문제는 보기 1~" + (detectedChoiceCount || 4) + "를 각각 1개 OX 문항으로 분해하세요.",
+      "- sourceQuestionNo/sourceChoiceNo를 반드시 채우세요.",
+      questionOnly ? "- 이번 배치는 sourceQuestionNo를 반드시 " + questionOnly + "로만 생성하세요." : "",
+      "- 파일 순서 기준으로 1번부터 마지막까지 생성하되, 누락 쌍을 우선 보완하세요.",
+      "- 누락 쌍(문항-보기): " + missingHint,
+      "- 목표 생성 개수(총): " + expectedCount,
+      "- 이 단계는 해설 생성이 아니라 구조 추출 단계다.",
+      "- 자료에 없는 내용 추측 금지.",
+      "- 문장은 한국어로 명확하게 작성.",
+      "- 시험 종류(examId): " + resolvedExamId,
+      "- 연도(year): " + resolvedYear,
+      "",
+      "[사용자 생성 지시]",
+      userPrompt,
+      "",
+      "[자료실 발췌(RAG)]",
+      ragForGeneration
+    ].join("\n");
+
+    let rows = [];
+    try {
+      rows = await generateLibraryQuizRows(apiKey, modelId, generationPrompt);
+    } catch (e) {
+      const em = String((e && e.message) || "모델 출력 파싱 실패");
+      failRows.push({ index: -(round + 1), reason: "라운드 " + (round + 1) + " 생성 실패: " + em });
+      continue;
+    }
+    if (!rows.length) {
+      failRows.push({ index: -(round + 1), reason: "라운드 " + (round + 1) + " 생성 결과 비어 있음" });
+      continue;
+    }
+    let acceptedInRound = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i] || {};
+      const qNo = inferQuestionNoFromRow(r);
+      const cNo = inferChoiceNoFromRow(r);
+      if (qNo == null || cNo == null) {
+        failRows.push({ index: i + 1, reason: "sourceQuestionNo/sourceChoiceNo 인식 실패" });
+        continue;
+      }
+      if (questionOnly && qNo !== questionOnly) continue;
+      if (cNo > (detectedChoiceCount || 4)) continue;
+      const key = pairKey(qNo, cNo);
+      if (collectedPairSet.has(key)) continue;
+      r.sourceQuestionNo = qNo;
+      r.sourceChoiceNo = cNo;
+      collectedRows.push(r);
+      collectedPairSet.add(key);
+      acceptedInRound += 1;
+      if (collectedRows.length >= expectedCount) break;
+    }
+    if (collectedRows.length >= expectedCount) break;
+    if (acceptedInRound < 1 && round >= 1) break;
+  }
+
+  if (!collectedRows.length) {
+    throw new HttpsError(
+      "failed-precondition",
+      "모델이 퀴즈 JSON을 안정적으로 반환하지 못했습니다. 파일을 2~3개로 나눠 업로드하거나 지시문을 짧게 줄여 다시 시도해 주세요."
+    );
+  }
+
+  const tGenDone = Date.now();
+  console.info("adminGenerateQuizFromLibrary phase:generate", {
+    questionOnly: questionOnly || null,
+    fastMode,
+    collected: collectedRows.length,
+    failCount: failRows.length,
+    elapsedMs: tGenDone - t0
+  });
+
+  // 2단계: fastMode가 아니면 해설/태그를 보강한다.
+  let enrichedRows = [];
+  if (fastMode) {
+    enrichedRows = collectedRows.map((r) => {
+      const ansRaw = parseBoolLoose(r.answer);
+      const ans = ansRaw == null ? false : ansRaw;
+      const fallback = defaultExplainFromStatement(r.statement, ans, r.topic);
+      return Object.assign({}, r, {
+        answer: ans,
+        explanation: String(r.explanation || "").trim() || fallback.explanation,
+        explanationBasic: String(r.explanationBasic || "").trim() || fallback.explanationBasic
+      });
+    });
+  } else {
+    enrichedRows = await enrichLibraryQuizRows(
+      apiKey,
+      modelId,
+      collectedRows,
+      userPrompt,
+      ragContext,
+      resolvedExamId,
+      resolvedYear
+    );
+  }
+
+  const email = String(request.auth.token.email || "").toLowerCase();
+  const batch = db.batch();
+  const stagedRows = [];
+  for (let i = 0; i < enrichedRows.length; i++) {
+    try {
+      const r = enrichedRows[i] || {};
+      const answer = parseBoolLoose(r.answer);
+      const baseId = String(r.id || "").trim() || `ai-${Date.now().toString(36)}-${i + 1}`;
+      const rowExamId = String(r.examId || "").trim().toLowerCase();
+      const rowYear = parseInt(r.year, 10);
+      const payload = {
+        id: baseId,
+        examId: rowExamId || resolvedExamId,
+        year: Number.isFinite(rowYear) ? rowYear : resolvedYear,
+        exam: rowExamId || resolvedExamId,
+        topic: String(r.topic || topicInput || "행정법 기출").trim(),
+        statement: String(r.statement || "").trim(),
+        answer: answer === null ? false : answer,
+        explanation: String(r.explanation || "").trim(),
+        explanationBasic: String(r.explanationBasic || "").trim(),
+        detail: {
+          legal: String(r.legal || "").trim(),
+          trap: String(r.trap || "").trim(),
+          precedent: String(r.precedent || "").trim()
+        },
+        tags: Array.isArray(r.tags) ? r.tags.map((x) => String(x || "").trim()).filter(Boolean) : [],
+        importance: parseInt(r.importance, 10),
+        difficulty: parseInt(r.difficulty, 10),
+        sourceQuestionNo: parseIntInRange(r.sourceQuestionNo, 1, 500),
+        sourceChoiceNo: parseIntInRange(r.sourceChoiceNo, 1, 5)
+      };
+      if (!payload.explanationBasic) delete payload.explanationBasic;
+      if (!payload.tags.length) delete payload.tags;
+      if (!payload.detail.legal && !payload.detail.trap && !payload.detail.precedent) delete payload.detail;
+      if (!Number.isFinite(payload.importance)) delete payload.importance;
+      if (!Number.isFinite(payload.difficulty)) delete payload.difficulty;
+
+      const clean = sanitizeQuizPayload(payload);
+      const ref = db.collection(STAGING_QUIZ_COLLECTION).doc();
+      batch.set(ref, {
+        entityType: "quiz",
+        questionId: clean.id,
+        payload: clean,
+        status: "reviewing",
+        source: "ai-library",
+        changeType: "upsert",
+        createdBy: email,
+        updatedBy: email,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        approvedBy: null,
+        approvedAt: null,
+        rejectReason: "",
+        version: 1
+      });
+      stagedRows.push(clean);
+      if (stagedRows.length >= 500) break;
+    } catch (e) {
+      failRows.push({ index: i + 1, reason: e && e.message ? e.message : "형식 오류" });
+    }
+  }
+  if (!stagedRows.length) {
+    throw new HttpsError("failed-precondition", "유효한 퀴즈가 생성되지 않았습니다.");
+  }
+  await batch.commit();
+  console.info("adminGenerateQuizFromLibrary phase:done", {
+    questionOnly: questionOnly || null,
+    fastMode,
+    staged: stagedRows.length,
+    elapsedMs: Date.now() - t0
+  });
+  return {
+    ok: true,
+    okCount: stagedRows.length,
+    examId: resolvedExamId,
+    year: resolvedYear,
+    expectedCount,
+    failRows,
+    items: stagedRows.slice(0, 20)
+  };
+  }
+);
+
+exports.adminGenerateTermsFromLibrary = onCall({ region: "asia-northeast3" }, async (request) => {
+  assertAdminCallable(request);
+  const data = request.data || {};
+  const userPrompt = String(data.prompt || "").trim();
+  const countInput = parseInt(data.count, 10);
+  const count = Number.isFinite(countInput) ? Math.max(1, Math.min(30, countInput)) : 10;
+  const fileIds = Array.isArray(data.fileIds)
+    ? data.fileIds.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 30)
+    : [];
+  if (!userPrompt) throw new HttpsError("invalid-argument", "생성 지시(prompt)가 필요합니다.");
+
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    throw new HttpsError("failed-precondition", "서버에 GEMINI_API_KEY가 설정되지 않았습니다.");
+  }
+
+  let ragContext = "";
+  try {
+    ragContext = await retrieveLibraryContextForQuiz(
+      userPrompt,
+      { topic: "행정법 용어사전", statement: "" },
+      fileIds.length ? { fileIds } : undefined
+    );
+  } catch (e) {
+    console.warn("adminGenerateTermsFromLibrary RAG", e && e.message);
+  }
+  if (!String(ragContext || "").trim()) {
+    throw new HttpsError(
+      "failed-precondition",
+      "자료실 컨텍스트를 찾지 못했습니다. 파일 업로드 후 '학습 중'이 '완료'가 된 뒤 다시 시도하세요."
+    );
+  }
+
+  const generationPrompt = [
+    "당신은 행정법 용어사전 편집자입니다.",
+    "아래 자료 발췌를 기반으로 행정법 관련 용어를 선별해 JSON 배열만 출력하세요.",
+    "마크다운/설명/코드블록 금지, JSON 배열만 출력.",
+    "",
+    "[출력 스키마]",
+    "[",
+    "  {",
+    '    "term": "용어명",',
+    '    "aliases": ["동의어1","동의어2"],',
+    '    "definition": "수험생 기준으로 명확한 설명",',
+    '    "oxQuizzes": [',
+    '      {"statement":"OX 문장","answer":true 또는 false,"explanation":"해설","explanationBasic":"한 줄 핵심"}',
+    "    ]",
+    "  }",
+    "]",
+    "",
+    "[규칙]",
+    "- count=" + count + "개 생성",
+    "- 자료에 없는 내용 추측 금지",
+    "- definition은 너무 짧지 않게(2~5문장 권장), 수험 관점으로 작성",
+    "- oxQuizzes는 각 용어당 1~3개",
+    "- 중복 용어 금지",
+    "",
+    "[사용자 생성 지시]",
+    userPrompt,
+    "",
+    "[자료실 발췌(RAG)]",
+    ragContext
+  ].join("\n");
+
+  const modelId = effectiveGeminiModelId();
+  const rows = await generateLibraryTermRows(apiKey, modelId, generationPrompt);
+  if (!rows.length) {
+    throw new HttpsError("failed-precondition", "생성 결과가 비어 있습니다. 지시문을 구체화해 주세요.");
+  }
+
+  const email = String(request.auth.token.email || "").toLowerCase();
+  const batch = db.batch();
+  const failRows = [];
+  const stagedRows = [];
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const payload = sanitizeTermPayload(rows[i] || {});
+      const entryKey = String(payload.term || "").trim();
+      const ref = db.collection(STAGING_TERM_COLLECTION).doc();
+      batch.set(ref, {
+        entityType: "term",
+        entryKey,
+        payload,
+        status: "reviewing",
+        source: "ai-library",
+        changeType: "upsert",
+        createdBy: email,
+        updatedBy: email,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        approvedBy: null,
+        approvedAt: null,
+        rejectReason: "",
+        version: 1
+      });
+      stagedRows.push(payload);
+      if (stagedRows.length >= count) break;
+    } catch (e) {
+      failRows.push({ index: i + 1, reason: e && e.message ? e.message : "형식 오류" });
+    }
+  }
+  if (!stagedRows.length) {
+    throw new HttpsError("failed-precondition", "유효한 용어가 생성되지 않았습니다.");
+  }
+  await batch.commit();
+  return {
+    ok: true,
+    okCount: stagedRows.length,
+    failRows,
+    items: stagedRows.slice(0, 20)
+  };
+});
 
 exports.adminStageQuizBatch = onCall({ region: "asia-northeast3" }, async (request) => {
   assertAdminCallable(request);
@@ -853,6 +1579,50 @@ function sanitizeDictPayload(entityType, raw) {
   return entityType === "case" ? sanitizeCasePayload(raw) : sanitizeTermPayload(raw);
 }
 
+exports.adminStageDictBatch = onCall({ region: "asia-northeast3" }, async (request) => {
+  assertAdminCallable(request);
+  const entityTypeRaw = String((request.data && request.data.entityType) || "term")
+    .trim()
+    .toLowerCase();
+  const entityType = entityTypeRaw === "case" ? "case" : "term";
+  const rows = Array.isArray(request.data && request.data.rows) ? request.data.rows : [];
+  if (!rows.length) throw new HttpsError("invalid-argument", "rows 배열이 필요합니다.");
+  if (rows.length > 500) throw new HttpsError("invalid-argument", "한 번에 최대 500건까지 가능합니다.");
+  const email = String(request.auth.token.email || "").toLowerCase();
+  const col = dictStagingCollectionByType(entityType);
+  const batch = db.batch();
+  let okCount = 0;
+  const failRows = [];
+  rows.forEach((row, idx) => {
+    try {
+      const payload = sanitizeDictPayload(entityType, row);
+      const entryKey = dictKeyByType(entityType, payload);
+      const ref = db.collection(col).doc();
+      batch.set(ref, {
+        entityType,
+        entryKey,
+        payload,
+        status: "reviewing",
+        source: "excel",
+        changeType: "upsert",
+        createdBy: email,
+        updatedBy: email,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        approvedBy: null,
+        approvedAt: null,
+        rejectReason: "",
+        version: 1
+      });
+      okCount += 1;
+    } catch (err) {
+      failRows.push({ index: idx + 1, reason: err && err.message ? err.message : "형식 오류" });
+    }
+  });
+  if (okCount > 0) await batch.commit();
+  return { ok: true, okCount, failRows };
+});
+
 exports.adminListDictStaging = onCall({ region: "asia-northeast3" }, async (request) => {
   assertAdminCallable(request);
   const entityTypeRaw = String((request.data && request.data.entityType) || "term").trim().toLowerCase();
@@ -1053,6 +1823,28 @@ exports.generateDictStatuteOxQuizzes = onCall({ region: "asia-northeast3" }, asy
     effectiveGeminiModelId()
   );
   return { ok: true, oxQuizzes };
+});
+
+exports.generateDictStatuteFromWeb = onCall({ region: "asia-northeast3" }, async (request) => {
+  assertAdminCallable(request);
+  const statuteKey = String((request.data && request.data.statuteKey) || "").trim();
+  const headingHint = String((request.data && request.data.headingHint) || "").trim();
+  const bodyHint = String((request.data && request.data.bodyHint) || "").trim();
+  if (!statuteKey) {
+    throw new HttpsError("invalid-argument", "statuteKey가 필요합니다.");
+  }
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    throw new HttpsError("failed-precondition", "서버에 GEMINI_API_KEY가 설정되지 않았습니다.");
+  }
+  const payload = await generateStatuteEntryFromWebGemini(
+    statuteKey,
+    headingHint,
+    bodyHint,
+    apiKey,
+    effectiveGeminiModelId()
+  );
+  return { ok: true, entry: payload };
 });
 
 exports.adminRejectDictStaging = onCall({ region: "asia-northeast3" }, async (request) => {

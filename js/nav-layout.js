@@ -1,5 +1,20 @@
 (function () {
   var el = {};
+  var PANEL_PATHS = {
+    quiz: "/",
+    qa: "/qa",
+    dict: "/dict",
+    statutes: "/statutes",
+    cases: "/cases",
+    wrong: "/wrong",
+    fav: "/fav",
+    master: "/master",
+    trash: "/trash",
+    pricing: "/pricing",
+    dashboard: "/dashboard",
+    settings: "/settings",
+    admin: "/admin"
+  };
 
   function $(id) {
     return document.getElementById(id);
@@ -21,7 +36,54 @@
     return false;
   }
 
-  function showPanel(panelId) {
+  function panelPath(panelId) {
+    return PANEL_PATHS[panelId] || "/";
+  }
+
+  function panelFromPath(pathname) {
+    var p = String(pathname || "").replace(/\/+$/, "") || "/";
+    var keys = Object.keys(PANEL_PATHS);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (PANEL_PATHS[k] === p) return k;
+    }
+    if (p === "/quiz") return "quiz";
+    return "";
+  }
+
+  function canOpenPanel(panelId) {
+    if (!panelId) return false;
+    if (panelId === "admin") {
+      var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+      return isAdminUser(u);
+    }
+    if (
+      !isNavViewerLoggedIn() &&
+      panelId !== "quiz" &&
+      panelId !== "pricing" &&
+      panelId !== "qa" &&
+      panelId !== "dict" &&
+      panelId !== "statutes" &&
+      panelId !== "cases"
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  function syncPanelUrl(panelId, replace) {
+    if (!window.history || !window.history.pushState) return;
+    var nextPath = panelPath(panelId);
+    if (!nextPath) return;
+    if (window.location.pathname === nextPath) return;
+    var fn = replace ? "replaceState" : "pushState";
+    window.history[fn]({ hanlawPanel: panelId }, "", nextPath);
+  }
+
+  function showPanel(panelId, opts) {
+    opts = opts || {};
+    if (!panelId) panelId = "quiz";
+    if (!canOpenPanel(panelId)) panelId = "quiz";
     document.querySelectorAll(".panel").forEach(function (p) {
       var on = p.id === "panel-" + panelId;
       p.classList.toggle("panel--active", on);
@@ -61,6 +123,9 @@
       window.DictionaryUI.refreshCaseSearch();
     }
     syncNavJumpSelect(panelId);
+    if (opts.syncUrl !== false) {
+      syncPanelUrl(panelId, opts.replace === true);
+    }
   }
 
   function syncNavJumpSelect(panelId) {
@@ -136,27 +201,11 @@
     var btn = e.target.closest(".nav-main__btn");
     if (!btn || btn.hidden) return;
     var panel = btn.getAttribute("data-panel");
-    if (panel === "admin") {
-      var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
-      if (!isAdminUser(u)) {
-        showPanel("quiz");
-        return;
-      }
-    }
-    if (
-      !isNavViewerLoggedIn() &&
-      panel &&
-      panel !== "quiz" &&
-      panel !== "pricing" &&
-      panel !== "qa" &&
-      panel !== "dict" &&
-      panel !== "statutes" &&
-      panel !== "cases"
-    ) {
+    if (panel && !canOpenPanel(panel) && panel !== "admin") {
       window.alert("로그인 후 이용할 수 있습니다.");
       return;
     }
-    if (panel) showPanel(panel);
+    if (panel) showPanel(panel, { syncUrl: true });
   }
 
   function onPanelLinkClick(e) {
@@ -168,7 +217,7 @@
     if (navBtn && !navBtn.hidden) {
       navBtn.click();
     } else {
-      showPanel(panel);
+      showPanel(panel, { syncUrl: true });
     }
   }
 
@@ -430,6 +479,21 @@
         if (adminPanel0 && !adminPanel0.hidden) showPanel("quiz");
       }
     }
+
+    var pathPanel = panelFromPath(window.location.pathname);
+    if (pathPanel) {
+      showPanel(pathPanel, { syncUrl: false, replace: true });
+    } else {
+      // 퀴즈 딥링크(/quiz/{id})는 app.js가 처리하므로 여기서는 기본 패널만 동기화
+      syncPanelUrl("quiz", true);
+    }
+
+    window.addEventListener("popstate", function () {
+      var fromPath = panelFromPath(window.location.pathname);
+      if (fromPath) {
+        showPanel(fromPath, { syncUrl: false });
+      }
+    });
 
     initNavMobileBar();
 

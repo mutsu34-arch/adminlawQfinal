@@ -67,6 +67,7 @@
 
   function canViewDetail() {
     if (typeof window.isPaidMember === "function" && window.isPaidMember()) return true;
+    if (!getConfig().enabled) return false;
     if (getConfig().unlockPolicy === "everyDetail") return false;
     return isUnlockedByAd();
   }
@@ -156,24 +157,19 @@
 
     var p1 = document.createElement("p");
     p1.className = "feedback-premium-lock";
-    p1.textContent =
-      cfg.unlockPolicy === "everyDetail"
-        ? "법리·함정·판례 등 상세 해설은 유료 구독 회원에게 제공됩니다. 무료 회원은 이 문항마다 아래 광고를 확인한 뒤 상세 해설을 열 수 있습니다."
-        : "법리·함정·판례 등 상세 해설은 유료 구독 회원에게 제공됩니다. 아래 광고를 확인한 뒤에는 일정 시간 동안 무료로 열람할 수 있습니다.";
+    p1.textContent = "법리·함정·판례 등 상세 해설은 유료 구독 회원에게 제공됩니다.";
     wrap.appendChild(p1);
 
-    if (!cfg.enabled) {
-      var btnSubOnly = document.createElement("button");
-      btnSubOnly.type = "button";
-      btnSubOnly.className = "btn btn--primary feedback-detail-unlock-btn";
-      btnSubOnly.textContent = "요금제에서 구독하기";
-      btnSubOnly.addEventListener("click", function () {
-        goPricing();
-      });
-      wrap.appendChild(btnSubOnly);
-      container.appendChild(wrap);
-      return;
-    }
+    var btnSubOnly = document.createElement("button");
+    btnSubOnly.type = "button";
+    btnSubOnly.className = "btn btn--primary feedback-detail-unlock-btn";
+    btnSubOnly.textContent = "요금제에서 구독하기";
+    btnSubOnly.addEventListener("click", function () {
+      goPricing();
+    });
+    wrap.appendChild(btnSubOnly);
+    container.appendChild(wrap);
+    return;
 
     var sub = document.createElement("p");
     sub.className = "feedback-detail-lock__sub";

@@ -304,7 +304,7 @@
       }
       article.appendChild(body);
       appendDictionaryOxQuizSection(article, s.oxQuizzes, "조문 OX 퀴즈", 3);
-      if (s.sourceNote) {
+      if (s.sourceNote && isAdminUser()) {
         var foot = document.createElement("p");
         foot.className = "dict-result-card__foot";
         if (typeof window.formatHanlawRichParagraphsHtml === "function") {
@@ -326,7 +326,7 @@
       if (window.DictFavorites && !opts.skipFavButton) {
         var stTitle0 = statuteDisplayTitle(s);
         var subSt = "";
-        if (s.sourceNote) {
+        if (s.sourceNote && isAdminUser()) {
           var dsn = document.createElement("div");
           dsn.innerHTML = String(s.sourceNote);
           subSt = (dsn.textContent || "").replace(/\s+/g, " ").trim().slice(0, 300);
@@ -1064,10 +1064,6 @@
         setDictCaseCreateMsg("사건 표기/사건번호를 입력해 주세요.", true);
         return;
       }
-      if (!fullText) {
-        setDictCaseCreateMsg("판결문 전문 텍스트를 입력해 주세요.", true);
-        return;
-      }
       if (
         typeof firebase === "undefined" ||
         !firebase.apps ||
@@ -1078,7 +1074,12 @@
         return;
       }
       btn.disabled = true;
-      setDictCaseCreateMsg("판례사전 생성 중입니다... (검수 대기 등록)", false);
+      setDictCaseCreateMsg(
+        fullText
+          ? "판례사전 생성 중입니다... (입력한 판결문 기반 · 검수 대기 등록)"
+          : "판례사전 생성 중입니다... (웹에서 판결문 자동 확인 시도 후 검수 대기 등록)",
+        false
+      );
       var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
       var fn = firebase.app().functions(region).httpsCallable("generateOrGetDictionaryEntry");
       fn({ tag: citation, caseFullText: fullText })
@@ -1184,6 +1185,7 @@
     window.addEventListener("app-auth", refreshAdminTermCreateVisibility);
     window.addEventListener("membership-updated", refreshAdminTermCreateVisibility);
     var btn = $("dict-term-create-run");
+    var btnBatch = $("dict-term-create-run-batch");
     if (!btn) return;
     btn.addEventListener("click", function () {
       if (!isAdminUser()) {
@@ -1236,6 +1238,62 @@
           btn.disabled = false;
         });
     });
+
+    if (btnBatch) {
+      btnBatch.addEventListener("click", function () {
+        if (!isAdminUser()) {
+          setDictTermCreateMsg("관리자만 사용할 수 있습니다.", true);
+          return;
+        }
+        var prompt = String(($("dict-term-create-prompt") && $("dict-term-create-prompt").value) || "").trim();
+        var count = parseInt(($("dict-term-create-count") && $("dict-term-create-count").value) || "", 10);
+        if (!prompt) {
+          setDictTermCreateMsg("자동 생성 지시를 입력해 주세요.", true);
+          return;
+        }
+        if (!Number.isFinite(count) || count < 1 || count > 30) {
+          setDictTermCreateMsg("자동 생성 개수는 1~30 사이여야 합니다.", true);
+          return;
+        }
+        if (
+          typeof firebase === "undefined" ||
+          !firebase.apps ||
+          !firebase.apps.length ||
+          !firebase.functions
+        ) {
+          setDictTermCreateMsg("Firebase Functions를 사용할 수 없습니다.", true);
+          return;
+        }
+        btnBatch.disabled = true;
+        setDictTermCreateMsg("자료실 기반 용어 자동 생성 중… (검수 대기 등록)", false);
+        var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+        var fn = firebase.app().functions(region).httpsCallable("adminGenerateTermsFromLibrary");
+        fn({ prompt: prompt, count: count })
+          .then(function (res) {
+            var d = res && res.data ? res.data : {};
+            var okCount = parseInt(d.okCount, 10) || 0;
+            var failRows = Array.isArray(d.failRows) ? d.failRows : [];
+            var msg = okCount + "건을 용어사전 검수 대기에 등록했습니다.";
+            if (failRows.length) msg += " 실패 " + failRows.length + "건.";
+            setDictTermCreateMsg(msg + " 검수·승인 탭에서 최종 승인하세요.", false);
+            var adminTab = $("admin-tab-review");
+            var reviewTypeTerm = $("admin-review-type-term");
+            if (adminTab && typeof adminTab.click === "function") adminTab.click();
+            if (reviewTypeTerm && typeof reviewTypeTerm.click === "function") reviewTypeTerm.click();
+            if (typeof window.loadAdminReviewQueue === "function") {
+              window.setTimeout(function () {
+                window.loadAdminReviewQueue();
+              }, 0);
+            }
+          })
+          .catch(function (err) {
+            setDictTermCreateMsg((err && err.message) || "자동 생성에 실패했습니다.", true);
+          })
+          .then(function () {
+            btnBatch.disabled = false;
+          });
+      });
+    }
   }
 
   function bindDictTermEditModal() {
@@ -1329,7 +1387,7 @@
 
   var dictStatuteEditSaving = false;
 
-  function setDictStatuteEditMsg(text, isError) {
+  function setDictStatuteEditMsg(text, isError, asHtml) {
     var el = $("dict-statute-edit-msg");
     if (!el) return;
     if (!text) {
@@ -1338,9 +1396,109 @@
       el.classList.remove("admin-msg--error");
       return;
     }
-    el.textContent = text;
+    if (asHtml) el.innerHTML = text;
+    else el.textContent = text;
     el.hidden = false;
     el.classList.toggle("admin-msg--error", !!isError);
+  }
+
+  function parseStatuteBodySections(raw) {
+    var src = String(raw || "").replace(/\r\n/g, "\n");
+    var out = {
+      bodyMain: src.trim(),
+      appliedRules: "",
+      subordinateRules: ""
+    };
+    if (!src.trim()) return out;
+    var mkApplied = src.match(/(?:^|\n)(?:##\s*)?\[?준용\s*규정\]?\s*\n([\s\S]*?)(?=\n(?:##\s*)?\[?하위\s*법령\]?|\n(?:##\s*)?\[?수험\s*포인트\]?|$)/i);
+    var mkSub = src.match(/(?:^|\n)(?:##\s*)?\[?하위\s*법령\]?\s*\n([\s\S]*?)(?=\n(?:##\s*)?\[?수험\s*포인트\]?|$)/i);
+    if (mkApplied && mkApplied[1]) out.appliedRules = String(mkApplied[1]).trim();
+    if (mkSub && mkSub[1]) out.subordinateRules = String(mkSub[1]).trim();
+    var stripped = src
+      .replace(/(?:^|\n)(?:##\s*)?\[?준용\s*규정\]?\s*\n[\s\S]*?(?=\n(?:##\s*)?\[?하위\s*법령\]?|\n(?:##\s*)?\[?수험\s*포인트\]?|$)/gi, "\n")
+      .replace(/(?:^|\n)(?:##\s*)?\[?하위\s*법령\]?\s*\n[\s\S]*?(?=\n(?:##\s*)?\[?수험\s*포인트\]?|$)/gi, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    if (stripped) out.bodyMain = stripped;
+    return out;
+  }
+
+  function composeStatuteBodyForSave(bodyMain, appliedRules, subordinateRules) {
+    var parts = [];
+    var main = String(bodyMain || "").trim();
+    var ap = String(appliedRules || "").trim();
+    var sub = String(subordinateRules || "").trim();
+    if (main) parts.push(main);
+    if (ap) parts.push("[준용 규정]\n" + ap);
+    if (sub) parts.push("[하위 법령]\n" + sub);
+    return parts.join("\n\n").trim();
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function normalizeFetchReasonTag(reason) {
+    var low = String(reason || "").toLowerCase();
+    if (!low) return "실패";
+    if (low.indexOf("timeout") >= 0) return "타임아웃";
+    if (low.indexOf("http 401") >= 0 || low.indexOf("http 403") >= 0) return "접근거부";
+    if (low.indexOf("http 404") >= 0) return "404";
+    if (low.indexOf("http 5") >= 0) return "서버오류";
+    if (low.indexOf("본문 없음") >= 0 || low.indexOf("empty") >= 0) return "본문없음";
+    if (low.indexOf("econnreset") >= 0 || low.indexOf("socket hang up") >= 0) return "연결끊김";
+    if (low.indexOf("enotfound") >= 0 || low.indexOf("dns") >= 0) return "도메인오류";
+    return "요청실패";
+  }
+
+  function buildFetchSummaryHtml(fetchSummary) {
+    var fs = fetchSummary || {};
+    var attempted = parseInt(fs.attempted, 10) || 0;
+    var succeeded = parseInt(fs.succeeded, 10) || 0;
+    var rows = Array.isArray(fs.results) ? fs.results : [];
+    var failed = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i] || {};
+      if (r.ok) continue;
+      var url = String(r.url || "").trim();
+      var reason = String(r.reason || "원인 미상").trim();
+      if (!url) continue;
+      var tag = normalizeFetchReasonTag(reason);
+      failed.push(
+        '<span class="admin-msg-badge">' +
+          escapeHtml(tag) +
+          "</span> " +
+          '<span class="admin-msg-url">' +
+          escapeHtml(url) +
+          "</span>" +
+          '<span class="admin-msg-reason">(' +
+          escapeHtml(reason) +
+          ")</span>"
+      );
+    }
+    var msg =
+      '<span class="admin-msg-main">조문 초안을 폼에 채웠습니다. (법령검색 수집 ' +
+      succeeded +
+      "/" +
+      attempted +
+      " 성공)</span>";
+    if (failed.length) {
+      var maxShow = 3;
+      var shown = failed.slice(0, maxShow);
+      var remain = failed.length - shown.length;
+      msg += '<div class="admin-msg-fail-list">실패: ' + shown.join(" · ");
+      if (remain > 0) {
+        msg += ' · <span class="admin-msg-reason">외 ' + remain + "건</span>";
+      }
+      msg += "</div>";
+    }
+    msg += '<span class="admin-msg-main">검토 후 저장하면 반영됩니다.</span>';
+    return msg;
   }
 
   function closeDictStatuteEditModal() {
@@ -1361,7 +1519,12 @@
     var hEl = $("dict-statute-edit-heading");
     if (hEl) hEl.value = s.heading || "";
     var bEl = $("dict-statute-edit-body");
-    if (bEl) bEl.value = s.body || "";
+    var parsedBody = parseStatuteBodySections(s.body || "");
+    if (bEl) bEl.value = parsedBody.bodyMain || "";
+    var apEl = $("dict-statute-edit-applied-rules");
+    if (apEl) apEl.value = parsedBody.appliedRules || "";
+    var subEl = $("dict-statute-edit-subordinate-rules");
+    if (subEl) subEl.value = parsedBody.subordinateRules || "";
     var snEl = $("dict-statute-edit-source-note");
     if (snEl) snEl.value = s.sourceNote || "";
     if (window.CaseOxForm && typeof window.CaseOxForm.ensureBuilt === "function") {
@@ -1427,7 +1590,13 @@
             {
               statuteKey: statuteKey,
               heading: String(($("dict-statute-edit-heading") && $("dict-statute-edit-heading").value) || "").trim(),
-              body: String(($("dict-statute-edit-body") && $("dict-statute-edit-body").value) || "").trim(),
+              body: composeStatuteBodyForSave(
+                ($("dict-statute-edit-body") && $("dict-statute-edit-body").value) || "",
+                ($("dict-statute-edit-applied-rules") && $("dict-statute-edit-applied-rules").value) || "",
+                ($("dict-statute-edit-subordinate-rules") &&
+                  $("dict-statute-edit-subordinate-rules").value) ||
+                  ""
+              ),
               sourceNote: String(
                 ($("dict-statute-edit-source-note") && $("dict-statute-edit-source-note").value) || ""
               ).trim(),
@@ -1449,6 +1618,66 @@
       });
     }
     var btnGenOx = $("dict-statute-edit-gen-ox");
+    var btnAiFill = $("dict-statute-edit-ai-fill");
+    if (btnAiFill) {
+      btnAiFill.addEventListener("click", function () {
+        var modal = $("dict-statute-edit-modal");
+        var sk =
+          modal && modal.dataset && modal.dataset.statuteKey
+            ? String(modal.dataset.statuteKey).trim()
+            : "";
+        var headingHint = String(
+          ($("dict-statute-edit-heading") && $("dict-statute-edit-heading").value) || ""
+        ).trim();
+        var bodyHint = String(($("dict-statute-edit-body") && $("dict-statute-edit-body").value) || "").trim();
+        if (!sk) {
+          setDictStatuteEditMsg("조문 키가 있어야 자동 생성할 수 있습니다.", true);
+          return;
+        }
+        if (typeof window.generateDictStatuteFromWeb !== "function") {
+          setDictStatuteEditMsg("조문 자동 생성 함수를 불러오지 못했습니다. 페이지를 새로고침해 주세요.", true);
+          return;
+        }
+        btnAiFill.disabled = true;
+        setDictStatuteEditMsg(
+          "AI가 조문·준용규정·하위법령을 검색해 생성 중입니다… (수십 초 소요될 수 있습니다)",
+          false
+        );
+        window
+          .generateDictStatuteFromWeb({
+            statuteKey: sk,
+            headingHint: headingHint,
+            bodyHint: bodyHint
+          })
+          .then(function (data) {
+            var entry = data && data.entry ? data.entry : null;
+            if (!entry) throw new Error("조문 생성 결과를 받지 못했습니다.");
+            var hEl = $("dict-statute-edit-heading");
+            var bEl = $("dict-statute-edit-body");
+            var apEl = $("dict-statute-edit-applied-rules");
+            var subEl = $("dict-statute-edit-subordinate-rules");
+            var sEl = $("dict-statute-edit-source-note");
+            var parsedAi = parseStatuteBodySections(entry.body || "");
+            if (hEl) hEl.value = entry.heading || hEl.value || "";
+            if (bEl) bEl.value = parsedAi.bodyMain || bEl.value || "";
+            if (apEl) apEl.value = entry.appliedRules || parsedAi.appliedRules || "";
+            if (subEl) subEl.value = entry.subordinateRules || parsedAi.subordinateRules || "";
+            if (sEl) sEl.value = entry.sourceNote || sEl.value || "";
+            if (window.CaseOxForm && typeof window.CaseOxForm.fill === "function") {
+              window.CaseOxForm.ensureBuilt("dict-statute-edit-ox-editor");
+              window.CaseOxForm.fill("dict-statute-edit-ox-editor", entry.oxQuizzes || []);
+            }
+            var fs = entry.fetchSummary || {};
+            setDictStatuteEditMsg(buildFetchSummaryHtml(fs), false, true);
+          })
+          .catch(function (err) {
+            setDictStatuteEditMsg((err && err.message) || "조문 자동 생성에 실패했습니다.", true);
+          })
+          .then(function () {
+            btnAiFill.disabled = false;
+          });
+      });
+    }
     if (btnGenOx) {
       btnGenOx.addEventListener("click", function () {
         var modal = $("dict-statute-edit-modal");
