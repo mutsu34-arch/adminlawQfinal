@@ -229,6 +229,77 @@ exports.adminQuoteApprove = onCall({ region: "asia-northeast3" }, async (request
   return { ok: true };
 });
 
+exports.adminQuoteApproveAllPending = onCall({ region: "asia-northeast3" }, async (request) => {
+  assertAdmin(request);
+  const email = String(request.auth.token.email || "").toLowerCase();
+  const snap = await db().collection(STAGING).get();
+  const pending = snap.docs
+    .map((doc) => {
+      const d = doc.data() || {};
+      if (String(d.status || "pending") !== "pending") return null;
+      const line = sanitizeQuoteText(d.text);
+      if (!line) return null;
+      return { id: doc.id, text: line };
+    })
+    .filter(Boolean);
+
+  if (!pending.length) {
+    return { ok: true, approved: 0, count: 0 };
+  }
+
+  const pubRef = db().collection(PUB_COL).doc(PUB_ID);
+  await db().runTransaction(async (t) => {
+    const ps = await t.get(pubRef);
+    const cur = ps.exists && ps.data() ? ps.data() : {};
+    let quotes = Array.isArray(cur.quotes)
+      ? cur.quotes.map((x) => String(x || "").trim()).filter(Boolean)
+      : [];
+    const seen = {};
+    quotes.forEach((q) => {
+      if (q) seen[q] = true;
+    });
+    pending.forEach((it) => {
+      if (!it.text || seen[it.text]) return;
+      seen[it.text] = true;
+      quotes.push(it.text);
+    });
+    if (quotes.length > 200) quotes = quotes.slice(-200);
+    t.set(
+      pubRef,
+      {
+        quotes,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: email
+      },
+      { merge: true }
+    );
+    pending.forEach((it) => {
+      t.delete(db().collection(STAGING).doc(it.id));
+    });
+  });
+  return { ok: true, approved: pending.length, count: pending.length };
+});
+
+exports.adminQuoteUpdateStaging = onCall({ region: "asia-northeast3" }, async (request) => {
+  assertAdmin(request);
+  const id = String((request.data && request.data.id) || "").trim();
+  const text = sanitizeQuoteText((request.data && request.data.text) || "");
+  if (!id) throw new HttpsError("invalid-argument", "id가 필요합니다.");
+  if (!text) throw new HttpsError("invalid-argument", "명언 문구를 입력해 주세요. (최대 400자)");
+  const ref = db().collection(STAGING).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "대기 항목이 없습니다.");
+  const d = snap.data() || {};
+  if (String(d.status || "pending") !== "pending") {
+    throw new HttpsError("failed-precondition", "이미 처리된 항목입니다.");
+  }
+  await ref.update({
+    text,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  return { ok: true };
+});
+
 exports.adminQuoteReject = onCall({ region: "asia-northeast3" }, async (request) => {
   assertAdmin(request);
   const id = String((request.data && request.data.id) || "").trim();

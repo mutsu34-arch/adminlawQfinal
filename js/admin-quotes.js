@@ -3,6 +3,8 @@
   var publishedLinesCache = [];
   /** 개별 명언 수정 모드인 행 인덱스 (한 번에 한 줄만) */
   var editingPublishedIndex = null;
+  /** 검수 대기 개별 수정 모드 id (한 번에 한 줄만) */
+  var editingStagingId = "";
 
   function $(id) {
     return document.getElementById(id);
@@ -215,25 +217,57 @@
       head.appendChild(badge);
       var p = document.createElement("p");
       p.className = "admin-quote-staging-text";
-      if (typeof window.formatHanlawRichParagraphsHtml === "function") {
-        p.innerHTML = window.formatHanlawRichParagraphsHtml(it.text || "");
+      if (editingStagingId === it.id) {
+        var ta = document.createElement("textarea");
+        ta.className = "input textarea";
+        ta.setAttribute("rows", "3");
+        ta.setAttribute("maxlength", "400");
+        ta.setAttribute("aria-label", "검수 대기 명언 수정");
+        ta.setAttribute("data-quote-edit-text", it.id);
+        ta.value = it.text || "";
+        p.appendChild(ta);
       } else {
-        p.textContent = it.text || "";
+        if (typeof window.formatHanlawRichParagraphsHtml === "function") {
+          p.innerHTML = window.formatHanlawRichParagraphsHtml(it.text || "");
+        } else {
+          p.textContent = it.text || "";
+        }
       }
       var actions = document.createElement("div");
       actions.className = "admin-quote-staging-actions";
-      var bOk = document.createElement("button");
-      bOk.type = "button";
-      bOk.className = "btn btn--secondary btn--small";
-      bOk.textContent = "승인·앱 반영";
-      bOk.setAttribute("data-quote-approve", it.id);
-      var bNo = document.createElement("button");
-      bNo.type = "button";
-      bNo.className = "btn btn--outline btn--small";
-      bNo.textContent = "반려";
-      bNo.setAttribute("data-quote-reject", it.id);
-      actions.appendChild(bOk);
-      actions.appendChild(bNo);
+      if (editingStagingId === it.id) {
+        var bSave = document.createElement("button");
+        bSave.type = "button";
+        bSave.className = "btn btn--secondary btn--small";
+        bSave.textContent = "수정 저장";
+        bSave.setAttribute("data-quote-edit-save", it.id);
+        var bCancel = document.createElement("button");
+        bCancel.type = "button";
+        bCancel.className = "btn btn--outline btn--small";
+        bCancel.textContent = "취소";
+        bCancel.setAttribute("data-quote-edit-cancel", it.id);
+        actions.appendChild(bSave);
+        actions.appendChild(bCancel);
+      } else {
+        var bEdit = document.createElement("button");
+        bEdit.type = "button";
+        bEdit.className = "btn btn--outline btn--small";
+        bEdit.textContent = "수정";
+        bEdit.setAttribute("data-quote-edit", it.id);
+        var bOk = document.createElement("button");
+        bOk.type = "button";
+        bOk.className = "btn btn--secondary btn--small";
+        bOk.textContent = "승인·앱 반영";
+        bOk.setAttribute("data-quote-approve", it.id);
+        var bNo = document.createElement("button");
+        bNo.type = "button";
+        bNo.className = "btn btn--outline btn--small";
+        bNo.textContent = "반려";
+        bNo.setAttribute("data-quote-reject", it.id);
+        actions.appendChild(bEdit);
+        actions.appendChild(bOk);
+        actions.appendChild(bNo);
+      }
       row.appendChild(head);
       row.appendChild(p);
       row.appendChild(actions);
@@ -292,6 +326,7 @@
     var stagingMsg = $("admin-quote-staging-msg");
     var pubMsg = $("admin-quote-published-msg");
     var excelMsg = $("admin-quote-excel-msg");
+    var excelDropzone = $("admin-quote-excel-dropzone");
 
     var btnAdd = $("admin-quote-btn-add-staging");
     if (btnAdd) {
@@ -358,6 +393,34 @@
       });
     }
 
+    var btnApproveAll = $("admin-quote-btn-approve-all");
+    if (btnApproveAll) {
+      btnApproveAll.addEventListener("click", function () {
+        if (typeof window.adminQuoteApproveAllPending !== "function") {
+          setMsg(stagingMsg, "일괄 승인 함수를 불러오지 못했습니다. Functions 배포를 확인해 주세요.", true);
+          return;
+        }
+        if (!window.confirm("검수 대기 중인 명언을 모두 승인하여 앱에 반영할까요?")) return;
+        setMsg(stagingMsg, "일괄 승인 처리 중…", false);
+        btnApproveAll.disabled = true;
+        window
+          .adminQuoteApproveAllPending()
+          .then(function (data) {
+            var n = data && data.approved != null ? data.approved : 0;
+            setMsg(stagingMsg, "일괄 승인 완료: " + n + "건 반영", false);
+            editingStagingId = "";
+            loadStaging();
+            loadPublishedEditor();
+          })
+          .catch(function (e) {
+            setMsg(stagingMsg, (e && e.message) || "일괄 승인 실패", true);
+          })
+          .then(function () {
+            btnApproveAll.disabled = false;
+          });
+      });
+    }
+
     var btnTemplate = $("admin-quote-btn-download-template");
     if (btnTemplate) {
       btnTemplate.addEventListener("click", function () {
@@ -367,9 +430,19 @@
 
     var btnExcelUpload = $("admin-quote-btn-upload-excel");
     var excelFile = $("admin-quote-excel-file");
-    if (btnExcelUpload && excelFile) {
-      btnExcelUpload.addEventListener("click", function () {
-        var file = excelFile.files && excelFile.files[0];
+
+    function setSelectedExcelFile(file) {
+      if (!excelFile || !file) return;
+      try {
+        var dt = new DataTransfer();
+        dt.items.add(file);
+        excelFile.files = dt.files;
+      } catch (e) {
+        // 일부 환경에서는 file input files 대입이 제한될 수 있음
+      }
+    }
+
+    function processExcelFile(file) {
         if (!file) {
           setMsg(excelMsg, "엑셀 파일(.xlsx/.xls)을 선택해 주세요.", true);
           return;
@@ -435,14 +508,103 @@
           btnExcelUpload.disabled = false;
         };
         reader.readAsArrayBuffer(file);
+    }
+
+    if (btnExcelUpload && excelFile) {
+      btnExcelUpload.addEventListener("click", function () {
+        var file = excelFile.files && excelFile.files[0];
+        processExcelFile(file);
+      });
+
+      excelFile.addEventListener("change", function () {
+        var selected = excelFile.files && excelFile.files[0];
+        if (!selected) return;
+        setMsg(excelMsg, "선택됨: " + (selected.name || ""), false);
+      });
+    }
+
+    if (excelDropzone && excelFile) {
+      function setDropActive(on) {
+        excelDropzone.classList.toggle("admin-excel-dropzone--active", !!on);
+      }
+      ["dragenter", "dragover"].forEach(function (evt) {
+        excelDropzone.addEventListener(evt, function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDropActive(true);
+        });
+      });
+      ["dragleave", "drop"].forEach(function (evt) {
+        excelDropzone.addEventListener(evt, function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDropActive(false);
+        });
+      });
+      excelDropzone.addEventListener("drop", function (e) {
+        var files = (e.dataTransfer && e.dataTransfer.files) || [];
+        var f = files[0];
+        if (!f) return;
+        setSelectedExcelFile(f);
+        processExcelFile(f);
+      });
+      excelDropzone.addEventListener("click", function () {
+        excelFile.click();
+      });
+      excelDropzone.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          excelFile.click();
+        }
       });
     }
 
     var list = $("admin-quote-staging-list");
     if (list) {
       list.addEventListener("click", function (e) {
-        var approve = e.target && e.target.getAttribute && e.target.getAttribute("data-quote-approve");
-        var reject = e.target && e.target.getAttribute && e.target.getAttribute("data-quote-reject");
+        var edit = e.target && e.target.closest && e.target.closest("[data-quote-edit]");
+        if (edit) {
+          editingStagingId = String(edit.getAttribute("data-quote-edit") || "");
+          loadStaging();
+          return;
+        }
+        var cancelEdit = e.target && e.target.closest && e.target.closest("[data-quote-edit-cancel]");
+        if (cancelEdit) {
+          editingStagingId = "";
+          loadStaging();
+          return;
+        }
+        var saveEdit = e.target && e.target.closest && e.target.closest("[data-quote-edit-save]");
+        if (saveEdit) {
+          var sid = String(saveEdit.getAttribute("data-quote-edit-save") || "").trim();
+          if (!sid) return;
+          if (typeof window.adminQuoteUpdateStaging !== "function") {
+            setMsg(stagingMsg, "수정 함수를 불러오지 못했습니다. Functions 배포를 확인해 주세요.", true);
+            return;
+          }
+          var ta = list.querySelector("[data-quote-edit-text=\"" + sid + "\"]");
+          var nextText = ta ? String(ta.value || "").trim() : "";
+          if (!nextText) {
+            setMsg(stagingMsg, "수정할 명언 내용을 입력해 주세요.", true);
+            return;
+          }
+          setMsg(stagingMsg, "수정 저장 중…", false);
+          window.adminQuoteUpdateStaging(sid, nextText)
+            .then(function () {
+              setMsg(stagingMsg, "수정 저장 완료", false);
+              editingStagingId = "";
+              loadStaging();
+            })
+            .catch(function (err) {
+              setMsg(stagingMsg, (err && err.message) || "수정 저장 실패", true);
+            });
+          return;
+        }
+
+        var approveBtn = e.target && e.target.closest && e.target.closest("[data-quote-approve]");
+        var rejectBtn = e.target && e.target.closest && e.target.closest("[data-quote-reject]");
+        var approve = approveBtn && approveBtn.getAttribute("data-quote-approve");
+        var reject = rejectBtn && rejectBtn.getAttribute("data-quote-reject");
         var id = approve || reject;
         if (!id) return;
         if (reject && !window.confirm("이 명언을 검수 목록에서 삭제할까요?")) return;
@@ -460,6 +622,7 @@
         fn(id)
           .then(function () {
             setMsg(stagingMsg, approve ? "앱에 반영했습니다." : "목록에서 제거했습니다.", false);
+            editingStagingId = "";
             loadStaging();
             loadPublishedEditor();
           })

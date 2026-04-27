@@ -2202,8 +2202,22 @@
                     <span class="field__label">자동 생성 개수 (1~30)</span>
                     <input type="number" id="dict-term-create-count" class="input" min="1" max="30" value="10" />
                   </label>
+                  <label class="field">
+                    <span class="field__label">용어사전 엑셀 업로드 (.xlsx / .xls)</span>
+                    <input
+                      type="file"
+                      id="dict-term-create-excel-file"
+                      class="input"
+                      accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    />
+                  </label>
+                  <p class="admin-json-help">
+                    필수 열: <code class="pricing-code">term</code>, <code class="pricing-code">definition</code>.
+                    선택 열: <code class="pricing-code">aliases</code>, <code class="pricing-code">ox1_statement</code>/<code class="pricing-code">ox1_answer</code>/<code class="pricing-code">ox1_explanation</code>...
+                  </p>
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--secondary" id="dict-term-create-run-batch">자료 기반 용어 자동 생성</button>
+                    <button type="button" class="btn btn--outline" id="dict-term-create-upload-excel">용어사전 엑셀 업로드</button>
                   </div>
                 </section>
               </section>
@@ -2239,6 +2253,15 @@
                       accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                     />
                   </label>
+                  <div
+                    id="admin-quote-excel-dropzone"
+                    class="admin-excel-dropzone"
+                    role="button"
+                    tabindex="0"
+                    aria-label="명언 엑셀 파일 드래그 앤 드롭 업로드"
+                  >
+                    여기에 명언 엑셀 파일(.xlsx/.xls)을 끌어다 놓아도 업로드할 수 있습니다.
+                  </div>
                   <p class="admin-json-help">
                     헤더는 <code class="pricing-code">quote</code> 또는 <code class="pricing-code">명언</code> 열을 사용하세요.
                     업로드 시 각 행이 검수 대기에 추가됩니다.
@@ -2251,6 +2274,9 @@
                 <p id="admin-quote-excel-msg" class="admin-msg" role="status" hidden></p>
                 <p id="admin-quote-staging-msg" class="admin-msg" role="status" hidden></p>
                 <h3 class="admin-library-heading">검수 대기</h3>
+                <div class="admin-quote-tools__row">
+                  <button type="button" class="btn btn--secondary" id="admin-quote-btn-approve-all">검수 대기 일괄 승인·앱 반영</button>
+                </div>
                 <div id="admin-quote-staging-list" class="admin-quote-staging-list" aria-live="polite"></div>
                 <h3 class="admin-library-heading">앱에 반영된 명언 (줄마다 한 문장)</h3>
                 <p class="admin-json-help">
@@ -2931,7 +2957,7 @@
   <script src="/js/statute-articles-static.js"></script>
   <script src="/js/case-ox-form.js?v=3"></script>
   <script src="/js/dict-favorites.js?v=1"></script>
-  <script src="/js/dict-panels.js?v=50"></script>
+  <script src="/js/dict-panels.js?v=51"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -2939,7 +2965,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="/js/firebase-config.js?v=20260414"></script>
   <script src="/js/auth-bridge.js"></script>
-  <script src="/js/firestore-db.js?v=13"></script>
+  <script src="/js/firestore-db.js?v=14"></script>
   <script src="/js/ai-config.js"></script>
   <script src="/js/tickets-service.js?v=14"></script>
   <script src="/js/payapp-config.js?v=9"></script>
@@ -2993,6 +3019,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/admin-excel.js?v=7"></script>
   <script src="/js/admin-tickets.js?v=10"></script>
-  <script src="/js/admin-quotes.js?v=5"></script>
+  <script src="/js/admin-quotes.js?v=8"></script>
 </body>
 </html>

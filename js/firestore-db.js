@@ -596,8 +596,18 @@
       return r.data || {};
     });
   };
+  window.adminQuoteApproveAllPending = function () {
+    return getCallable("adminQuoteApproveAllPending")({}).then(function (r) {
+      return r.data || {};
+    });
+  };
   window.adminQuoteReject = function (id) {
     return getCallable("adminQuoteReject")({ id: id }).then(function (r) {
+      return r.data || {};
+    });
+  };
+  window.adminQuoteUpdateStaging = function (id, text) {
+    return getCallable("adminQuoteUpdateStaging")({ id: id, text: text || "" }).then(function (r) {
       return r.data || {};
     });
   };

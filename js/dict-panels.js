@@ -1186,6 +1186,8 @@
     window.addEventListener("membership-updated", refreshAdminTermCreateVisibility);
     var btn = $("dict-term-create-run");
     var btnBatch = $("dict-term-create-run-batch");
+    var btnExcel = $("dict-term-create-upload-excel");
+    var excelFileEl = $("dict-term-create-excel-file");
     if (!btn) return;
     btn.addEventListener("click", function () {
       if (!isAdminUser()) {
@@ -1292,6 +1294,155 @@
           .then(function () {
             btnBatch.disabled = false;
           });
+      });
+    }
+
+    function normHeaderKey(k) {
+      return String(k == null ? "" : k).replace(/^\uFEFF/, "").trim().toLowerCase().replace(/\s/g, "");
+    }
+
+    function splitComma(v) {
+      var s = String(v == null ? "" : v).trim();
+      if (!s) return [];
+      return s
+        .split(/[,;#]/g)
+        .map(function (x) { return String(x || "").trim(); })
+        .filter(Boolean);
+    }
+
+    function parseBoolCell(v) {
+      if (v === true || v === false) return v;
+      var s = String(v == null ? "" : v).trim().toUpperCase();
+      if (!s) return null;
+      if (s === "O" || s === "TRUE" || s === "Y" || s === "1" || s === "참") return true;
+      if (s === "X" || s === "FALSE" || s === "N" || s === "0" || s === "거짓") return false;
+      return null;
+    }
+
+    function parseOxSet(mapped, maxItems) {
+      var out = [];
+      for (var i = 1; i <= maxItems; i++) {
+        var st = String(mapped["ox" + i + "_statement"] || "").trim();
+        var ans = parseBoolCell(mapped["ox" + i + "_answer"]);
+        var ex = String(mapped["ox" + i + "_explanation"] || "").trim();
+        if (!st && ans == null && !ex) continue;
+        if (!st || ans == null || !ex) continue;
+        out.push({ statement: st, answer: ans, explanation: ex, explanationBasic: ex });
+      }
+      return out;
+    }
+
+    function parseWorkbookToTerms(buffer) {
+      if (typeof XLSX === "undefined") throw new Error("엑셀 라이브러리(xlsx)를 불러오지 못했습니다.");
+      var wb = XLSX.read(buffer, { type: "array" });
+      if (!wb.SheetNames || !wb.SheetNames.length) throw new Error("시트가 없습니다.");
+      var first = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(first, { defval: "", raw: false });
+      var out = [];
+      var headerToField = {
+        term: "term",
+        용어: "term",
+        aliases: "aliases",
+        동의어: "aliases",
+        별칭: "aliases",
+        definition: "definition",
+        정의: "definition",
+        설명: "definition"
+      };
+      for (var i = 0; i < rows.length; i++) {
+        var raw = rows[i] || {};
+        var mapped = {};
+        Object.keys(raw).forEach(function (k) {
+          var nk = normHeaderKey(k);
+          var field = headerToField[nk] || null;
+          if (!field && /^ox[1-9]_(statement|answer|explanation)$/.test(nk)) field = nk;
+          if (!field) return;
+          mapped[field] = raw[k];
+        });
+        var term = String(mapped.term || "").trim();
+        var definition = String(mapped.definition || "").trim();
+        if (!term && !definition) continue;
+        if (!term || !definition) {
+          throw new Error(i + 2 + "번째 행: term/definition은 필수입니다.");
+        }
+        out.push({
+          term: term,
+          definition: definition,
+          aliases: splitComma(mapped.aliases),
+          oxQuizzes: parseOxSet(mapped, 3)
+        });
+      }
+      return out;
+    }
+
+    if (btnExcel && excelFileEl) {
+      btnExcel.addEventListener("click", function () {
+        if (!isAdminUser()) {
+          setDictTermCreateMsg("관리자만 사용할 수 있습니다.", true);
+          return;
+        }
+        var file = excelFileEl.files && excelFileEl.files[0];
+        if (!file) {
+          setDictTermCreateMsg("엑셀 파일(.xlsx/.xls)을 선택해 주세요.", true);
+          return;
+        }
+        var lower = String(file.name || "").toLowerCase();
+        if (lower.indexOf(".xlsx") === -1 && lower.indexOf(".xls") === -1) {
+          setDictTermCreateMsg("엑셀 파일(.xlsx/.xls)만 업로드할 수 있습니다.", true);
+          return;
+        }
+        if (typeof window.adminStageDictBatch !== "function") {
+          setDictTermCreateMsg("사전 스테이징 함수를 찾지 못했습니다. Functions 배포를 확인해 주세요.", true);
+          return;
+        }
+        btnExcel.disabled = true;
+        setDictTermCreateMsg("엑셀 파싱 중…", false);
+        var reader = new FileReader();
+        reader.onload = function () {
+          var rows = [];
+          try {
+            rows = parseWorkbookToTerms(new Uint8Array(reader.result));
+          } catch (e) {
+            setDictTermCreateMsg((e && e.message) || "엑셀 파싱에 실패했습니다.", true);
+            btnExcel.disabled = false;
+            return;
+          }
+          if (!rows.length) {
+            setDictTermCreateMsg("유효한 데이터 행이 없습니다. 엑셀 형식을 확인해 주세요.", true);
+            btnExcel.disabled = false;
+            return;
+          }
+          setDictTermCreateMsg(rows.length + "건 검수 대기 등록 중…", false);
+          window.adminStageDictBatch("term", rows)
+            .then(function (res) {
+              var okCount = parseInt(res && res.okCount, 10) || 0;
+              var failRows = (res && res.failRows) || [];
+              var msg = "용어사전 " + okCount + "건을 검수 대기에 등록했습니다.";
+              if (failRows.length) msg += " 실패 " + failRows.length + "건.";
+              setDictTermCreateMsg(msg + " 검수·승인 탭에서 최종 승인하세요.", false);
+              excelFileEl.value = "";
+              var adminTab = $("admin-tab-review");
+              var reviewTypeTerm = $("admin-review-type-term");
+              if (adminTab && typeof adminTab.click === "function") adminTab.click();
+              if (reviewTypeTerm && typeof reviewTypeTerm.click === "function") reviewTypeTerm.click();
+              if (typeof window.loadAdminReviewQueue === "function") {
+                window.setTimeout(function () {
+                  window.loadAdminReviewQueue();
+                }, 0);
+              }
+            })
+            .catch(function (err) {
+              setDictTermCreateMsg((err && err.message) || "엑셀 업로드에 실패했습니다.", true);
+            })
+            .then(function () {
+              btnExcel.disabled = false;
+            });
+        };
+        reader.onerror = function () {
+          setDictTermCreateMsg("파일을 읽지 못했습니다.", true);
+          btnExcel.disabled = false;
+        };
+        reader.readAsArrayBuffer(file);
       });
     }
   }
