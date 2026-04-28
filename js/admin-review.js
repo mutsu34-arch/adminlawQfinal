@@ -1,6 +1,7 @@
 (function () {
   var selected = null;
   var mode = "quiz";
+  var currentListItems = [];
 
   function $(id) {
     return document.getElementById(id);
@@ -62,6 +63,29 @@
 
   function normalizeText(raw) {
     return String(raw == null ? "" : raw).replace(/\r\n/g, "\n").trim();
+  }
+
+  function enableMarkdownBoldShortcut(el) {
+    if (!el || el._hanlawBoldBound) return;
+    el._hanlawBoldBound = true;
+    el.addEventListener("keydown", function (ev) {
+      var isBoldHotkey = (ev.ctrlKey || ev.metaKey) && !ev.altKey && String(ev.key || "").toLowerCase() === "b";
+      if (!isBoldHotkey) return;
+      if (el.readOnly || el.disabled) return;
+      ev.preventDefault();
+      var start = typeof el.selectionStart === "number" ? el.selectionStart : 0;
+      var end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+      var v = String(el.value || "");
+      var picked = v.slice(start, end);
+      if (picked) {
+        el.value = v.slice(0, start) + "**" + picked + "**" + v.slice(end);
+        el.setSelectionRange(start + 2, end + 2);
+      } else {
+        el.value = v.slice(0, start) + "****" + v.slice(end);
+        el.setSelectionRange(start + 2, start + 2);
+      }
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
   }
 
   function mergeDetailBody(mainText, legal, trap, precedent) {
@@ -126,13 +150,40 @@
     return out;
   }
 
-  function setReviewBadge(id, n) {
+  function countReviewStatus(items) {
+    var all = Array.isArray(items) ? items : [];
+    var pending = 0;
+    var approved = 0;
+    for (var i = 0; i < all.length; i++) {
+      var st = String((all[i] && all[i].status) || "").toLowerCase();
+      if (st === "approved") approved += 1;
+      else pending += 1;
+    }
+    return { pending: pending, approved: approved, total: all.length };
+  }
+
+  function setReviewBadge(id, pendingCount, approvedCount) {
     var el = $(id);
     if (!el) return;
-    var v = typeof n === "number" && n >= 0 ? n : 0;
-    el.textContent = String(v);
-    el.setAttribute("data-count", String(v));
-    el.classList.toggle("admin-review-tab__badge--empty", v === 0);
+    var p = typeof pendingCount === "number" && pendingCount >= 0 ? pendingCount : 0;
+    var a = typeof approvedCount === "number" && approvedCount >= 0 ? approvedCount : 0;
+    var total = p + a;
+    el.textContent = "미" + p + " / 승" + a;
+    el.setAttribute("data-count", String(total));
+    el.title = "미승인 " + p + "건, 승인 " + a + "건";
+    el.classList.toggle("admin-review-tab__badge--empty", total === 0);
+  }
+
+  function formatQuizSource(payload) {
+    var p = payload || {};
+    var qNo = p.sourceQuestionNo != null ? String(p.sourceQuestionNo) : "";
+    var cLabel = String(p.sourceChoiceLabel || "").trim();
+    var cNo = p.sourceChoiceNo != null ? String(p.sourceChoiceNo) : "";
+    if (!qNo && !cLabel && !cNo) return "";
+    var tail = cLabel || cNo;
+    if (!qNo) return tail ? tail + "지문" : "";
+    if (!tail) return qNo + "번 문제";
+    return qNo + "번-" + tail + "지문";
   }
 
   function refreshReviewBadgeCounts() {
@@ -145,17 +196,20 @@
       return;
     }
     Promise.all([
-      window.adminListQuizStaging("all", 100),
-      window.adminListDictStaging("term", "all", 100),
-      window.adminListDictStaging("case", "all", 100)
+      window.adminListQuizStaging("all", 1000),
+      window.adminListDictStaging("term", "all", 1000),
+      window.adminListDictStaging("case", "all", 1000)
     ])
       .then(function (results) {
         var rq = results[0] && results[0].items;
         var rt = results[1] && results[1].items;
         var rc = results[2] && results[2].items;
-        setReviewBadge("admin-review-badge-quiz", filterPendingReviewItems(rq).length);
-        setReviewBadge("admin-review-badge-term", filterPendingReviewItems(rt).length);
-        setReviewBadge("admin-review-badge-case", filterPendingReviewItems(rc).length);
+        var cq = countReviewStatus(rq);
+        var ct = countReviewStatus(rt);
+        var cc = countReviewStatus(rc);
+        setReviewBadge("admin-review-badge-quiz", cq.pending, cq.approved);
+        setReviewBadge("admin-review-badge-term", ct.pending, ct.approved);
+        setReviewBadge("admin-review-badge-case", cc.pending, cc.approved);
       })
       .catch(function () {});
   }
@@ -173,12 +227,13 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "admin-inbox-row" + (selected && selected.id === it.id ? " admin-inbox-row--active" : "");
+      var sourceText = it.entityType === "quiz" ? formatQuizSource(it.payload) : "";
       btn.innerHTML =
         '<span class="admin-inbox-row__type">' +
         (it.entityType === "term" ? "용어" : it.entityType === "case" ? "판례" : "퀴즈") +
         "</span>" +
         '<span class="admin-inbox-row__status">' +
-        (it.key || it.questionId || "-") +
+        (sourceText || it.key || it.questionId || "-") +
         "</span>" +
         '<span class="admin-inbox-row__preview">' +
         String(it.title || it.statement || it.topic || "").slice(0, 46) +
@@ -195,11 +250,12 @@
     if (!detail) return;
     detail.hidden = !item;
     if (!item) return;
+    var sourceMeta = mode === "quiz" ? formatQuizSource(item.payload) : "";
     $("admin-review-meta").textContent =
       "유형: " +
       (item.entityType === "term" ? "용어사전" : item.entityType === "case" ? "판례사전" : "퀴즈") +
       " · 키: " +
-      (item.entryKey || item.questionId || "") +
+      (sourceMeta || item.entryKey || item.questionId || "") +
       " · 상태: " +
       (item.status || "") +
       " · 버전: " +
@@ -252,12 +308,13 @@
     }
     var p =
       mode === "quiz"
-        ? window.adminListQuizStaging("all", 100)
-        : window.adminListDictStaging(mode, "all", 100);
+        ? window.adminListQuizStaging("all", 1000)
+        : window.adminListDictStaging(mode, "all", 1000);
     p
       .then(function (res) {
         var all = (res && res.items) || [];
         var items = filterPendingReviewItems(all);
+        currentListItems = items.slice();
         renderList(items);
         setMsg(
           "목록 " +
@@ -269,6 +326,7 @@
         refreshReviewBadgeCounts();
       })
       .catch(function (e) {
+        currentListItems = [];
         var msg = (e && e.message) || "검수 목록 로드 실패";
         var wrap = $("admin-review-list");
         if (wrap) {
@@ -398,6 +456,68 @@
     var btnRefresh = $("admin-review-refresh");
     if (btnRefresh) btnRefresh.addEventListener("click", loadList);
 
+    var btnApproveAll = $("admin-review-approve-all");
+    if (btnApproveAll) {
+      btnApproveAll.addEventListener("click", function () {
+        if (!currentListItems || !currentListItems.length) {
+          setMsg("일괄 승인할 검수 항목이 없습니다.", true);
+          return;
+        }
+        var targets = currentListItems.slice();
+        if (
+          !window.confirm(
+            "현재 목록 " +
+              targets.length +
+              "건을 모두 승인·반영할까요? 처리 시간이 조금 걸릴 수 있습니다."
+          )
+        ) {
+          return;
+        }
+        btnApproveAll.disabled = true;
+        var okCount = 0;
+        var failCount = 0;
+        var firstErr = "";
+        var chain = Promise.resolve();
+        targets.forEach(function (it, i) {
+          chain = chain.then(function () {
+            setMsg("일괄 승인 중… (" + (i + 1) + "/" + targets.length + ")", false);
+            var p =
+              mode === "quiz"
+                ? window.adminApproveQuizStaging(it.id, it.version)
+                : window.adminApproveDictStaging(mode, it.id, it.version);
+            return p
+              .then(function () {
+                okCount += 1;
+              })
+              .catch(function (e) {
+                failCount += 1;
+                if (!firstErr) firstErr = (e && e.message) || "승인 실패";
+              });
+          });
+        });
+        chain
+          .then(function () {
+            var msg = "일괄 승인 완료: " + okCount + "건";
+            if (failCount) msg += ", 실패 " + failCount + "건";
+            if (firstErr) msg += " (예: " + firstErr + ")";
+            setMsg(msg, failCount > 0 && okCount === 0);
+            if (typeof window.loadRemoteQuestions === "function") window.loadRemoteQuestions();
+            try {
+              window.dispatchEvent(new CustomEvent("dict-remote-updated"));
+            } catch (e2) {}
+            selected = null;
+            fillDetail(null);
+            loadList();
+          })
+          .catch(function (e) {
+            setMsg((e && e.message) || "일괄 승인 처리 실패", true);
+          })
+          .then(function () {
+            btnApproveAll.disabled = false;
+          });
+      });
+    }
+
     var btnSave = $("admin-review-save");
     if (btnSave) {
       btnSave.addEventListener("click", function () {
@@ -489,6 +609,28 @@
     if (bc) bc.addEventListener("click", function () { setMode("case"); loadList(); });
 
     var panel = $("admin-panel-review");
+    [
+      "admin-review-statement",
+      "admin-review-explanation-basic",
+      "admin-review-explanation",
+      "admin-review-detail-legal",
+      "admin-review-detail-trap",
+      "admin-review-detail-precedent",
+      "admin-review-topic",
+      "admin-review-tags",
+      "admin-review-term",
+      "admin-review-aliases",
+      "admin-review-definition",
+      "admin-review-citation",
+      "admin-review-case-title",
+      "admin-review-facts",
+      "admin-review-issues",
+      "admin-review-judgment",
+      "admin-review-search-keys",
+      "admin-review-topic-keywords"
+    ].forEach(function (id) {
+      enableMarkdownBoldShortcut($(id));
+    });
     setMode(mode);
     if (panel && !panel.hidden) loadList();
   }

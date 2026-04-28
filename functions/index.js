@@ -586,6 +586,10 @@ function sanitizeQuizPayload(raw) {
     const n = parseInt(src.sourceChoiceNo, 10);
     if (Number.isFinite(n) && n >= 1 && n <= 5) out.sourceChoiceNo = n;
   }
+  if (src.sourceChoiceLabel != null && String(src.sourceChoiceLabel).trim()) {
+    const label = String(src.sourceChoiceLabel).trim().slice(0, 20);
+    out.sourceChoiceLabel = label;
+  }
   return out;
 }
 
@@ -646,20 +650,102 @@ function inferChoiceNoFromRow(row) {
   const direct = parseIntInRange(row.sourceChoiceNo, 1, 5);
   if (direct != null) return direct;
   const statement = String(row.statement || "");
-  const mDigit = statement.match(/(?:보기|선지|지문|선택지)?\s*([1-5])\s*[.)]/);
+  const blob = [String(row.id || ""), String(row.topic || ""), statement].join("\n");
+  const mDigit = blob.match(/(?:보기|선지|지문|선택지)?\s*([1-5])\s*[.)]/);
   if (mDigit && mDigit[1]) return parseIntInRange(mDigit[1], 1, 5);
-  if (statement.includes("①")) return 1;
-  if (statement.includes("②")) return 2;
-  if (statement.includes("③")) return 3;
-  if (statement.includes("④")) return 4;
-  if (statement.includes("⑤")) return 5;
+  if (blob.includes("①")) return 1;
+  if (blob.includes("②")) return 2;
+  if (blob.includes("③")) return 3;
+  if (blob.includes("④")) return 4;
+  if (blob.includes("⑤")) return 5;
+  const KOR_CHO = ["ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ"];
+  for (let i = 0; i < KOR_CHO.length; i++) {
+    const ch = KOR_CHO[i];
+    const re = new RegExp("(?:^|\\n|\\s|[[(])" + ch + "\\s*[.)\\],:：]", "m");
+    if (re.test(blob)) return i + 1;
+    if (blob.includes(ch + ",")) return i + 1;
+  }
+  const KOR_GA = ["가", "나", "다", "라", "마"];
+  for (let i = 0; i < KOR_GA.length; i++) {
+    const ch = KOR_GA[i];
+    const re = new RegExp("(?:^|\\n|\\s|[[(])" + ch + "\\s*[.)\\],:：]", "m");
+    if (re.test(blob)) return i + 1;
+    if (blob.includes(ch + ",")) return i + 1;
+  }
   return null;
+}
+
+function inferChoiceLabelFromRow(row) {
+  if (!row) return "";
+  const direct = String(row.sourceChoiceLabel || "").trim();
+  if (direct) return direct.slice(0, 20);
+  const statement = String(row.statement || "");
+  const blob = [String(row.id || ""), String(row.topic || ""), statement].join("\n");
+  const mDigit = blob.match(/(?:보기|선지|지문|선택지)?\s*([1-5])\s*[.)]/);
+  if (mDigit && mDigit[1]) return mDigit[1];
+  const circled = ["①", "②", "③", "④", "⑤"];
+  for (let i = 0; i < circled.length; i++) {
+    if (blob.includes(circled[i])) return circled[i];
+  }
+  const KOR_CHO = ["ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ"];
+  for (let i = 0; i < KOR_CHO.length; i++) {
+    const ch = KOR_CHO[i];
+    const re = new RegExp("(?:^|\\n|\\s|[[(])" + ch + "\\s*[.)\\],:：]", "m");
+    if (re.test(blob) || blob.includes(ch + ",")) return ch;
+  }
+  const KOR_GA = ["가", "나", "다", "라", "마"];
+  for (let i = 0; i < KOR_GA.length; i++) {
+    const ch = KOR_GA[i];
+    const re = new RegExp("(?:^|\\n|\\s|[[(])" + ch + "\\s*[.)\\],:：]", "m");
+    if (re.test(blob) || blob.includes(ch + ",")) return ch;
+  }
+  return "";
 }
 
 function detectChoiceCountFromContext(text) {
   const s = String(text || "");
-  if (s.includes("⑤")) return 5;
-  return 4;
+  let maxChoice = 0;
+  if (s.includes("⑤")) maxChoice = Math.max(maxChoice, 5);
+  if (s.includes("④")) maxChoice = Math.max(maxChoice, 4);
+  if (s.includes("③")) maxChoice = Math.max(maxChoice, 3);
+  if (s.includes("②")) maxChoice = Math.max(maxChoice, 2);
+  if (s.includes("①")) maxChoice = Math.max(maxChoice, 1);
+
+  const digitMarks = [
+    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*5\s*[.)]/m, n: 5 },
+    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*4\s*[.)]/m, n: 4 },
+    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*3\s*[.)]/m, n: 3 },
+    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*2\s*[.)]/m, n: 2 },
+    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*1\s*[.)]/m, n: 1 }
+  ];
+  for (let i = 0; i < digitMarks.length; i++) {
+    if (digitMarks[i].re.test(s)) {
+      maxChoice = Math.max(maxChoice, digitMarks[i].n);
+      break;
+    }
+  }
+
+  const korCho = ["ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ"];
+  for (let i = korCho.length - 1; i >= 0; i--) {
+    const ch = korCho[i];
+    const re = new RegExp("(?:^|\\n)\\s*" + ch + "\\s*[.)\\],:：]", "m");
+    if (re.test(s)) {
+      maxChoice = Math.max(maxChoice, i + 1);
+      break;
+    }
+  }
+  const korGa = ["가", "나", "다", "라", "마"];
+  for (let i = korGa.length - 1; i >= 0; i--) {
+    const ch = korGa[i];
+    const re = new RegExp("(?:^|\\n)\\s*" + ch + "\\s*[.)\\],:：]", "m");
+    if (re.test(s)) {
+      maxChoice = Math.max(maxChoice, i + 1);
+      break;
+    }
+  }
+
+  if (maxChoice < 2) return 4;
+  return Math.max(2, Math.min(5, maxChoice));
 }
 
 function extractJsonArrayFromText(raw) {
@@ -894,6 +980,9 @@ exports.adminGenerateQuizFromLibrary = onCall(
   const inferredYear = Number.isFinite(inferredYearRaw) ? inferredYearRaw : null;
   const generateAll = data.generateAll !== false;
   const questionOnly = parseIntInRange(data.questionOnly, 1, 500);
+  const choiceOnly = parseIntInRange(data.choiceOnly, 1, 5);
+  const questionStartNo = parseIntInRange(data.questionStartNo, 1, 500);
+  const questionEndNo = parseIntInRange(data.questionEndNo, 1, 500);
   const expectedCountInput = parseInt(data.expectedCount, 10);
   const scanOnly = data.scanOnly === true;
   const fastMode = data.fastMode !== false;
@@ -928,6 +1017,7 @@ exports.adminGenerateQuizFromLibrary = onCall(
   console.info("adminGenerateQuizFromLibrary phase:rag", {
     scanOnly,
     questionOnly: questionOnly || null,
+    choiceOnly: choiceOnly || null,
     fastMode,
     ragChars: String(ragContext || "").length,
     elapsedMs: ragMs
@@ -936,6 +1026,11 @@ exports.adminGenerateQuizFromLibrary = onCall(
   const inferredFromTextExam = inferExamIdLoose(userPrompt + "\n" + ragContext.slice(0, 4000));
   const inferredFromTextYear = inferYearLoose(userPrompt + "\n" + ragContext.slice(0, 4000));
   const inferredQuestionNos = extractQuestionNumbers(ragContext);
+  const filteredQuestionNos = inferredQuestionNos.filter((q) => {
+    if (questionStartNo != null && q < questionStartNo) return false;
+    if (questionEndNo != null && q > questionEndNo) return false;
+    return true;
+  });
   const detectedChoiceCount = detectChoiceCountFromContext(ragContext);
   const resolvedExamId = examIdInput || inferredExamId || inferredFromTextExam;
   const resolvedYear = Number.isFinite(yearInput)
@@ -954,14 +1049,16 @@ exports.adminGenerateQuizFromLibrary = onCall(
       ok: true,
       examId: resolvedExamId,
       year: resolvedYear,
-      questionNos: inferredQuestionNos,
+      questionNos: filteredQuestionNos,
       detectedChoiceCount
     };
   }
   const expectedCount = Number.isFinite(expectedCountInput)
     ? Math.max(1, Math.min(500, expectedCountInput))
-    : inferredQuestionNos.length
-      ? Math.min(500, inferredQuestionNos.length * detectedChoiceCount)
+    : questionOnly && choiceOnly
+      ? 1
+    : filteredQuestionNos.length
+      ? Math.min(500, filteredQuestionNos.length * detectedChoiceCount)
       : 120;
 
   const modelId = effectiveGeminiModelId();
@@ -974,8 +1071,8 @@ exports.adminGenerateQuizFromLibrary = onCall(
     const qStart = questionOnly || 1;
     const qEnd = questionOnly || maxQuestionNo;
     for (let qNo = qStart; qNo <= qEnd; qNo++) {
-      const cStart = 1;
-      const cEnd = detectedChoiceCount || 4;
+      const cStart = choiceOnly || 1;
+      const cEnd = choiceOnly || (detectedChoiceCount || 4);
       for (let cNo = cStart; cNo <= cEnd; cNo++) {
         const key = pairKey(qNo, cNo);
         if (!collectedPairSet.has(key)) out.push(key);
@@ -984,8 +1081,9 @@ exports.adminGenerateQuizFromLibrary = onCall(
     return out;
   }
 
-  const maxQuestionNo = inferredQuestionNos.length ? inferredQuestionNos[inferredQuestionNos.length - 1] : null;
-  const maxRounds = questionOnly ? (fastMode ? 1 : 2) : (generateAll ? (fastMode ? 3 : 6) : 2);
+  const maxQuestionNo = filteredQuestionNos.length ? filteredQuestionNos[filteredQuestionNos.length - 1] : null;
+  const isPairOnly = !!(questionOnly && choiceOnly);
+  const maxRounds = isPairOnly ? (fastMode ? 1 : 2) : questionOnly ? (fastMode ? 1 : 2) : (generateAll ? (fastMode ? 3 : 6) : 2);
   const ragForGeneration = String(ragContext || "").slice(0, fastMode ? (questionOnly ? 5000 : 10000) : (questionOnly ? 8000 : 16000));
   for (let round = 0; round < maxRounds; round++) {
     const missingPairs = maxQuestionNo ? buildMissingPairs(maxQuestionNo) : [];
@@ -1010,8 +1108,10 @@ exports.adminGenerateQuizFromLibrary = onCall(
       "",
       "[규칙]",
       "- 각 문제는 보기 1~" + (detectedChoiceCount || 4) + "를 각각 1개 OX 문항으로 분해하세요.",
+      "- 박스형 보기(ㄱ/ㄴ/ㄷ/ㄹ/ㅁ 또는 가/나/다/라/마)도 각각 별도 문항으로 분해하고 sourceChoiceNo를 1~5로 매핑하세요.",
       "- sourceQuestionNo/sourceChoiceNo를 반드시 채우세요.",
       questionOnly ? "- 이번 배치는 sourceQuestionNo를 반드시 " + questionOnly + "로만 생성하세요." : "",
+      choiceOnly ? "- 이번 배치는 sourceChoiceNo를 반드시 " + choiceOnly + "로만 생성하세요." : "",
       "- 파일 순서 기준으로 1번부터 마지막까지 생성하되, 누락 쌍을 우선 보완하세요.",
       "- 누락 쌍(문항-보기): " + missingHint,
       "- 목표 생성 개수(총): " + expectedCount,
@@ -1050,11 +1150,16 @@ exports.adminGenerateQuizFromLibrary = onCall(
         continue;
       }
       if (questionOnly && qNo !== questionOnly) continue;
+      if (choiceOnly && cNo !== choiceOnly) continue;
       if (cNo > (detectedChoiceCount || 4)) continue;
       const key = pairKey(qNo, cNo);
       if (collectedPairSet.has(key)) continue;
       r.sourceQuestionNo = qNo;
       r.sourceChoiceNo = cNo;
+      if (!r.sourceChoiceLabel) {
+        const choiceLabel = inferChoiceLabelFromRow(r);
+        if (choiceLabel) r.sourceChoiceLabel = choiceLabel;
+      }
       collectedRows.push(r);
       collectedPairSet.add(key);
       acceptedInRound += 1;
@@ -1074,6 +1179,7 @@ exports.adminGenerateQuizFromLibrary = onCall(
   const tGenDone = Date.now();
   console.info("adminGenerateQuizFromLibrary phase:generate", {
     questionOnly: questionOnly || null,
+    choiceOnly: choiceOnly || null,
     fastMode,
     collected: collectedRows.length,
     failCount: failRows.length,
@@ -1082,6 +1188,18 @@ exports.adminGenerateQuizFromLibrary = onCall(
 
   // 2단계: fastMode가 아니면 해설/태그를 보강한다.
   let enrichedRows = [];
+  function hasRequiredQuizFields(x) {
+    if (!x || typeof x !== "object") return false;
+    if (!String(x.statement || "").trim()) return false;
+    if (!String(x.explanation || "").trim()) return false;
+    if (!String(x.explanationBasic || "").trim()) return false;
+    const imp = parseInt(x.importance, 10);
+    const diff = parseInt(x.difficulty, 10);
+    if (!Number.isFinite(imp) || imp < 1 || imp > 5) return false;
+    if (!Number.isFinite(diff) || diff < 1 || diff > 5) return false;
+    return true;
+  }
+
   if (fastMode) {
     enrichedRows = collectedRows.map((r) => {
       const ansRaw = parseBoolLoose(r.answer);
@@ -1090,7 +1208,9 @@ exports.adminGenerateQuizFromLibrary = onCall(
       return Object.assign({}, r, {
         answer: ans,
         explanation: String(r.explanation || "").trim() || fallback.explanation,
-        explanationBasic: String(r.explanationBasic || "").trim() || fallback.explanationBasic
+        explanationBasic: String(r.explanationBasic || "").trim() || fallback.explanationBasic,
+        importance: parseIntInRange(r.importance, 1, 5) || 3,
+        difficulty: parseIntInRange(r.difficulty, 1, 5) || 3
       });
     });
   } else {
@@ -1103,6 +1223,41 @@ exports.adminGenerateQuizFromLibrary = onCall(
       resolvedExamId,
       resolvedYear
     );
+    const missingRows = [];
+    for (let i = 0; i < enrichedRows.length; i++) {
+      if (!hasRequiredQuizFields(enrichedRows[i])) missingRows.push(collectedRows[i] || enrichedRows[i]);
+    }
+    if (missingRows.length) {
+      let retried = [];
+      try {
+        retried = await enrichLibraryQuizRows(
+          apiKey,
+          modelId,
+          missingRows,
+          userPrompt,
+          ragContext,
+          resolvedExamId,
+          resolvedYear
+        );
+      } catch (_) {
+        retried = [];
+      }
+      const byKeyRetry = {};
+      for (let i = 0; i < retried.length; i++) {
+        const rr = retried[i] || {};
+        const qNo = parseIntInRange(rr.sourceQuestionNo, 1, 500);
+        const cNo = parseIntInRange(rr.sourceChoiceNo, 1, 5);
+        if (qNo == null || cNo == null) continue;
+        byKeyRetry[pairKey(qNo, cNo)] = rr;
+      }
+      enrichedRows = enrichedRows.map((r) => {
+        const qNo = parseIntInRange(r && r.sourceQuestionNo, 1, 500);
+        const cNo = parseIntInRange(r && r.sourceChoiceNo, 1, 5);
+        const key = qNo != null && cNo != null ? pairKey(qNo, cNo) : "";
+        if (key && byKeyRetry[key] && hasRequiredQuizFields(byKeyRetry[key])) return byKeyRetry[key];
+        return r;
+      });
+    }
   }
 
   const email = String(request.auth.token.email || "").toLowerCase();
@@ -1134,8 +1289,14 @@ exports.adminGenerateQuizFromLibrary = onCall(
         importance: parseInt(r.importance, 10),
         difficulty: parseInt(r.difficulty, 10),
         sourceQuestionNo: parseIntInRange(r.sourceQuestionNo, 1, 500),
-        sourceChoiceNo: parseIntInRange(r.sourceChoiceNo, 1, 5)
+        sourceChoiceNo: parseIntInRange(r.sourceChoiceNo, 1, 5),
+        sourceChoiceLabel: String(r.sourceChoiceLabel || "").trim().slice(0, 20)
       };
+      const fallback = defaultExplainFromStatement(payload.statement, payload.answer, payload.topic);
+      if (!payload.explanation) payload.explanation = fallback.explanation;
+      if (!payload.explanationBasic) payload.explanationBasic = fallback.explanationBasic;
+      if (!Number.isFinite(payload.importance)) payload.importance = 3;
+      if (!Number.isFinite(payload.difficulty)) payload.difficulty = 3;
       if (!payload.explanationBasic) delete payload.explanationBasic;
       if (!payload.tags.length) delete payload.tags;
       if (!payload.detail.legal && !payload.detail.trap && !payload.detail.precedent) delete payload.detail;
@@ -1172,6 +1333,7 @@ exports.adminGenerateQuizFromLibrary = onCall(
   await batch.commit();
   console.info("adminGenerateQuizFromLibrary phase:done", {
     questionOnly: questionOnly || null,
+    choiceOnly: choiceOnly || null,
     fastMode,
     staged: stagedRows.length,
     elapsedMs: Date.now() - t0
@@ -1343,8 +1505,8 @@ exports.adminListQuizStaging = onCall({ region: "asia-northeast3" }, async (requ
   assertAdminCallable(request);
   const status = String((request.data && request.data.status) || "reviewing").trim();
   const limitRaw = parseInt(request.data && request.data.limit, 10);
-  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(100, limitRaw)) : 50;
-  const snap = await db.collection(STAGING_QUIZ_COLLECTION).limit(300).get();
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(1000, limitRaw)) : 100;
+  const snap = await db.collection(STAGING_QUIZ_COLLECTION).limit(1200).get();
   let items = snap.docs.map((d) => {
     const x = d.data() || {};
     return {
@@ -1629,9 +1791,9 @@ exports.adminListDictStaging = onCall({ region: "asia-northeast3" }, async (requ
   const entityType = entityTypeRaw === "case" ? "case" : "term";
   const status = String((request.data && request.data.status) || "reviewing").trim();
   const limitRaw = parseInt(request.data && request.data.limit, 10);
-  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(100, limitRaw)) : 50;
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(1000, limitRaw)) : 100;
   const col = dictStagingCollectionByType(entityType);
-  const snap = await db.collection(col).limit(300).get();
+  const snap = await db.collection(col).limit(1200).get();
   let items = snap.docs.map((d) => {
     const x = d.data() || {};
     const payload = x.payload || {};

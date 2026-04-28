@@ -24,6 +24,12 @@
     var merged = staticList.slice();
     remote.forEach(function (r) {
       if (!r || !r.id) return;
+      if (r.hidden === true) {
+        for (var j = merged.length - 1; j >= 0; j--) {
+          if (merged[j] && merged[j].id === r.id) merged.splice(j, 1);
+        }
+        return;
+      }
       var idx = -1;
       for (var i = 0; i < merged.length; i++) {
         if (merged[i].id === r.id) {
@@ -238,6 +244,71 @@
       });
   };
 
+  window.softHideBundledQuestion = function (questionId) {
+    var db = getDb();
+    if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    var qid = String(questionId || "").trim();
+    if (!qid) return Promise.reject(new Error("숨김 처리할 퀴즈 ID가 없습니다."));
+    var fv = firebase.firestore.FieldValue;
+    return db
+      .collection(COLLECTION)
+      .doc(qid)
+      .set(
+        {
+          id: qid,
+          hidden: true,
+          bundledShadow: true,
+          updatedAt: fv.serverTimestamp()
+        },
+        { merge: true }
+      )
+      .then(function () {
+        return window.loadRemoteQuestions();
+      });
+  };
+
+  window.restoreHiddenBundledQuestions = function () {
+    var db = getDb();
+    if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    return db
+      .collection(COLLECTION)
+      .where("bundledShadow", "==", true)
+      .get()
+      .then(function (snap) {
+        if (!snap || snap.empty) return { total: 0, restored: 0, failed: 0 };
+        var refs = snap.docs
+          .filter(function (d) {
+            var x = d.data() || {};
+            return x.hidden === true;
+          })
+          .map(function (d) {
+            return d.ref;
+          });
+        if (!refs.length) return { total: 0, restored: 0, failed: 0 };
+        var restored = 0;
+        var failed = 0;
+        var chain = Promise.resolve();
+        refs.forEach(function (ref) {
+          chain = chain.then(function () {
+            return ref
+              .delete()
+              .then(function () {
+                restored += 1;
+              })
+              .catch(function () {
+                failed += 1;
+                return null;
+              });
+          });
+        });
+        return chain.then(function () {
+          return window.loadRemoteQuestions().then(function () {
+            return { total: refs.length, restored: restored, failed: failed };
+          });
+        });
+      });
+  };
+
   window.saveTermEntryToFirestore = function (entry, docId) {
     var db = getDb();
     if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
@@ -285,6 +356,23 @@
     }
     var id = String(docId || "").trim() || normalizeDocId(payload.term, "term");
     return db.collection("hanlaw_dict_terms").doc(id).set(payload, { merge: true });
+  };
+
+  window.deleteTermEntryFromFirestore = function (docIdOrTerm, options) {
+    var db = getDb();
+    if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    var id = String(docIdOrTerm || "").trim();
+    if (!id) return Promise.reject(new Error("삭제할 용어 식별자가 없습니다."));
+    if (id.indexOf("/") >= 0) return Promise.reject(new Error("잘못된 문서 ID입니다."));
+    var opt = options && typeof options === "object" ? options : {};
+    var resolvedId = opt.rawDocId ? id : normalizeDocId(id, "term");
+    return db
+      .collection("hanlaw_dict_terms")
+      .doc(resolvedId)
+      .delete()
+      .then(function () {
+        return window.loadRemoteQuestions();
+      });
   };
 
   window.saveCaseEntryToFirestore = function (entry, docId) {
@@ -341,6 +429,76 @@
     }
     var id = String(docId || "").trim() || normalizeDocId(payload.citation, "case");
     return db.collection("hanlaw_dict_cases").doc(id).set(payload, { merge: true });
+  };
+
+  window.deleteCaseEntryFromFirestore = function (docIdOrCitation, options) {
+    var db = getDb();
+    if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    var id = String(docIdOrCitation || "").trim();
+    if (!id) return Promise.reject(new Error("삭제할 판례 식별자가 없습니다."));
+    if (id.indexOf("/") >= 0) return Promise.reject(new Error("잘못된 문서 ID입니다."));
+    var opt = options && typeof options === "object" ? options : {};
+    var resolvedId = opt.rawDocId ? id : normalizeDocId(id, "case");
+    return db.collection("hanlaw_dict_cases").doc(resolvedId).delete();
+  };
+
+  window.softHideBundledCaseEntry = function (citation) {
+    var db = getDb();
+    if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    var cit = String(citation || "").trim();
+    if (!cit) return Promise.reject(new Error("숨김 처리할 판례 표기(citation)가 없습니다."));
+    var id = normalizeDocId(cit, "case");
+    return db
+      .collection("hanlaw_dict_cases")
+      .doc(id)
+      .set(
+        {
+          citation: cit,
+          hidden: true,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      );
+  };
+
+  window.restoreHiddenBundledCases = function () {
+    var db = getDb();
+    if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    return db
+      .collection("hanlaw_dict_cases")
+      .where("hidden", "==", true)
+      .get()
+      .then(function (snap) {
+        if (!snap || snap.empty) return { total: 0, restored: 0, failed: 0 };
+        var refs = snap.docs.map(function (d) {
+          return d.ref;
+        });
+        var restored = 0;
+        var failed = 0;
+        var chain = Promise.resolve();
+        refs.forEach(function (ref) {
+          chain = chain.then(function () {
+            return ref
+              .set(
+                {
+                  hidden: false,
+                  updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                },
+                { merge: true }
+              )
+              .then(function () {
+                restored += 1;
+              })
+              .catch(function () {
+                failed += 1;
+                return null;
+              });
+          });
+        });
+        return chain.then(function () {
+          return { total: refs.length, restored: restored, failed: failed };
+        });
+      });
   };
 
   window.saveStatuteEntryToFirestore = function (entry, docId) {

@@ -4,6 +4,8 @@
     typeof Intl !== "undefined" && typeof Intl.Collator === "function"
       ? new Intl.Collator("ko-KR", { sensitivity: "variant", numeric: true })
       : null;
+  var selectedTermInitialFilter = "none";
+  var selectedCaseYearFilter = "none";
 
   function compareTermText(a, b) {
     var sa = String(a || "");
@@ -21,7 +23,9 @@
   function getCases() {
     var a = window.LEGAL_CASES_DATA || [];
     var b = window.LEGAL_CASES_REMOTE || [];
-    return dedupeCasesByCitationPreferRemote(a.concat(b));
+    return dedupeCasesByCitationPreferRemote(a.concat(b)).filter(function (c) {
+      return !(c && c.hidden);
+    });
   }
 
   function norm(s) {
@@ -403,7 +407,7 @@
       out.push(c);
     }
     out.sort(function (a, b) {
-      return caseCreatedMs(b) - caseCreatedMs(a);
+      return extractCaseDecisionDateInfo(b).ts - extractCaseDecisionDateInfo(a).ts;
     });
     return out;
   }
@@ -429,7 +433,65 @@
       if (!nk || remoteKey[nk]) continue;
       extra.push(c);
     }
-    return remote.concat(extra);
+    var all = remote.concat(extra);
+    all.sort(function (a, b) {
+      return extractCaseDecisionDateInfo(b).ts - extractCaseDecisionDateInfo(a).ts;
+    });
+    return all;
+  }
+
+  function termInitialKey(termText) {
+    var s = String(termText || "").trim();
+    if (!s) return "#";
+    var ch = s.charAt(0);
+    var code = ch.charCodeAt(0);
+    if (code >= 0xac00 && code <= 0xd7a3) {
+      var CHO = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
+      return CHO[Math.floor((code - 0xac00) / 588)] || "#";
+    }
+    if (/[ㄱ-ㅎ]/.test(ch)) return ch;
+    if (/[a-z]/i.test(ch)) return ch.toUpperCase();
+    return "#";
+  }
+
+  function extractCaseDecisionDateInfo(c) {
+    var citation = String((c && c.citation) || "");
+    var m = citation.match(/((?:19|20)\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/);
+    var year = null;
+    var ts = 0;
+    if (m) {
+      var y = parseInt(m[1], 10);
+      var mo = parseInt(m[2], 10);
+      var d = parseInt(m[3], 10);
+      if (isFinite(y) && isFinite(mo) && isFinite(d)) {
+        year = y;
+        ts = new Date(y, Math.max(0, mo - 1), Math.max(1, d)).getTime();
+      }
+    } else {
+      var yOnly = citation.match(/((?:19|20)\d{2})/);
+      if (yOnly) {
+        year = parseInt(yOnly[1], 10);
+        if (isFinite(year)) ts = new Date(year, 0, 1).getTime();
+      }
+    }
+    if (!ts) ts = caseCreatedMs(c);
+    if (!year && ts) year = new Date(ts).getFullYear();
+    return { year: year, ts: ts || 0 };
+  }
+
+  function isNoInfoCaseEntry(c) {
+    var text = [
+      c && c.citation,
+      c && c.title,
+      c && c.facts,
+      c && c.issues,
+      c && c.judgment
+    ]
+      .map(function (x) {
+        return String(x || "");
+      })
+      .join(" ");
+    return /정보\s*없음|찾을\s*수\s*없습니다/i.test(text);
   }
 
   function renderGeneratedTermIndex(container, terms) {
@@ -450,20 +512,86 @@
       return;
     }
 
+    var termInitials = [];
+    var initialSeen = {};
+    terms.forEach(function (t) {
+      var k = termInitialKey(t.term);
+      if (initialSeen[k]) return;
+      initialSeen[k] = true;
+      termInitials.push(k);
+    });
+    termInitials.sort(function (a, b) {
+      var ORDER = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+      var ai = ORDER.indexOf(a);
+      var bi = ORDER.indexOf(b);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return a.localeCompare(b, "ko-KR");
+    });
+    if (selectedTermInitialFilter !== "none" && selectedTermInitialFilter !== "all" && !initialSeen[selectedTermInitialFilter]) {
+      selectedTermInitialFilter = "none";
+    }
+    var filterRow = document.createElement("div");
+    filterRow.className = "dict-term-index__list dict-term-index__filters";
+    var bAll = document.createElement("button");
+    bAll.type = "button";
+    bAll.className =
+      "btn btn--small dict-term-index__filter-btn " +
+      (selectedTermInitialFilter === "all" ? "btn--secondary" : "btn--outline");
+    bAll.textContent = "전체";
+    bAll.addEventListener("click", function () {
+      selectedTermInitialFilter = "all";
+      renderGeneratedTermIndex(container, terms);
+    });
+    filterRow.appendChild(bAll);
+    termInitials.forEach(function (ini) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className =
+        "btn btn--small dict-term-index__filter-btn " +
+        (selectedTermInitialFilter === ini ? "btn--secondary" : "btn--outline");
+      b.textContent = ini;
+      b.addEventListener("click", function () {
+        selectedTermInitialFilter = ini;
+        renderGeneratedTermIndex(container, terms);
+      });
+      filterRow.appendChild(b);
+    });
+    wrap.appendChild(filterRow);
+
+    var filteredTerms = [];
+    if (selectedTermInitialFilter === "all") {
+      filteredTerms = terms.slice();
+    } else if (selectedTermInitialFilter !== "none") {
+      filteredTerms = terms.filter(function (t) {
+        return termInitialKey(t.term) === selectedTermInitialFilter;
+      });
+    }
+
+    if (selectedTermInitialFilter === "none") {
+      var hint = document.createElement("p");
+      hint.className = "dict-empty";
+      hint.textContent = "초성 버튼을 누르면 해당 용어 목록이 표시됩니다.";
+      wrap.appendChild(hint);
+      container.appendChild(wrap);
+      return;
+    }
+
     var guest = isGuestViewer();
-    var cap = guest ? Math.min(terms.length, dictGuestLimit()) : terms.length;
+    var cap = guest ? Math.min(filteredTerms.length, dictGuestLimit()) : filteredTerms.length;
     var list = document.createElement("div");
     list.className = "dict-term-index__list";
     for (var i = 0; i < cap; i++) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn btn--small btn--outline dict-term-index__item";
-      btn.setAttribute("data-term", terms[i].term);
-      btn.textContent = terms[i].term;
+      btn.setAttribute("data-term", filteredTerms[i].term);
+      btn.textContent = filteredTerms[i].term;
       list.appendChild(btn);
     }
     wrap.appendChild(list);
-    if (guest && terms.length > cap) {
+    if (guest && filteredTerms.length > cap) {
       var lock = document.createElement("p");
       lock.className = "dict-empty";
       lock.textContent = "비회원은 용어사전을 5개까지 열람할 수 있습니다. 전체 열람은 회원가입 후 이용해 주세요.";
@@ -490,12 +618,77 @@
       return;
     }
 
+    var nowYear = new Date().getFullYear();
+    var RANGE_OPTIONS = [
+      { id: "recent3", label: "최근 3년", years: 3 },
+      { id: "recent5", label: "최근 5년", years: 5 },
+      { id: "recent10", label: "최근 10년", years: 10 },
+      { id: "recent15", label: "최근 15년", years: 15 },
+      { id: "recent20", label: "최근 20년", years: 20 },
+      { id: "all", label: "전부", years: null }
+    ];
+    var validFilter = {};
+    RANGE_OPTIONS.forEach(function (x) {
+      validFilter[x.id] = true;
+    });
+    if (selectedCaseYearFilter !== "none" && !validFilter[selectedCaseYearFilter]) selectedCaseYearFilter = "none";
+
+    function inSelectedRange(c) {
+      if (selectedCaseYearFilter === "all") return true;
+      var opt = null;
+      for (var i = 0; i < RANGE_OPTIONS.length; i++) {
+        if (RANGE_OPTIONS[i].id === selectedCaseYearFilter) {
+          opt = RANGE_OPTIONS[i];
+          break;
+        }
+      }
+      if (!opt || !opt.years) return true;
+      var y = extractCaseDecisionDateInfo(c).year;
+      if (!y) return false;
+      return y >= nowYear - opt.years + 1;
+    }
+    var filterRow = document.createElement("div");
+    filterRow.className = "dict-term-index__list dict-term-index__filters";
+    RANGE_OPTIONS.forEach(function (opt) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className =
+        "btn btn--small dict-term-index__filter-btn " +
+        (selectedCaseYearFilter === opt.id ? "btn--secondary" : "btn--outline");
+      b.textContent = opt.label;
+      b.addEventListener("click", function () {
+        selectedCaseYearFilter = opt.id;
+        renderGeneratedCaseIndex(container, cases);
+      });
+      filterRow.appendChild(b);
+    });
+    wrap.appendChild(filterRow);
+
+    var validCases = cases.filter(function (c) {
+      return !isNoInfoCaseEntry(c);
+    });
+    var filteredCases = [];
+    if (selectedCaseYearFilter === "all") {
+      filteredCases = validCases.slice();
+    } else if (selectedCaseYearFilter !== "none") {
+      filteredCases = validCases.filter(inSelectedRange);
+    }
+
+    if (selectedCaseYearFilter === "none") {
+      var hint = document.createElement("p");
+      hint.className = "dict-empty";
+      hint.textContent = "기간 토글 버튼을 누르면 해당 판례 목록이 표시됩니다.";
+      wrap.appendChild(hint);
+      container.appendChild(wrap);
+      return;
+    }
+
     var list = document.createElement("div");
     list.className = "dict-term-index__list";
     var guest = isGuestViewer();
-    var cap = guest ? Math.min(cases.length, dictGuestLimit()) : cases.length;
+    var cap = guest ? Math.min(filteredCases.length, dictGuestLimit()) : filteredCases.length;
     for (var i = 0; i < cap; i++) {
-      var c = cases[i];
+      var c = filteredCases[i];
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn btn--small btn--outline dict-term-index__item";
@@ -505,7 +698,7 @@
       list.appendChild(btn);
     }
     wrap.appendChild(list);
-    if (guest && cases.length > cap) {
+    if (guest && filteredCases.length > cap) {
       var lock = document.createElement("p");
       lock.className = "dict-empty";
       lock.textContent = "비회원은 판례사전을 5개까지 열람할 수 있습니다. 전체 열람은 회원가입 후 이용해 주세요.";
@@ -520,6 +713,14 @@
     var nq = norm(q);
     if (!nq) return [];
     var list = getCases();
+    var exact = [];
+    for (var ei = 0; ei < list.length; ei++) {
+      var ec = list[ei];
+      var citeNorm = norm(ec && ec.citation ? ec.citation : "");
+      if (citeNorm && citeNorm === nq) exact.push(ec);
+    }
+    // 사건표기를 정확히 입력한 경우에는 해당 판례만 보여준다.
+    if (exact.length) return exact;
     var scored = [];
 
     for (var i = 0; i < list.length; i++) {
@@ -709,6 +910,29 @@
       .filter(Boolean);
   }
 
+  function enableMarkdownBoldShortcut(el) {
+    if (!el || el._hanlawBoldBound) return;
+    el._hanlawBoldBound = true;
+    el.addEventListener("keydown", function (ev) {
+      var isBoldHotkey = (ev.ctrlKey || ev.metaKey) && !ev.altKey && String(ev.key || "").toLowerCase() === "b";
+      if (!isBoldHotkey) return;
+      if (el.readOnly || el.disabled) return;
+      ev.preventDefault();
+      var start = typeof el.selectionStart === "number" ? el.selectionStart : 0;
+      var end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+      var v = String(el.value || "");
+      var picked = v.slice(start, end);
+      if (picked) {
+        el.value = v.slice(0, start) + "**" + picked + "**" + v.slice(end);
+        el.setSelectionRange(start + 2, end + 2);
+      } else {
+        el.value = v.slice(0, start) + "****" + v.slice(end);
+        el.setSelectionRange(start + 2, start + 2);
+      }
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
   var dictTermEditSaving = false;
 
   function setDictTermEditMsg(text, isError) {
@@ -829,9 +1053,83 @@
     }
     var dec = $("dict-case-edit-close");
     var dex = $("dict-case-edit-cancel");
+    var del = $("dict-case-edit-delete");
     var aiFill = $("dict-case-edit-ai-fill");
+    [
+      "dict-case-edit-citation",
+      "dict-case-edit-title",
+      "dict-case-edit-facts",
+      "dict-case-edit-issues",
+      "dict-case-edit-judgment",
+      "dict-case-edit-full-text",
+      "dict-case-edit-search-keys",
+      "dict-case-edit-topic-keywords"
+    ].forEach(function (id) {
+      enableMarkdownBoldShortcut($(id));
+    });
     if (dec) dec.addEventListener("click", closeDictCaseEditModal);
     if (dex) dex.addEventListener("click", closeDictCaseEditModal);
+    if (del) {
+      del.addEventListener("click", function () {
+        if (dictCaseEditSaving) return;
+        if (typeof window.deleteCaseEntryFromFirestore !== "function") {
+          setDictCaseEditMsg("삭제 함수를 찾지 못했습니다.", true);
+          return;
+        }
+        var modal = $("dict-case-edit-modal");
+        var docId = modal && modal.dataset ? String(modal.dataset.docId || "").trim() : "";
+        var citation = String(($("dict-case-edit-citation") && $("dict-case-edit-citation").value) || "").trim();
+        if (!docId && !citation) {
+          setDictCaseEditMsg("삭제할 판례 식별자를 찾지 못했습니다.", true);
+          return;
+        }
+        if (!docId) {
+          if (!citation) {
+            setDictCaseEditMsg("삭제할 판례 식별자를 찾지 못했습니다.", true);
+            return;
+          }
+          if (typeof window.softHideBundledCaseEntry !== "function") {
+            setDictCaseEditMsg("번들 판례 숨김 함수를 찾지 못했습니다.", true);
+            return;
+          }
+          if (!window.confirm("이 앱 기본(번들) 판례를 목록에서 숨길까요? (soft delete)")) return;
+          dictCaseEditSaving = true;
+          del.disabled = true;
+          setDictCaseEditMsg("숨김 처리 중...", false);
+          window
+            .softHideBundledCaseEntry(citation)
+            .then(function () {
+              closeDictCaseEditModal();
+              runCaseSearch();
+            })
+            .catch(function (err) {
+              setDictCaseEditMsg((err && err.message) || "번들 판례 숨김 처리에 실패했습니다.", true);
+            })
+            .then(function () {
+              dictCaseEditSaving = false;
+              del.disabled = false;
+            });
+          return;
+        }
+        if (!window.confirm("이 판례 항목을 삭제할까요?")) return;
+        dictCaseEditSaving = true;
+        del.disabled = true;
+        setDictCaseEditMsg("삭제 중...", false);
+        window
+          .deleteCaseEntryFromFirestore(docId, { rawDocId: true })
+          .then(function () {
+            closeDictCaseEditModal();
+            runCaseSearch();
+          })
+          .catch(function (err) {
+            setDictCaseEditMsg((err && err.message) || "판례 삭제에 실패했습니다.", true);
+          })
+          .then(function () {
+            dictCaseEditSaving = false;
+            del.disabled = false;
+          });
+      });
+    }
     if (aiFill) {
       aiFill.addEventListener("click", function () {
         var citation = String(($("dict-case-edit-citation") && $("dict-case-edit-citation").value) || "").trim();
@@ -969,6 +1267,8 @@
       window.CaseOxForm.ensureBuilt("dict-case-create-ox-editor");
     }
     var btn = $("dict-case-create-run");
+    var btnCleanInvalid = $("dict-case-clean-invalid");
+    var btnRestoreHidden = $("dict-case-restore-hidden");
     var lastCaseStaging = null;
 
     function hideCaseCreateOxPanel() {
@@ -995,6 +1295,28 @@
         },
         r
       );
+    }
+
+    function parseCaseCitationsFromField() {
+      var raw = String(($("dict-case-create-citation") && $("dict-case-create-citation").value) || "").trim();
+      if (!raw) return [];
+      var parts = raw
+        .split(/[,，;#|/\n\r]+/g)
+        .map(function (x) {
+          return String(x || "").trim();
+        })
+        .filter(Boolean);
+      var out = [];
+      var seen = {};
+      for (var i = 0; i < parts.length; i++) {
+        var t = parts[i];
+        if (!t) continue;
+        if (t.length > 400) t = t.slice(0, 400);
+        if (seen[t]) continue;
+        seen[t] = true;
+        out.push(t);
+      }
+      return out;
     }
 
     var btnOxSave = $("dict-case-create-ox-save");
@@ -1051,6 +1373,95 @@
       });
     }
 
+    if (btnCleanInvalid) {
+      btnCleanInvalid.addEventListener("click", function () {
+        if (!isAdminUser()) {
+          setDictCaseCreateMsg("관리자만 사용할 수 있습니다.", true);
+          return;
+        }
+        if (typeof window.deleteCaseEntryFromFirestore !== "function") {
+          setDictCaseCreateMsg("판례 삭제 함수를 찾지 못했습니다.", true);
+          return;
+        }
+        var remoteCases = window.LEGAL_CASES_REMOTE || [];
+        var targets = remoteCases.filter(function (c) {
+          return c && c._docId && isNoInfoCaseEntry(c);
+        });
+        if (!targets.length) {
+          setDictCaseCreateMsg("삭제할 '정보 없음' 판례가 없습니다.", false);
+          return;
+        }
+        if (!window.confirm("'정보 없음' 판례 " + targets.length + "건을 일괄 삭제할까요?")) return;
+        btnCleanInvalid.disabled = true;
+        setDictCaseCreateMsg("'정보 없음' 판례 일괄 삭제 중... (0/" + targets.length + ")", false);
+        var done = 0;
+        var fail = 0;
+        var chain = Promise.resolve();
+        targets.forEach(function (c) {
+          chain = chain.then(function () {
+            return window
+              .deleteCaseEntryFromFirestore(c._docId, { rawDocId: true })
+              .catch(function () {
+                fail += 1;
+                return null;
+              })
+              .then(function () {
+                done += 1;
+                setDictCaseCreateMsg(
+                  "'정보 없음' 판례 일괄 삭제 중... (" + done + "/" + targets.length + ")",
+                  false
+                );
+              });
+          });
+        });
+        chain
+          .then(function () {
+            setDictCaseCreateMsg(
+              "'정보 없음' 판례 삭제 완료: 성공 " + (targets.length - fail) + "건, 실패 " + fail + "건",
+              fail > 0
+            );
+            runCaseSearch();
+          })
+          .finally(function () {
+            btnCleanInvalid.disabled = false;
+          });
+      });
+    }
+
+    if (btnRestoreHidden) {
+      btnRestoreHidden.addEventListener("click", function () {
+        if (!isAdminUser()) {
+          setDictCaseCreateMsg("관리자만 사용할 수 있습니다.", true);
+          return;
+        }
+        if (typeof window.restoreHiddenBundledCases !== "function") {
+          setDictCaseCreateMsg("숨김 판례 복구 함수를 찾지 못했습니다.", true);
+          return;
+        }
+        if (!window.confirm("숨김 처리된 판례를 모두 복구할까요?")) return;
+        btnRestoreHidden.disabled = true;
+        setDictCaseCreateMsg("숨김 판례 복구 중...", false);
+        window
+          .restoreHiddenBundledCases()
+          .then(function (res) {
+            var total = res && typeof res.total === "number" ? res.total : 0;
+            var restored = res && typeof res.restored === "number" ? res.restored : 0;
+            var failed = res && typeof res.failed === "number" ? res.failed : 0;
+            setDictCaseCreateMsg(
+              "숨김 판례 복구 완료: 대상 " + total + "건, 복구 " + restored + "건, 실패 " + failed + "건",
+              failed > 0
+            );
+            runCaseSearch();
+          })
+          .catch(function (err) {
+            setDictCaseCreateMsg((err && err.message) || "숨김 판례 복구에 실패했습니다.", true);
+          })
+          .then(function () {
+            btnRestoreHidden.disabled = false;
+          });
+      });
+    }
+
     if (!btn) return;
     btn.addEventListener("click", function () {
       hideCaseCreateOxPanel();
@@ -1058,10 +1469,14 @@
         setDictCaseCreateMsg("관리자만 사용할 수 있습니다.", true);
         return;
       }
-      var citation = String(($("dict-case-create-citation") && $("dict-case-create-citation").value) || "").trim();
+      var citations = parseCaseCitationsFromField();
       var fullText = String(($("dict-case-create-fulltext") && $("dict-case-create-fulltext").value) || "").trim();
-      if (!citation) {
+      if (!citations.length) {
         setDictCaseCreateMsg("사건 표기/사건번호를 입력해 주세요.", true);
+        return;
+      }
+      if (citations.length > 500) {
+        setDictCaseCreateMsg("한 번에 최대 500개 사건까지 순차 생성할 수 있습니다.", true);
         return;
       }
       if (
@@ -1074,14 +1489,77 @@
         return;
       }
       btn.disabled = true;
+      var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+      var fn = firebase.app().functions(region).httpsCallable("generateOrGetDictionaryEntry");
+
+      if (citations.length > 1) {
+        if (fullText) {
+          setDictCaseCreateMsg(
+            "여러 사건을 순차 생성할 때는 판결문 전문 입력을 사용하지 않습니다. (사건번호 기반 생성으로 진행)",
+            false
+          );
+        }
+        hideCaseCreateOxPanel();
+        var okCount = 0;
+        var failCount = 0;
+        var firstFail = "";
+        var chainMulti = Promise.resolve();
+        citations.forEach(function (citation, i) {
+          chainMulti = chainMulti.then(function () {
+            setDictCaseCreateMsg(
+              "판례사전 순차 생성 중 (" + (i + 1) + "/" + citations.length + ") · " + citation,
+              false
+            );
+            return fn({ tag: citation, caseFullText: "" })
+              .then(function (res) {
+                var d = res && res.data;
+                if (!d || !d.ok || d.kind !== "case" || !d.record) {
+                  throw new Error("판례 생성 결과를 가져오지 못했습니다.");
+                }
+                okCount += 1;
+              })
+              .catch(function (err) {
+                failCount += 1;
+                if (!firstFail) firstFail = citation + ": " + ((err && err.message) || "실패");
+                return null;
+              });
+          });
+        });
+        chainMulti
+          .then(function () {
+            var msg = "판례사전 생성 완료: 성공 " + okCount + "건";
+            if (failCount) msg += ", 실패 " + failCount + "건";
+            if (firstFail) msg += " (예: " + firstFail + ")";
+            msg += " · 생성된 항목은 검수·승인 탭에서 확인·일괄 승인할 수 있습니다.";
+            setDictCaseCreateMsg(msg, failCount > 0 && okCount === 0);
+            var adminTab = $("admin-tab");
+            var reviewTab = $("admin-tab-review");
+            var reviewTypeCase = $("admin-review-type-case");
+            if (adminTab && typeof adminTab.click === "function") adminTab.click();
+            if (reviewTab && typeof reviewTab.click === "function") reviewTab.click();
+            if (reviewTypeCase && typeof reviewTypeCase.click === "function") reviewTypeCase.click();
+            if (typeof window.loadAdminReviewQueue === "function") {
+              window.setTimeout(function () {
+                window.loadAdminReviewQueue();
+              }, 0);
+            }
+          })
+          .catch(function (err) {
+            setDictCaseCreateMsg((err && err.message) || "판례사전 순차 생성에 실패했습니다.", true);
+          })
+          .then(function () {
+            btn.disabled = false;
+          });
+        return;
+      }
+
       setDictCaseCreateMsg(
         fullText
           ? "판례사전 생성 중입니다... (입력한 판결문 기반 · 검수 대기 등록)"
           : "판례사전 생성 중입니다... (웹에서 판결문 자동 확인 시도 후 검수 대기 등록)",
         false
       );
-      var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
-      var fn = firebase.app().functions(region).httpsCallable("generateOrGetDictionaryEntry");
+      var citation = citations[0];
       fn({ tag: citation, caseFullText: fullText })
         .then(function (res) {
           var d = res && res.data;
@@ -1188,15 +1666,43 @@
     var btnBatch = $("dict-term-create-run-batch");
     var btnExcel = $("dict-term-create-upload-excel");
     var excelFileEl = $("dict-term-create-excel-file");
+    var MAX_TERM_KEYWORDS = 500;
+
+    function parseTermKeywordsFromField() {
+      var raw = String(($("dict-term-create-tag") && $("dict-term-create-tag").value) || "").trim();
+      if (!raw) return [];
+      var parts = raw
+        .split(/[,，;#|/\n\r]+/g)
+        .map(function (x) {
+          return String(x || "").trim();
+        })
+        .filter(Boolean);
+      var seen = {};
+      var out = [];
+      for (var i = 0; i < parts.length; i++) {
+        var t = parts[i].replace(/^#+/, "").trim();
+        if (!t) continue;
+        if (t.length > 160) t = t.slice(0, 160);
+        if (seen[t]) continue;
+        seen[t] = true;
+        out.push(t);
+      }
+      return out;
+    }
+
     if (!btn) return;
     btn.addEventListener("click", function () {
       if (!isAdminUser()) {
         setDictTermCreateMsg("관리자만 사용할 수 있습니다.", true);
         return;
       }
-      var tag = String(($("dict-term-create-tag") && $("dict-term-create-tag").value) || "").trim();
-      if (!tag) {
-        setDictTermCreateMsg("용어/키워드를 입력해 주세요.", true);
+      var tags = parseTermKeywordsFromField();
+      if (!tags.length) {
+        setDictTermCreateMsg("용어·키워드를 1개 이상 입력해 주세요. (여러 개는 쉼표로 구분)", true);
+        return;
+      }
+      if (tags.length > MAX_TERM_KEYWORDS) {
+        setDictTermCreateMsg("한 번에 최대 " + MAX_TERM_KEYWORDS + "개 키워드까지 순차 생성할 수 있습니다.", true);
         return;
       }
       if (
@@ -1213,25 +1719,56 @@
         return;
       }
       btn.disabled = true;
-      setDictTermCreateMsg("용어사전 생성 중입니다...", false);
       var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
       var fn = firebase.app().functions(region).httpsCallable("generateOrGetDictionaryEntry");
-      fn({ tag: tag })
-        .then(function (res) {
-          var d = res && res.data;
-          if (!d || !d.ok || d.kind !== "term" || !d.record) {
-            throw new Error("용어 생성 결과를 가져오지 못했습니다.");
-          }
-          var rec = d.record || {};
-          return window.saveTermEntryToFirestore(rec).then(function () {
-            return rec;
-          });
-        })
-        .then(function (saved) {
+      var lastSaved = null;
+      var failures = [];
+      var chain = Promise.resolve();
+      tags.forEach(function (tag, i) {
+        chain = chain.then(function () {
+          setDictTermCreateMsg(
+            "용어 생성 중 (" + (i + 1) + "/" + tags.length + ") · " + tag,
+            false
+          );
+          return fn({ tag: tag })
+            .then(function (res) {
+              var d = res && res.data;
+              if (!d || !d.ok || d.kind !== "term" || !d.record) {
+                throw new Error("용어 생성 결과를 가져오지 못했습니다.");
+              }
+              var rec = d.record || {};
+              return window.saveTermEntryToFirestore(rec).then(function () {
+                lastSaved = rec;
+                return rec;
+              });
+            })
+            .catch(function (err) {
+              failures.push(tag + ": " + ((err && err.message) || "실패"));
+              return null;
+            });
+        });
+      });
+      chain
+        .then(function () {
           var input = $("dict-term-query");
-          if (input) input.value = String((saved && saved.term) || tag || "").trim();
+          if (input && lastSaved && lastSaved.term) {
+            input.value = String(lastSaved.term).trim();
+          } else if (input && tags.length) {
+            input.value = tags[tags.length - 1];
+          }
           runTermSearch();
-          setDictTermCreateMsg("용어사전 생성·저장을 완료했습니다.", false);
+          var ok = tags.length - failures.length;
+          var msg =
+            ok +
+            "/" +
+            tags.length +
+            "건 용어사전 생성·저장을 마쳤습니다." +
+            (tags.length > 1 ? " (순차 처리)" : "");
+          if (failures.length) {
+            msg += " 실패 " + failures.length + "건: " + failures.slice(0, 3).join(" · ");
+            if (failures.length > 3) msg += " …";
+          }
+          setDictTermCreateMsg(msg, failures.length === tags.length);
         })
         .catch(function (err) {
           setDictTermCreateMsg((err && err.message) || "용어사전 생성에 실패했습니다.", true);
@@ -1266,27 +1803,71 @@
           setDictTermCreateMsg("Firebase Functions를 사용할 수 없습니다.", true);
           return;
         }
+        var tags = parseTermKeywordsFromField();
+        if (tags.length > MAX_TERM_KEYWORDS) {
+          setDictTermCreateMsg("키워드는 최대 " + MAX_TERM_KEYWORDS + "개까지 자동 생성에 사용할 수 있습니다.", true);
+          return;
+        }
         btnBatch.disabled = true;
-        setDictTermCreateMsg("자료실 기반 용어 자동 생성 중… (검수 대기 등록)", false);
         var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
         var fn = firebase.app().functions(region).httpsCallable("adminGenerateTermsFromLibrary");
-        fn({ prompt: prompt, count: count })
-          .then(function (res) {
-            var d = res && res.data ? res.data : {};
-            var okCount = parseInt(d.okCount, 10) || 0;
-            var failRows = Array.isArray(d.failRows) ? d.failRows : [];
-            var msg = okCount + "건을 용어사전 검수 대기에 등록했습니다.";
-            if (failRows.length) msg += " 실패 " + failRows.length + "건.";
-            setDictTermCreateMsg(msg + " 검수·승인 탭에서 최종 승인하세요.", false);
-            var adminTab = $("admin-tab-review");
-            var reviewTypeTerm = $("admin-review-type-term");
-            if (adminTab && typeof adminTab.click === "function") adminTab.click();
-            if (reviewTypeTerm && typeof reviewTypeTerm.click === "function") reviewTypeTerm.click();
-            if (typeof window.loadAdminReviewQueue === "function") {
-              window.setTimeout(function () {
-                window.loadAdminReviewQueue();
-              }, 0);
-            }
+
+        function afterBatchSuccess(totalOk, failRows) {
+          var msg = totalOk + "건을 용어사전 검수 대기에 등록했습니다.";
+          if (failRows.length) msg += " 형식 실패 " + failRows.length + "건.";
+          if (tags.length > 1) msg += " (" + tags.length + "개 키워드 순차 처리)";
+          setDictTermCreateMsg(msg + " 검수·승인 탭에서 최종 승인하세요.", false);
+          var adminTab = $("admin-tab-review");
+          var reviewTypeTerm = $("admin-review-type-term");
+          if (adminTab && typeof adminTab.click === "function") adminTab.click();
+          if (reviewTypeTerm && typeof reviewTypeTerm.click === "function") reviewTypeTerm.click();
+          if (typeof window.loadAdminReviewQueue === "function") {
+            window.setTimeout(function () {
+              window.loadAdminReviewQueue();
+            }, 0);
+          }
+        }
+
+        if (!tags.length) {
+          setDictTermCreateMsg("자료실 기반 용어 자동 생성 중… (검수 대기 등록)", false);
+          fn({ prompt: prompt, count: count })
+            .then(function (res) {
+              var d = res && res.data ? res.data : {};
+              var okCount = parseInt(d.okCount, 10) || 0;
+              var failRows = Array.isArray(d.failRows) ? d.failRows : [];
+              afterBatchSuccess(okCount, failRows);
+            })
+            .catch(function (err) {
+              setDictTermCreateMsg((err && err.message) || "자동 생성에 실패했습니다.", true);
+            })
+            .then(function () {
+              btnBatch.disabled = false;
+            });
+          return;
+        }
+
+        var totalOk = 0;
+        var allFailRows = [];
+        var chain = Promise.resolve();
+        tags.forEach(function (kw, i) {
+          chain = chain.then(function () {
+            setDictTermCreateMsg(
+              "자동 생성 중 (" + (i + 1) + "/" + tags.length + ") · " + kw + " … (검수 대기 등록)",
+              false
+            );
+            var scopedPrompt = "[용어·키워드: " + kw + "]\n" + prompt;
+            return fn({ prompt: scopedPrompt, count: count }).then(function (res) {
+              var d = res && res.data ? res.data : {};
+              totalOk += parseInt(d.okCount, 10) || 0;
+              if (Array.isArray(d.failRows)) {
+                allFailRows = allFailRows.concat(d.failRows);
+              }
+            });
+          });
+        });
+        chain
+          .then(function () {
+            afterBatchSuccess(totalOk, allFailRows);
           })
           .catch(function (err) {
             setDictTermCreateMsg((err && err.message) || "자동 생성에 실패했습니다.", true);
@@ -1449,6 +2030,9 @@
 
   function bindDictTermEditModal() {
     var dem = $("dict-term-edit-modal");
+    ["dict-term-edit-term", "dict-term-edit-aliases", "dict-term-edit-definition"].forEach(function (id) {
+      enableMarkdownBoldShortcut($(id));
+    });
     if (dem) {
       dem.addEventListener("click", function (e) {
         if (e.target === dem) closeDictTermEditModal();
@@ -2039,6 +2623,18 @@
   }
 
   function normalizeCaseIssuesTextForUi(raw) {
+    var ORD = ["첫째", "둘째", "셋째", "넷째", "다섯째", "여섯째", "일곱째", "여덟째"];
+    function withOrdinal(lines) {
+      return lines.map(function (line, idx) {
+        var t = String(line || "").trim();
+        if (!t) return "";
+        if (/^(첫째|둘째|셋째|넷째|다섯째|여섯째|일곱째|여덟째)\s*,/.test(t)) return t;
+        if (/^\d+\s*[.)]/.test(t)) return t;
+        if (/^[가-힣]\s*[.)]/.test(t)) return t;
+        var o = ORD[idx] || (idx + 1) + "째";
+        return o + ", " + t;
+      }).filter(Boolean);
+    }
     var src = String(raw || "").replace(/\r\n/g, "\n");
     if (!src.trim()) return "";
     var lines = src
@@ -2047,7 +2643,7 @@
         return String(x || "").trim();
       })
       .filter(Boolean);
-    if (lines.length > 1) return lines.join("\n");
+    if (lines.length > 1) return withOrdinal(lines).join("\n");
     var one = lines.length ? lines[0] : "";
     if (!one || one.indexOf(",") < 0) return one;
     var parts = one
@@ -2062,9 +2658,31 @@
       if (/(여부|쟁점|문제)$/.test(parts[i])) issueLikeCount += 1;
     }
     if (issueLikeCount >= Math.max(2, Math.floor(parts.length / 2))) {
-      return parts.join("\n");
+      return withOrdinal(parts).join("\n");
     }
     return one;
+  }
+
+  function normalizeCasePoliteStyle(raw) {
+    var s = String(raw || "").replace(/\r\n/g, "\n");
+    if (!s.trim()) return "";
+    var map = [
+      [/제기하였다/g, "제기하였습니다"],
+      [/판단하였다/g, "판단하였습니다"],
+      [/보았다/g, "보았습니다"],
+      [/하였다/g, "하였습니다"],
+      [/되었다/g, "되었습니다"],
+      [/있었다/g, "있었습니다"],
+      [/없었다/g, "없었습니다"],
+      [/밝혔다/g, "밝혔습니다"],
+      [/인정하였다/g, "인정하였습니다"],
+      [/취소하였다/g, "취소하였습니다"],
+      [/기각하였다/g, "기각하였습니다"]
+    ];
+    for (var i = 0; i < map.length; i++) {
+      s = s.replace(map[i][0], map[i][1]);
+    }
+    return s;
   }
 
   function dictOxButtonIsTrue(btn) {
@@ -2094,9 +2712,9 @@
     if (!article || !Array.isArray(oxQuizzes) || !oxQuizzes.length) return;
     var maxQ = maxItems != null ? maxItems : 5;
     var secOx = document.createElement("section");
-    secOx.className = "case-result-card__section";
+    secOx.className = "case-result-card__section dict-ox-section";
     var hOx = document.createElement("h4");
-    hOx.className = "case-result-card__label";
+    hOx.className = "case-result-card__label dict-ox-section__heading";
     hOx.textContent = headingText || "OX 퀴즈";
     secOx.appendChild(hOx);
     var listOx = document.createElement("ol");
@@ -2266,9 +2884,9 @@
         article.appendChild(sec);
       }
 
-      addSection("사실관계", c.facts);
-      addSection("쟁점", normalizeCaseIssuesTextForUi(c.issues));
-      addSection("법적 판단", c.judgment);
+      addSection("사실관계", normalizeCasePoliteStyle(c.facts));
+      addSection("쟁점", normalizeCaseIssuesTextForUi(normalizeCasePoliteStyle(c.issues)));
+      addSection("법적 판단", normalizeCasePoliteStyle(c.judgment));
       appendDictionaryOxQuizSection(article, c.oxQuizzes, "판례 OX 퀴즈", 5);
       appendCaseFullTextToggle(article, c);
       if (isAdminUser()) {

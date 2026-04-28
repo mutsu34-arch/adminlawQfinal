@@ -114,6 +114,47 @@
     );
   }
 
+  function formatLineWithHeadLabel(line) {
+    var raw = String(line || "").replace(/\s+$/, "");
+    var m = raw.match(
+      /^\s*(법리\s*근거|함정\s*포인트|판례(?:\s*요지)?|개념|법적\s*지위|적용\s*예시|판단\s*기준)\s*[:：]\s*(.*)$/
+    );
+    if (!m) return formatInline(raw);
+    var head = String(m[1] || "").replace(/\s+/g, " ").trim();
+    var rest = String(m[2] || "").trim();
+    return (
+      '<span class="quiz-ai-answer__lead">' +
+      escHtml(head + ":") +
+      "</span>" +
+      (rest
+        ? '<span class="quiz-ai-answer__sep"> </span><span class="quiz-ai-answer__rest">' +
+          formatInline(rest) +
+          "</span>"
+        : "")
+    );
+  }
+
+  function splitReadableSentences(text) {
+    var src = String(text || "").trim();
+    if (!src) return [];
+    if (/\n/.test(src)) {
+      return src
+        .split("\n")
+        .map(function (x) {
+          return String(x || "").trim();
+        })
+        .filter(Boolean);
+    }
+    var parts = src
+      .split(/(?<=[.!?])\s+/)
+      .map(function (x) {
+        return String(x || "").trim();
+      })
+      .filter(Boolean);
+    if (parts.length >= 2) return parts;
+    return [src];
+  }
+
   function formatHanlawAiAnswerHtml(raw) {
     var lines = String(raw || "")
       .replace(/\r\n/g, "\n")
@@ -131,11 +172,20 @@
         return;
       }
       var lines = raw.split("\n");
-      var inner = lines
-        .map(function (line) {
-          return formatInline(line.replace(/\s+$/, ""));
-        })
-        .join("<br>");
+      var onlyOnePhysicalLine = lines.length === 1;
+      var one = onlyOnePhysicalLine ? String(lines[0] || "").trim() : "";
+      // 긴 한 줄 문장은 문장 단위로 끊어 단락을 분리해 가독성을 높인다.
+      if (onlyOnePhysicalLine && one.length >= 110 && !/^\s*(법리\s*근거|함정\s*포인트|판례|개념|법적\s*지위)\s*[:：]/.test(one)) {
+        var sentenceLines = splitReadableSentences(one);
+        if (sentenceLines.length >= 2) {
+          sentenceLines.forEach(function (sline) {
+            blocks.push("<p>" + formatLineWithHeadLabel(sline) + "</p>");
+          });
+          para = [];
+          return;
+        }
+      }
+      var inner = lines.map(formatLineWithHeadLabel).join("<br>");
       blocks.push("<p>" + inner + "</p>");
       para = [];
     }

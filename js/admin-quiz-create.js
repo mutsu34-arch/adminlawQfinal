@@ -461,6 +461,19 @@
     var examId = String(($("admin-quiz-create-exam-id") && $("admin-quiz-create-exam-id").value) || "").trim();
     var year = parseInt(($("admin-quiz-create-year") && $("admin-quiz-create-year").value) || "", 10);
     var fastMode = !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked);
+    var startNo = parseInt(($("admin-quiz-create-start-no") && $("admin-quiz-create-start-no").value) || "", 10);
+    var endNo = parseInt(($("admin-quiz-create-end-no") && $("admin-quiz-create-end-no").value) || "", 10);
+    if (!isFinite(startNo)) startNo = null;
+    if (!isFinite(endNo)) endNo = null;
+    if (startNo != null && (startNo < 1 || startNo > 500)) {
+      return setMsg(msgEl, "시작 문제번호는 1~500 범위로 입력해 주세요.", true);
+    }
+    if (endNo != null && (endNo < 1 || endNo > 500)) {
+      return setMsg(msgEl, "끝 문제번호는 1~500 범위로 입력해 주세요.", true);
+    }
+    if (startNo != null && endNo != null && endNo < startNo) {
+      return setMsg(msgEl, "끝 문제번호는 시작 문제번호보다 크거나 같아야 합니다.", true);
+    }
     if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
     if (!prompt) return setMsg(msgEl, "생성 지시를 입력해 주세요.", true);
     var selectedIds = dedupeIds(uploadedLibraryIds.concat(selectedExistingLibraryIds));
@@ -501,11 +514,31 @@
           inferredExamId: examId,
           inferredYear: year,
           expectedCount: expected || undefined,
-          fileIds: selectedIds
+          fileIds: selectedIds,
+          questionStartNo: startNo != null ? startNo : undefined,
+          questionEndNo: endNo != null ? endNo : undefined
         };
         return callable(Object.assign({}, basePayload, { scanOnly: true })).then(function (scanRes) {
           var scan = (scanRes && scanRes.data) || {};
-          var questionNos = Array.isArray(scan.questionNos) ? scan.questionNos : [];
+          var questionNosRaw = Array.isArray(scan.questionNos) ? scan.questionNos : [];
+          var questionNos = questionNosRaw.filter(function (n) {
+            var q = parseInt(n, 10);
+            if (!isFinite(q)) return false;
+            if (startNo != null && q < startNo) return false;
+            if (endNo != null && q > endNo) return false;
+            return true;
+          });
+          // PDF/RAG 스캔이 번호를 못 잡아도, 관리자가 지정한 범위가 있으면 그 범위를 신뢰해 진행한다.
+          if (!questionNos.length && (startNo != null || endNo != null)) {
+            var forcedStart = startNo != null ? startNo : 1;
+            var forcedEnd = endNo != null ? endNo : forcedStart;
+            if (forcedEnd < forcedStart) {
+              var tmp = forcedStart;
+              forcedStart = forcedEnd;
+              forcedEnd = tmp;
+            }
+            for (var fq = forcedStart; fq <= forcedEnd; fq++) questionNos.push(fq);
+          }
           var choiceCount = parseInt(scan.detectedChoiceCount, 10);
           if (!isFinite(choiceCount) || choiceCount < 2 || choiceCount > 5) choiceCount = 4;
           if (!questionNos.length) {
@@ -519,14 +552,33 @@
             items: [],
             expectedCount: questionNos.length * choiceCount
           };
+          var pairJobs = [];
+          for (var qi = 0; qi < questionNos.length; qi++) {
+            for (var ci = 1; ci <= choiceCount; ci++) {
+              pairJobs.push({ qNo: questionNos[qi], cNo: ci });
+            }
+          }
           var chain = Promise.resolve();
-          questionNos.forEach(function (qNo, idx) {
+          pairJobs.forEach(function (job, idx) {
             chain = chain.then(function () {
-              setMsg(msgEl, "AI 퀴즈 생성 중… (문항 " + (idx + 1) + "/" + questionNos.length + ")", false);
+              setMsg(
+                msgEl,
+                "AI 퀴즈 생성 중… (" +
+                  (idx + 1) +
+                  "/" +
+                  pairJobs.length +
+                  ") · " +
+                  job.qNo +
+                  "번 문제의 " +
+                  job.cNo +
+                  "번 지문 퀴즈 생성 중",
+                false
+              );
               return callable(
                 Object.assign({}, basePayload, {
-                  questionOnly: qNo,
-                  expectedCount: choiceCount
+                  questionOnly: job.qNo,
+                  choiceOnly: job.cNo,
+                  expectedCount: 1
                 })
               ).then(function (res) {
                 var d = res && res.data ? res.data : {};
@@ -572,6 +624,70 @@
             "서버 생성 작업 시간이 초과되었습니다. 파일 수를 줄이거나 생성 지시를 간결하게 줄여 다시 시도해 주세요.";
         }
         setMsg(msgEl, msg, true);
+      });
+  }
+
+  function hideBundledQuizSet() {
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    var msgEl = $("admin-quiz-create-run-msg");
+    if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
+    if (typeof window.softHideBundledQuestion !== "function") {
+      return setMsg(msgEl, "기본 퀴즈 숨김 함수를 찾지 못했습니다.", true);
+    }
+    var staticList = Array.isArray(window.QUESTION_BANK_STATIC) ? window.QUESTION_BANK_STATIC : [];
+    var ids = staticList
+      .map(function (q) {
+        return q && q.id ? String(q.id).trim() : "";
+      })
+      .filter(Boolean);
+    if (!ids.length) return setMsg(msgEl, "숨김 처리할 기본 퀴즈가 없습니다.", false);
+    if (!window.confirm("기본 퀴즈 " + ids.length + "개를 모두 숨김 처리할까요?")) return;
+    var done = 0;
+    var fail = 0;
+    setMsg(msgEl, "기본 퀴즈 숨김 처리 중... (0/" + ids.length + ")", false);
+    var chain = Promise.resolve();
+    ids.forEach(function (id) {
+      chain = chain.then(function () {
+        return window
+          .softHideBundledQuestion(id)
+          .catch(function () {
+            fail += 1;
+            return null;
+          })
+          .then(function () {
+            done += 1;
+            setMsg(msgEl, "기본 퀴즈 숨김 처리 중... (" + done + "/" + ids.length + ")", false);
+          });
+      });
+    });
+    chain.then(function () {
+      setMsg(msgEl, "기본 퀴즈 숨김 완료: 성공 " + (ids.length - fail) + "개, 실패 " + fail + "개", fail > 0);
+    });
+  }
+
+  function restoreBundledQuizSet() {
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    var msgEl = $("admin-quiz-create-run-msg");
+    if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
+    if (typeof window.restoreHiddenBundledQuestions !== "function") {
+      return setMsg(msgEl, "숨김 퀴즈 복구 함수를 찾지 못했습니다.", true);
+    }
+    if (!window.confirm("숨김 처리된 기본 퀴즈를 복구할까요?")) return;
+    setMsg(msgEl, "숨김 퀴즈 복구 중...", false);
+    window
+      .restoreHiddenBundledQuestions()
+      .then(function (res) {
+        var total = res && typeof res.total === "number" ? res.total : 0;
+        var restored = res && typeof res.restored === "number" ? res.restored : 0;
+        var failed = res && typeof res.failed === "number" ? res.failed : 0;
+        setMsg(
+          msgEl,
+          "숨김 퀴즈 복구 완료: 대상 " + total + "개, 복구 " + restored + "개, 실패 " + failed + "개",
+          failed > 0
+        );
+      })
+      .catch(function (e) {
+        setMsg(msgEl, (e && e.message) || "숨김 퀴즈 복구에 실패했습니다.", true);
       });
   }
 
@@ -640,6 +756,10 @@
     if (btnUp) btnUp.addEventListener("click", uploadFiles);
     var btnRun = $("admin-quiz-create-run");
     if (btnRun) btnRun.addEventListener("click", runGenerate);
+    var btnHideBundled = $("admin-quiz-hide-bundled");
+    if (btnHideBundled) btnHideBundled.addEventListener("click", hideBundledQuizSet);
+    var btnRestoreBundled = $("admin-quiz-restore-bundled");
+    if (btnRestoreBundled) btnRestoreBundled.addEventListener("click", restoreBundledQuizSet);
     bindDropzone();
     loadExistingLibraryDocs();
     refreshVisibility();

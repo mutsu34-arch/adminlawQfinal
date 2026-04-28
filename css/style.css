@@ -1492,6 +1492,21 @@ body {
   line-height: 1.25;
 }
 
+.dict-term-index__filters {
+  gap: 0.25rem 0.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.dict-term-index__filters .dict-term-index__filter-btn {
+  width: auto;
+  min-width: 2rem;
+  padding: 0.16rem 0.42rem;
+  min-height: 0;
+  line-height: 1.15;
+  border-radius: 7px;
+  font-size: 0.68rem;
+}
+
 .dict-empty {
   margin: 0;
   padding: 1rem 0.85rem;
@@ -1702,6 +1717,26 @@ body {
 
 .case-result-card__ox-explain.quiz-ai-answer {
   color: var(--text);
+}
+
+.dict-ox-section {
+  margin-top: 1.15rem;
+  padding: 0.85rem 0.9rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 86%, var(--accent) 14%);
+}
+
+.dict-ox-section__heading {
+  margin: 0 0 0.6rem;
+  font-size: 1.02rem;
+  line-height: 1.35;
+  font-weight: 800;
+  color: var(--accent-ink);
+}
+
+.dict-ox-section .case-result-card__ox-list {
+  margin-top: 0.35rem;
 }
 
 /* 요금제 패널: 안내 카드·그리드·질문권까지 동일 가로 폭 (메인 영역 전체 사용) */
@@ -4583,7 +4618,8 @@ p.hanlaw-para-gap {
 }
 
 .quiz-ai-answer p {
-  margin: 0.35em 0;
+  margin: 0.72em 0;
+  line-height: 1.8;
 }
 
 .quiz-ai-answer p:first-child {
@@ -4603,10 +4639,14 @@ p.hanlaw-para-gap {
 
 .quiz-ai-answer__lead {
   display: inline;
-  color: var(--accent);
+  color: #58a6ff;
   font-weight: 700;
-  font-family: "IBM Plex Sans KR", "Pretendard", system-ui, sans-serif;
+  font-family: "Malgun Gothic", "Noto Sans KR", "IBM Plex Sans KR", "Pretendard", system-ui, sans-serif;
   letter-spacing: -0.02em;
+}
+
+html[data-theme="light"] .quiz-ai-answer__lead {
+  color: #1f6feb;
 }
 
 .quiz-ai-answer__rest,
@@ -6041,10 +6081,11 @@ button.feedback-tag--link:hover {
   align-items: center;
   justify-content: center;
   min-width: 1.4rem;
-  padding: 0.12rem 0.45rem;
-  font-size: 0.72rem;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.68rem;
   font-weight: 700;
   line-height: 1.2;
+  white-space: nowrap;
   border-radius: 999px;
   background: color-mix(in srgb, var(--danger) 32%, var(--surface));
   color: var(--text);

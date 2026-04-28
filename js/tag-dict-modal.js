@@ -1,5 +1,6 @@
 (function () {
   var TAG_DICT_CACHE = {};
+  var CURRENT_ENTRY = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -203,6 +204,7 @@
       m.hidden = true;
       m.setAttribute("aria-hidden", "true");
     }
+    CURRENT_ENTRY = null;
   }
 
   window.closeTagDictModal = closeModal;
@@ -232,6 +234,7 @@
     var title = $("tag-dict-modal-title");
     var body = $("tag-dict-modal-body");
     var err = $("tag-dict-modal-error");
+    var actions = $("tag-dict-modal-actions");
     if (!body) return;
 
     if (title) title.textContent = tag ? "#" + tag : "사전";
@@ -240,6 +243,8 @@
       err.textContent = "";
       err.hidden = true;
     }
+    if (actions) actions.hidden = true;
+    CURRENT_ENTRY = null;
 
     if (!tag) return;
 
@@ -280,6 +285,8 @@
       body.innerHTML = "";
       if (cached.kind === "case") UI.renderCaseResults(body, [cached.record]);
       else UI.renderTermResults(body, [cached.record]);
+      CURRENT_ENTRY = { tag: tag, kind: cached.kind, record: cached.record };
+      if (actions && isAdminViewer() && cached.kind === "term") actions.hidden = false;
       openModal();
       return;
     }
@@ -291,6 +298,8 @@
       if (asCase) UI.renderCaseResults(body, [local]);
       else UI.renderTermResults(body, [local]);
       cacheSet(tag, { kind: asCase ? "case" : "term", record: local, source: "local" });
+      CURRENT_ENTRY = { tag: tag, kind: asCase ? "case" : "term", record: local };
+      if (actions && isAdminViewer() && !asCase) actions.hidden = false;
       openModal();
       return;
     }
@@ -317,6 +326,8 @@
         cacheSet(tag, res);
         if (res.kind === "case") UI.renderCaseResults(body, [res.record]);
         else UI.renderTermResults(body, [res.record]);
+        CURRENT_ENTRY = { tag: tag, kind: res.kind, record: res.record };
+        if (actions && isAdminViewer() && res.kind === "term") actions.hidden = false;
       })
       .catch(function (e) {
         body.innerHTML = "";
@@ -348,6 +359,54 @@
     if (m) {
       m.addEventListener("click", function (e) {
         if (e.target === m) closeModal();
+      });
+    }
+    var delTerm = $("tag-dict-modal-delete-term");
+    if (delTerm) {
+      delTerm.addEventListener("click", function () {
+        if (!isAdminViewer()) return;
+        if (!CURRENT_ENTRY || CURRENT_ENTRY.kind !== "term") return;
+        if (typeof window.deleteTermEntryFromFirestore !== "function") {
+          var e1 = $("tag-dict-modal-error");
+          if (e1) {
+            e1.textContent = "용어 삭제 함수를 찾지 못했습니다.";
+            e1.hidden = false;
+          }
+          return;
+        }
+        var rec = CURRENT_ENTRY.record || {};
+        var docId = String(rec._docId || "").trim();
+        var term = String(rec.term || "").trim();
+        if (!docId && !term) return;
+        if (!window.confirm("이 용어를 삭제할까요?")) return;
+        delTerm.disabled = true;
+        var err = $("tag-dict-modal-error");
+        if (err) {
+          err.textContent = "삭제 중...";
+          err.hidden = false;
+          err.classList.remove("admin-msg--error");
+        }
+        window
+          .deleteTermEntryFromFirestore(docId || term, { rawDocId: !!docId })
+          .then(function () {
+            delete TAG_DICT_CACHE[normTagKey(CURRENT_ENTRY.tag || term)];
+            closeModal();
+            if (typeof window.openTagDictionaryLookup === "function") {
+              window.setTimeout(function () {
+                // 삭제 반영 확인을 위해 바로 다시 열지 않고 종료
+              }, 0);
+            }
+          })
+          .catch(function (e) {
+            if (err) {
+              err.textContent = (e && e.message) || "용어 삭제에 실패했습니다.";
+              err.hidden = false;
+              err.classList.add("admin-msg--error");
+            }
+          })
+          .then(function () {
+            delTerm.disabled = false;
+          });
       });
     }
   });

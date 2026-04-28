@@ -376,6 +376,39 @@
     return [];
   }
 
+  function downloadWorkbookSafe(wb, filename) {
+    var safeName = String(filename || "template.xlsx").trim() || "template.xlsx";
+    try {
+      XLSX.writeFile(wb, safeName);
+      return true;
+    } catch (err) {
+      try {
+        var out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+        var blob = new Blob(
+          [out],
+          { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+        );
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = safeName;
+        document.body.appendChild(a);
+        a.click();
+        window.setTimeout(function () {
+          try {
+            document.body.removeChild(a);
+          } catch (_) {}
+          URL.revokeObjectURL(url);
+        }, 0);
+        return true;
+      } catch (fallbackErr) {
+        console.warn("엑셀 샘플 다운로드 실패:", fallbackErr);
+        window.alert("샘플 파일 다운로드에 실패했습니다. 브라우저 다운로드 권한을 확인해 주세요.");
+        return false;
+      }
+    }
+  }
+
   function downloadQuizTemplate() {
     if (typeof XLSX === "undefined") {
       window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
@@ -490,7 +523,7 @@
     XLSX.utils.book_append_sheet(wb, ws, "문항");
     XLSX.utils.book_append_sheet(wb, wsGuide, "작성가이드");
     XLSX.utils.book_append_sheet(wb, wsExamIds, "examId코드표");
-    XLSX.writeFile(wb, "hanlaw_questions_template_v2.xlsx");
+    downloadWorkbookSafe(wb, "hanlaw_questions_template_v2.xlsx");
   }
 
   function parseBoolCell(v) {
@@ -680,7 +713,7 @@
     ];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, row]), "용어사전");
-    XLSX.utils.writeFile(wb, "hanlaw_dict_terms_template.xlsx");
+    downloadWorkbookSafe(wb, "hanlaw_dict_terms_template.xlsx");
   }
 
   function downloadCaseTemplate() {
@@ -708,7 +741,7 @@
     ];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, row]), "판례사전");
-    XLSX.utils.writeFile(wb, "hanlaw_dict_cases_template.xlsx");
+    downloadWorkbookSafe(wb, "hanlaw_dict_cases_template.xlsx");
   }
 
   function downloadStatuteTemplate() {
@@ -729,7 +762,7 @@
     ];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, row]), "조문사전");
-    XLSX.utils.writeFile(wb, "hanlaw_dict_statutes_template.xlsx");
+    downloadWorkbookSafe(wb, "hanlaw_dict_statutes_template.xlsx");
   }
 
   function setMsg(el, text, isError) {

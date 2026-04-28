@@ -440,8 +440,19 @@ function nicknameHintLine(learnerNickname) {
   return (
     "요청 학습자의 닉네임은 「" +
     n +
-    "」입니다. JSON 본문(정의·사실관계)은 객관적으로 유지하고, 필요하면 서론 한 문장에만 자연스럽게 호칭할 수 있습니다.\n\n"
+    "」입니다. JSON 본문(정의·사실관계)은 객관적으로 유지하고, '관리자님/수험생님' 같은 직접 호칭·대화체·안내문은 절대 쓰지 마세요.\n\n"
   );
+}
+
+function stripUndesiredLeadPhrases(text) {
+  let s = String(text || "").trim();
+  if (!s) return s;
+  s = s.replace(/^\s*(관리자님|수험생님|학습자님)[,，]?\s*/g, "");
+  s = s.replace(/^\s*요청하신\s*['"“”]?[^\n"'“”]*['"“”]?\s*(용어|판례)[^\n]*\n?/g, "");
+  s = s.replace(/^\s*요청\s*학습자[^\n]*\n?/g, "");
+  s = s.replace(/^\s*학습\s*콘텐츠입니다\.?\s*/g, "");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s.trim();
 }
 
 async function generateTermWithGemini(tag, apiKey, modelId, learnerNickname) {
@@ -461,7 +472,7 @@ async function generateTermWithGemini(tag, apiKey, modelId, learnerNickname) {
   const o = await generateJsonWithModelFallback(gen, modelId, prompt);
   const term = clampStr(o.term || tag, 200);
   const aliases = Array.isArray(o.aliases) ? o.aliases.map((x) => clampStr(x, 120)).slice(0, 20) : [];
-  const definition = clampStr(o.definition, MAX_STR);
+  const definition = clampStr(stripUndesiredLeadPhrases(o.definition), MAX_STR);
   let oxQuizzes = sanitizeOxQuizzes(o.oxQuizzes, 3);
   if (oxQuizzes.length < 1) {
     const oxPrompt =
@@ -507,7 +518,10 @@ async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, cas
     "JSON만 출력. 키: citation(문자열, 예: 대법원 … 선고 …), title(한 줄 제목), facts(사실관계 요약), issues(쟁점), judgment(법적 판단 요약), " +
     "oxQuizzes(배열, 3~5개, 각 원소는 statement/answer/explanation), " +
     "searchKeys(이 사건을 검색할 때 쓸 문자열 배열, 사건번호 변형 포함).\n" +
+    "문체 규칙: facts/issues/judgment/explanation은 반드시 정중한 서술형(합니다체, 예: ~하였습니다/~입니다)으로 작성하고, 반말체(~하였다/~했다)는 사용하지 마세요.\n" +
     "facts/issues/judgment는 반드시 '사실관계 → 쟁점 → 법적 판단' 관점으로 정리하고, 불확실하면 그렇게 밝히세요.\n" +
+    "가독성 규칙: facts와 judgment는 2~4개 단락으로 나누고, 각 단락은 1~2문장으로 짧게 작성하세요.\n" +
+    "issues는 2~5개 핵심 쟁점을 줄바꿈으로 나열하고, 반드시 '첫째, ...\\n둘째, ...\\n셋째, ...' 형식으로 작성하세요.\n" +
     "oxQuizzes 생성 규칙: answer는 boolean(true=O, false=X), 사실관계/쟁점/법적판단을 고르게 포함하고, 전문에 없는 단정은 금지.\n" +
     (fullText
       ? "아래 판결문 전문(또는 전문 발췌)을 최우선 근거로 요약하세요. 전문에 없는 사실을 단정해 추가하지 마세요.\n\n" +

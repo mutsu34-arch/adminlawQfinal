@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css?v=20260426-quiz-existing-mobile-head-fix" />
+  <link rel="stylesheet" href="/css/style.css?v=20260428-review-badge-split-counts" />
 </head>
 <body>
   <div class="app">
@@ -2104,10 +2104,34 @@
                   </label>
                   <label class="field" style="margin-top: -0.25rem">
                     <span class="check" style="justify-content: flex-start">
-                      <input type="checkbox" id="admin-quiz-create-fast-mode" checked />
+                      <input type="checkbox" id="admin-quiz-create-fast-mode" />
                       <span>빠른 모드 (상세해설 보강 생략, 속도 우선)</span>
                     </span>
                   </label>
+                  <div class="admin-row-2">
+                    <label class="field">
+                      <span class="field__label">시작 문제번호 (선택)</span>
+                      <input
+                        type="number"
+                        id="admin-quiz-create-start-no"
+                        class="input"
+                        min="1"
+                        max="500"
+                        placeholder="예: 1"
+                      />
+                    </label>
+                    <label class="field">
+                      <span class="field__label">끝 문제번호 (선택)</span>
+                      <input
+                        type="number"
+                        id="admin-quiz-create-end-no"
+                        class="input"
+                        min="1"
+                        max="500"
+                        placeholder="예: 40"
+                      />
+                    </label>
+                  </div>
                   <div class="admin-row-2">
                     <label class="field">
                       <span class="field__label">시험 종류(examId, 파일 자동 인식)</span>
@@ -2119,10 +2143,16 @@
                     </label>
                   </div>
                   <p class="admin-json-help">
-                    주제/생성개수는 수동 입력하지 않습니다. 업로드한 기출문제·해설 파일을 기준으로 문제 1번부터 마지막까지 순차 생성합니다.
+                    주제/생성개수는 수동 입력하지 않습니다. 시작/끝 번호를 비우면 업로드한 기출문제·해설 파일 기준으로 자동 범위를 추정해 순차 생성합니다.
                   </p>
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--primary" id="admin-quiz-create-run">AI 퀴즈 생성·검수 대기 등록</button>
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-hide-bundled">
+                      기본 퀴즈 숨김 처리
+                    </button>
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-restore-bundled">
+                      숨김 퀴즈 복구
+                    </button>
                     <span id="admin-quiz-create-run-msg" class="dict-memo-panel__msg" hidden role="status"></span>
                   </div>
                   <div id="admin-quiz-create-preview" class="admin-json-help" hidden></div>
@@ -2132,15 +2162,15 @@
                 <section id="dict-case-create-admin" class="dict-case-create-admin" hidden>
                   <h3 class="dict-term-index__title">판례사전 생성 (관리자)</h3>
                   <label class="field">
-                    <span class="field__label">사건 표기/사건번호</span>
-                    <input
-                      type="text"
+                    <span class="field__label">사건 표기/사건번호 (쉼표로 여러 개 가능)</span>
+                    <textarea
                       id="dict-case-create-citation"
-                      class="input"
-                      maxlength="400"
+                      class="input textarea"
+                      rows="2"
+                      maxlength="10000"
                       autocomplete="off"
-                      placeholder="예: 대법원 2004. 9. 24. 선고 2004다33469 판결"
-                    />
+                      placeholder="예: 대법원 2004. 9. 24. 선고 2004다33469 판결, 대법원 2019두12345 판결 (쉼표·줄바꿈 구분, 최대 500개 순차 처리)"
+                    ></textarea>
                   </label>
                   <label class="field">
                     <span class="field__label">판결문 전문 텍스트</span>
@@ -2153,6 +2183,12 @@
                   </label>
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--primary" id="dict-case-create-run">판례사전 생성</button>
+                    <button type="button" class="btn btn--outline btn--small" id="dict-case-clean-invalid">
+                      '정보 없음' 판례 일괄 삭제
+                    </button>
+                    <button type="button" class="btn btn--outline btn--small" id="dict-case-restore-hidden">
+                      숨김 판례 복구
+                    </button>
                     <span id="dict-case-create-msg" class="dict-memo-panel__msg" hidden role="status"></span>
                   </div>
                   <div id="dict-case-create-ox-section" class="dict-case-create-ox" hidden>
@@ -2173,17 +2209,18 @@
                   <p class="admin-json-help">
                     자료실에 업로드된 법률용어사전·교재·기출 자료를 바탕으로 용어를 더 자세히 생성할 수 있습니다.
                     자동 생성 결과는 검수 대기에 등록되며, 승인 후 사용자에게 공개됩니다.
+                    위 칸에 키워드를 쉼표(또는 줄바꿈)로 여러 개 넣으면, 「용어사전 생성」은 AI가 키워드마다 순서대로 생성하고, 「자료 기반 용어 자동 생성」은 키워드마다 순서대로 자료실 RAG를 돌립니다 (한 번에 최대 500개).
                   </p>
                   <label class="field">
-                    <span class="field__label">용어/키워드</span>
-                    <input
-                      type="text"
+                    <span class="field__label">용어·키워드 (쉼표로 여러 개)</span>
+                    <textarea
                       id="dict-term-create-tag"
-                      class="input"
-                      maxlength="160"
+                      class="input textarea"
+                      rows="2"
+                      maxlength="4000"
                       autocomplete="off"
-                      placeholder="예: 취소소송, 재량권 일탈·남용"
-                    />
+                      placeholder="예: 취소소송, 재량권 일탈·남용, 행정처분 (쉼표·줄바꿈으로 구분하면 순서대로 하나씩 생성합니다)"
+                    ></textarea>
                   </label>
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--primary" id="dict-term-create-run">용어사전 생성</button>
@@ -2382,6 +2419,7 @@
                 </p>
                 <div class="admin-review-toolbar">
                   <button type="button" class="btn btn--secondary" id="admin-review-refresh">목록 새로고침</button>
+                  <button type="button" class="btn btn--secondary" id="admin-review-approve-all">검수 목록 일괄 승인·반영</button>
                   <div class="admin-review-tabs" role="tablist" aria-label="검수 유형 선택">
                     <button
                       type="button"
@@ -2855,6 +2893,7 @@
         </details>
         <div class="modal__actions dict-case-edit-actions">
           <button type="button" class="btn btn--outline" id="dict-case-edit-ai-fill">전문으로 AI 요약 채우기</button>
+          <button type="button" class="btn btn--outline" id="dict-case-edit-delete">삭제</button>
           <button type="button" class="btn btn--ghost" id="dict-case-edit-cancel">취소</button>
           <button type="submit" class="btn btn--primary" id="dict-case-edit-save">저장</button>
         </div>
@@ -2940,6 +2979,11 @@
         <button type="button" class="modal__close" id="tag-dict-modal-close" aria-label="닫기">×</button>
       </div>
       <p id="tag-dict-modal-error" class="admin-msg admin-msg--error" hidden></p>
+      <div class="modal__actions" id="tag-dict-modal-actions" hidden>
+        <button type="button" class="btn btn--outline btn--small" id="tag-dict-modal-delete-term">
+          용어 삭제
+        </button>
+      </div>
       <div id="tag-dict-modal-body" class="tag-dict-modal__body"></div>
     </div>
   </div>
@@ -2953,11 +2997,11 @@
   <script src="/js/legal-dictionary-data.js"></script>
   <script src="/js/case-dictionary-data.js"></script>
   <script src="/js/casenote-link.js"></script>
-  <script src="/js/ai-answer-format.js?v=7"></script>
+  <script src="/js/ai-answer-format.js?v=9"></script>
   <script src="/js/statute-articles-static.js"></script>
   <script src="/js/case-ox-form.js?v=3"></script>
   <script src="/js/dict-favorites.js?v=1"></script>
-  <script src="/js/dict-panels.js?v=51"></script>
+  <script src="/js/dict-panels.js?v=66"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -2965,7 +3009,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="/js/firebase-config.js?v=20260414"></script>
   <script src="/js/auth-bridge.js"></script>
-  <script src="/js/firestore-db.js?v=14"></script>
+  <script src="/js/firestore-db.js?v=20"></script>
   <script src="/js/ai-config.js"></script>
   <script src="/js/tickets-service.js?v=14"></script>
   <script src="/js/payapp-config.js?v=9"></script>
@@ -2973,9 +3017,9 @@
   <script src="/js/portone-checkout.js?v=2"></script>
   <script src="/js/auth.js?v=5"></script>
   <script src="/js/user-profile.js?v=20260419"></script>
-  <script src="/js/dict-remote.js?v=3"></script>
+  <script src="/js/dict-remote.js?v=4"></script>
   <script src="/js/statute-tag.js"></script>
-  <script src="/js/tag-dict-modal.js?v=5"></script>
+  <script src="/js/tag-dict-modal.js?v=6"></script>
   <script src="/js/member-tier.js?v=3"></script>
   <script>
     window.HANLAW_ADSENSE_DETAIL = window.HANLAW_ADSENSE_DETAIL || {
@@ -3013,11 +3057,11 @@
   <script src="/js/quiz-note-card-actions.js?v=7"></script>
   <script src="/js/notifications-ui.js?v=4"></script>
   <script src="/js/admin-panel.js?v=2"></script>
-  <script src="/js/admin-quiz-create.js?v=10"></script>
-  <script src="/js/admin-review.js?v=10"></script>
+  <script src="/js/admin-quiz-create.js?v=14"></script>
+  <script src="/js/admin-review.js?v=14"></script>
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="/js/admin-excel.js?v=7"></script>
+  <script src="/js/admin-excel.js?v=9"></script>
   <script src="/js/admin-tickets.js?v=10"></script>
   <script src="/js/admin-quotes.js?v=8"></script>
 </body>

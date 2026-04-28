@@ -102,6 +102,7 @@
     var d = doc.data();
     return {
       _docId: doc.id,
+      hidden: !!d.hidden,
       citation: d.citation || "",
       title: d.title || "",
       facts: d.facts || "",
