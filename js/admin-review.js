@@ -194,6 +194,16 @@
     return qNo + "번-" + tail + "지문";
   }
 
+  function formatAiReviewBadge(item) {
+    var review = item && item.aiReview && typeof item.aiReview === "object" ? item.aiReview : null;
+    if (!review) return "";
+    var risk = String(review.risk || "").toLowerCase();
+    if (risk === "high") return "AI검수:고위험";
+    if (risk === "medium") return "AI검수:주의";
+    if (risk === "low") return "AI검수:양호";
+    return "";
+  }
+
   function refreshReviewBadgeCounts() {
     var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     if (!isAdminUser(user)) return;
@@ -254,7 +264,7 @@
         (sourceText || it.key || it.questionId || "-") +
         "</span>" +
         '<span class="admin-inbox-row__preview">' +
-        String(it.title || it.statement || it.topic || "").slice(0, 46) +
+        String((formatAiReviewBadge(it) ? "[" + formatAiReviewBadge(it) + "] " : "") + (it.title || it.statement || it.topic || "")).slice(0, 46) +
         "</span>";
       btn.addEventListener("click", function () {
         loadDetail(it.id);
@@ -283,7 +293,25 @@
       " · 상태: " +
       (item.status || "") +
       " · 버전: " +
-      (item.version || 1);
+      (item.version || 1) +
+      (formatAiReviewBadge(item) ? " · " + formatAiReviewBadge(item) : "");
+    if (mode === "quiz" && item.aiReview && typeof item.aiReview === "object") {
+      var rv = item.aiReview;
+      var summary = String(rv.summary || "").trim();
+      var reasons = Array.isArray(rv.reasons)
+        ? rv.reasons
+            .map(function (x) {
+              return String(x || "").trim();
+            })
+            .filter(Boolean)
+        : [];
+      if (summary || reasons.length) {
+        $("admin-review-meta").textContent +=
+          " · AI의견: " +
+          (summary || "-") +
+          (reasons.length ? " (" + reasons.slice(0, 3).join(" / ") + ")" : "");
+      }
+    }
     var p = item.payload || {};
     if (mode === "quiz") {
       $("admin-review-statement").value = p.statement || "";

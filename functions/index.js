@@ -755,13 +755,29 @@ function extractJsonArrayFromText(raw) {
   if (!s) return [];
   try {
     const parsed = JSON.parse(s);
-    return Array.isArray(parsed) ? parsed : [];
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === "object") {
+      const keys = ["items", "rows", "quizzes", "questions", "data", "result"];
+      for (let i = 0; i < keys.length; i++) {
+        const v = parsed[keys[i]];
+        if (Array.isArray(v)) return v;
+      }
+    }
+    return [];
   } catch (_) {}
   const m = s.match(/```json\s*([\s\S]*?)```/i) || s.match(/```\s*([\s\S]*?)```/i);
   if (m && m[1]) {
     try {
       const parsed = JSON.parse(String(m[1]).trim());
-      return Array.isArray(parsed) ? parsed : [];
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === "object") {
+        const keys = ["items", "rows", "quizzes", "questions", "data", "result"];
+        for (let i = 0; i < keys.length; i++) {
+          const v = parsed[keys[i]];
+          if (Array.isArray(v)) return v;
+        }
+      }
+      return [];
     } catch (_) {}
   }
   const l = s.indexOf("[");
@@ -773,6 +789,10 @@ function extractJsonArrayFromText(raw) {
     } catch (_) {}
   }
   return [];
+}
+
+function stripTrailingCommasInJson(raw) {
+  return String(raw || "").replace(/,\s*([}\]])/g, "$1");
 }
 
 function inferExamIdLoose(text) {
@@ -834,7 +854,27 @@ async function generateLibraryQuizRows(apiKey, modelId, prompt) {
       });
       const res = await model.generateContent(prompt);
       const txt = String(res && res.response && res.response.text ? res.response.text() : "").trim();
-      const rows = extractJsonArrayFromText(txt);
+      let rows = extractJsonArrayFromText(txt);
+      if (!rows.length) {
+        rows = extractJsonArrayFromText(stripTrailingCommasInJson(txt));
+      }
+      if (!rows.length && txt) {
+        // 2차 복원: 모델이 설명/문장 섞어서 출력한 결과를 JSON 배열만 재정규화
+        const repairPrompt = [
+          "아래 텍스트를 읽고 JSON 배열만 출력하세요.",
+          "설명/마크다운/코드블록 금지. JSON 배열 외 문자 금지.",
+          "객체 루트라면 items/rows/questions 배열만 추출해 배열로 출력.",
+          "",
+          "[입력 텍스트]",
+          txt.slice(0, 30000)
+        ].join("\n");
+        const repaired = await model.generateContent(repairPrompt);
+        const repairedTxt = String(
+          repaired && repaired.response && repaired.response.text ? repaired.response.text() : ""
+        ).trim();
+        rows = extractJsonArrayFromText(repairedTxt);
+        if (!rows.length) rows = extractJsonArrayFromText(stripTrailingCommasInJson(repairedTxt));
+      }
       if (rows.length) return rows;
       throw new Error("모델 출력에서 JSON 배열을 추출하지 못했습니다.");
     } catch (e) {
@@ -846,6 +886,61 @@ async function generateLibraryQuizRows(apiKey, modelId, prompt) {
     }
   }
   throw lastErr || new Error("Gemini 모델 호출에 실패했습니다.");
+}
+
+async function autoReviewQuizRows(apiKey, modelId, rows, userPrompt, ragContext) {
+  if (!Array.isArray(rows) || !rows.length) return {};
+  const byId = {};
+  const batchSize = 20;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const prompt = [
+      "당신은 행정법 퀴즈 품질검수자입니다.",
+      "입력 문항 배열을 보고 품질 위험도를 판정해 JSON 배열만 출력하세요.",
+      "출력 스키마: [{\"id\":\"문항id\",\"risk\":\"low|medium|high\",\"summary\":\"한 줄 요약\",\"reasons\":[\"사유1\",\"사유2\"]}]",
+      "사유는 최대 3개. 근거 없는 추측 금지.",
+      "",
+      "[생성 지시]",
+      String(userPrompt || "").slice(0, 1500),
+      "",
+      "[자료실 발췌 일부]",
+      String(ragContext || "").slice(0, 8000),
+      "",
+      "[검수 대상 배열]",
+      JSON.stringify(
+        batch.map((x) => ({
+          id: x.id,
+          topic: x.topic,
+          statement: x.statement,
+          answer: x.answer,
+          explanation: x.explanation,
+          explanationBasic: x.explanationBasic
+        }))
+      )
+    ].join("\n");
+    let reviewed = [];
+    try {
+      reviewed = await generateLibraryQuizRows(apiKey, modelId, prompt);
+    } catch (_) {
+      reviewed = [];
+    }
+    for (let j = 0; j < reviewed.length; j++) {
+      const r = reviewed[j] || {};
+      const rid = String(r.id || "").trim();
+      if (!rid) continue;
+      const riskRaw = String(r.risk || "").trim().toLowerCase();
+      const risk = riskRaw === "high" || riskRaw === "medium" || riskRaw === "low" ? riskRaw : "medium";
+      const reasons = Array.isArray(r.reasons)
+        ? r.reasons.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 3)
+        : [];
+      byId[rid] = {
+        risk,
+        summary: String(r.summary || "").trim().slice(0, 400),
+        reasons
+      };
+    }
+  }
+  return byId;
 }
 
 async function generateLibraryTermRows(apiKey, modelId, prompt) {
@@ -1105,6 +1200,8 @@ exports.adminGenerateQuizFromLibrary = onCall(
     const missingPairs = maxQuestionNo ? buildMissingPairs(maxQuestionNo) : [];
     if (round > 0 && generateAll && maxQuestionNo && !missingPairs.length) break;
     const missingHint = missingPairs.length ? missingPairs.slice(0, 120).join(", ") : "(미지정)";
+    const remaining = Math.max(1, expectedCount - collectedRows.length);
+    const roundTarget = Math.min(40, remaining);
     const generationPrompt = [
       "당신은 행정법 기출문제 편집자입니다.",
       "아래 자료 발췌를 바탕으로 먼저 문항 구조만 추출하세요.",
@@ -1137,6 +1234,7 @@ exports.adminGenerateQuizFromLibrary = onCall(
           excludeStatements.slice(-50).join(" | ")
         : "",
       "- 목표 생성 개수(총): " + expectedCount,
+      "- 이번 라운드 최대 생성 개수: " + roundTarget,
       "- 이 단계는 해설 생성이 아니라 구조 추출 단계다.",
       "- 자료에 없는 내용 추측 금지.",
       "- 문장은 한국어로 명확하게 작성.",
@@ -1292,6 +1390,13 @@ exports.adminGenerateQuizFromLibrary = onCall(
     }
   }
 
+  let aiReviewById = {};
+  try {
+    aiReviewById = await autoReviewQuizRows(apiKey, modelId, enrichedRows, userPrompt, ragContext);
+  } catch (e) {
+    aiReviewById = {};
+  }
+
   const email = String(request.auth.token.email || "").toLowerCase();
   const batch = db.batch();
   const stagedRows = [];
@@ -1351,7 +1456,12 @@ exports.adminGenerateQuizFromLibrary = onCall(
         approvedBy: null,
         approvedAt: null,
         rejectReason: "",
-        version: 1
+        version: 1,
+        aiReview: aiReviewById[clean.id] || {
+          risk: "medium",
+          summary: "AI 1차 검수 결과 없음(기본값)",
+          reasons: []
+        }
       });
       stagedRows.push(clean);
       if (stagedRows.length >= 500) break;
@@ -1463,6 +1573,13 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
       throw new HttpsError("failed-precondition", "생성 결과가 비어 있습니다. 지시문을 구체화해 주세요.");
     }
 
+    let aiReviewById = {};
+    try {
+      aiReviewById = await autoReviewQuizRows(apiKey, modelId, rows, userPrompt, ragContext);
+    } catch (_) {
+      aiReviewById = {};
+    }
+
     const email = String(request.auth.token.email || "").toLowerCase();
     const batch = db.batch();
     const failRows = [];
@@ -1523,7 +1640,12 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
           approvedBy: null,
           approvedAt: null,
           rejectReason: "",
-          version: 1
+          version: 1,
+          aiReview: aiReviewById[clean.id] || {
+            risk: "medium",
+            summary: "AI 1차 검수 결과 없음(기본값)",
+            reasons: []
+          }
         });
         stagedRows.push(clean);
         if (stagedRows.length >= count) break;
@@ -1717,6 +1839,7 @@ exports.adminListQuizStaging = onCall({ region: "asia-northeast3" }, async (requ
       statement: x.payload && x.payload.statement ? x.payload.statement : "",
       status: x.status || "reviewing",
       source: x.source || "",
+      aiReview: x.aiReview && typeof x.aiReview === "object" ? x.aiReview : null,
       version: parseInt(x.version, 10) || 1,
       updatedAtMs: x.updatedAt && typeof x.updatedAt.toMillis === "function" ? x.updatedAt.toMillis() : 0
     };
@@ -1750,6 +1873,7 @@ exports.adminGetQuizStaging = onCall({ region: "asia-northeast3" }, async (reque
       questionId: qid,
       payload: data.payload || {},
       status: data.status || "reviewing",
+      aiReview: data.aiReview && typeof data.aiReview === "object" ? data.aiReview : null,
       version: parseInt(data.version, 10) || 1,
       rejectReason: data.rejectReason || ""
     },

@@ -6859,6 +6859,28 @@ html[data-theme="light"] .public-qa-item__stem-kicker {
   white-space: nowrap;
 }
 
+@media (max-width: 768px) {
+  .dict-case-create-admin__actions {
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    overflow-x: visible;
+  }
+
+  .dict-case-create-admin__actions > .btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+    white-space: normal;
+    align-self: stretch !important;
+  }
+
+  .dict-case-create-admin__actions > .dict-memo-panel__msg {
+    margin-left: 0;
+    white-space: normal;
+  }
+}
+
 .dict-memo-panel__msg {
   font-size: 0.82rem;
 }
