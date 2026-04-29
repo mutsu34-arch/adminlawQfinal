@@ -59,6 +59,9 @@
       key: key,
       heading: d.heading != null ? d.heading : "",
       body: d.body != null ? d.body : "",
+      appliedRules: d.appliedRules != null ? d.appliedRules : "",
+      subordinateRules: d.subordinateRules != null ? d.subordinateRules : "",
+      examPoint: d.examPoint != null ? d.examPoint : "",
       sourceNote: d.sourceNote != null ? d.sourceNote : "",
       oxQuizzes: mapOxQuizzesFromRaw(d.oxQuizzes, 3)
     };

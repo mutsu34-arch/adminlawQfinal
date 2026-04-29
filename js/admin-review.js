@@ -108,11 +108,12 @@
   }
 
   function setMode(next) {
-    mode = next === "term" || next === "case" ? next : "quiz";
+    mode = next === "term" || next === "case" || next === "statute" ? next : "quiz";
     var bq = $("admin-review-type-quiz");
     var bt = $("admin-review-type-term");
     var bc = $("admin-review-type-case");
-    [bq, bt, bc].forEach(function (b) {
+    var bs = $("admin-review-type-statute");
+    [bq, bt, bc, bs].forEach(function (b) {
       if (!b) return;
       b.classList.remove("admin-review-tab--active");
     });
@@ -131,12 +132,19 @@
       bc.setAttribute("aria-selected", mode === "case" ? "true" : "false");
       if (mode === "case") bc.classList.add("admin-review-tab--active");
     }
+    if (bs) {
+      bs.setAttribute("aria-pressed", mode === "statute" ? "true" : "false");
+      bs.setAttribute("aria-selected", mode === "statute" ? "true" : "false");
+      if (mode === "statute") bs.classList.add("admin-review-tab--active");
+    }
     var fq = $("admin-review-form-quiz");
     var ft = $("admin-review-form-term");
     var fc = $("admin-review-form-case");
+    var fs = $("admin-review-form-statute");
     if (fq) fq.hidden = mode !== "quiz";
     if (ft) ft.hidden = mode !== "term";
     if (fc) fc.hidden = mode !== "case";
+    if (fs) fs.hidden = mode !== "statute";
     selected = null;
     fillDetail(null);
   }
@@ -198,18 +206,22 @@
     Promise.all([
       window.adminListQuizStaging("all", 1000),
       window.adminListDictStaging("term", "all", 1000),
-      window.adminListDictStaging("case", "all", 1000)
+      window.adminListDictStaging("case", "all", 1000),
+      window.adminListDictStaging("statute", "all", 1000)
     ])
       .then(function (results) {
         var rq = results[0] && results[0].items;
         var rt = results[1] && results[1].items;
         var rc = results[2] && results[2].items;
+        var rs = results[3] && results[3].items;
         var cq = countReviewStatus(rq);
         var ct = countReviewStatus(rt);
         var cc = countReviewStatus(rc);
+        var cs = countReviewStatus(rs);
         setReviewBadge("admin-review-badge-quiz", cq.pending, cq.approved);
         setReviewBadge("admin-review-badge-term", ct.pending, ct.approved);
         setReviewBadge("admin-review-badge-case", cc.pending, cc.approved);
+        setReviewBadge("admin-review-badge-statute", cs.pending, cs.approved);
       })
       .catch(function () {});
   }
@@ -230,7 +242,13 @@
       var sourceText = it.entityType === "quiz" ? formatQuizSource(it.payload) : "";
       btn.innerHTML =
         '<span class="admin-inbox-row__type">' +
-        (it.entityType === "term" ? "용어" : it.entityType === "case" ? "판례" : "퀴즈") +
+        (it.entityType === "term"
+          ? "용어"
+          : it.entityType === "case"
+            ? "판례"
+            : it.entityType === "statute"
+              ? "조문"
+              : "퀴즈") +
         "</span>" +
         '<span class="admin-inbox-row__status">' +
         (sourceText || it.key || it.questionId || "-") +
@@ -251,9 +269,15 @@
     detail.hidden = !item;
     if (!item) return;
     var sourceMeta = mode === "quiz" ? formatQuizSource(item.payload) : "";
-    $("admin-review-meta").textContent =
+      $("admin-review-meta").textContent =
       "유형: " +
-      (item.entityType === "term" ? "용어사전" : item.entityType === "case" ? "판례사전" : "퀴즈") +
+      (item.entityType === "term"
+        ? "용어사전"
+        : item.entityType === "case"
+          ? "판례사전"
+          : item.entityType === "statute"
+            ? "조문사전"
+            : "퀴즈") +
       " · 키: " +
       (sourceMeta || item.entryKey || item.questionId || "") +
       " · 상태: " +
@@ -282,7 +306,7 @@
         window.CaseOxForm.ensureBuilt("admin-review-term-ox-editor");
         window.CaseOxForm.fill("admin-review-term-ox-editor", Array.isArray(p.oxQuizzes) ? p.oxQuizzes : []);
       }
-    } else {
+    } else if (mode === "case") {
       $("admin-review-citation").value = p.citation || "";
       $("admin-review-case-title").value = p.title || "";
       $("admin-review-facts").value = p.facts || "";
@@ -294,6 +318,17 @@
         : "";
       if (window.CaseOxForm && typeof window.CaseOxForm.fill === "function") {
         window.CaseOxForm.fill("admin-review-case-ox-editor", Array.isArray(p.oxQuizzes) ? p.oxQuizzes : []);
+      }
+    } else {
+      $("admin-review-statute-key").value = p.statuteKey || "";
+      $("admin-review-statute-heading").value = p.heading || "";
+      $("admin-review-statute-body").value = p.body || "";
+      $("admin-review-statute-applied-rules").value = p.appliedRules || "";
+      $("admin-review-statute-subordinate-rules").value = p.subordinateRules || "";
+      $("admin-review-statute-exam-point").value = p.examPoint || "";
+      $("admin-review-statute-source-note").value = p.sourceNote || "";
+      if (window.CaseOxForm && typeof window.CaseOxForm.fill === "function") {
+        window.CaseOxForm.fill("admin-review-statute-ox-editor", Array.isArray(p.oxQuizzes) ? p.oxQuizzes : []);
       }
     }
   }
@@ -414,7 +449,7 @@
       } else if (Array.isArray(selected.payload.oxQuizzes)) {
         p.oxQuizzes = selected.payload.oxQuizzes;
       }
-    } else {
+    } else if (mode === "case") {
       p.citation = $("admin-review-citation").value.trim();
       p.title = $("admin-review-case-title").value.trim();
       p.facts = $("admin-review-facts").value.trim();
@@ -444,6 +479,20 @@
       p.oxQuizzes = window.CaseOxForm.collect("admin-review-case-ox-editor");
       var oxErr = window.CaseOxForm.validateForSave(p.oxQuizzes);
       if (oxErr) throw new Error(oxErr);
+    } else {
+      p.statuteKey = $("admin-review-statute-key").value.trim();
+      p.heading = $("admin-review-statute-heading").value.trim();
+      p.body = $("admin-review-statute-body").value.trim();
+      p.appliedRules = $("admin-review-statute-applied-rules").value.trim();
+      p.subordinateRules = $("admin-review-statute-subordinate-rules").value.trim();
+      p.examPoint = $("admin-review-statute-exam-point").value.trim();
+      p.sourceNote = $("admin-review-statute-source-note").value.trim();
+      if (!window.CaseOxForm || typeof window.CaseOxForm.collect !== "function") {
+        throw new Error("OX 퀴즈 편집 모듈을 불러오지 못했습니다. 페이지를 새로고침해 주세요.");
+      }
+      p.oxQuizzes = window.CaseOxForm.collect("admin-review-statute-ox-editor");
+      var oxErrSt = window.CaseOxForm.validateForSave(p.oxQuizzes);
+      if (oxErrSt) throw new Error(oxErrSt);
     }
     return p;
   }
@@ -452,6 +501,7 @@
     if (window.CaseOxForm && typeof window.CaseOxForm.ensureBuilt === "function") {
       window.CaseOxForm.ensureBuilt("admin-review-case-ox-editor");
       window.CaseOxForm.ensureBuilt("admin-review-term-ox-editor");
+      window.CaseOxForm.ensureBuilt("admin-review-statute-ox-editor");
     }
     var btnRefresh = $("admin-review-refresh");
     if (btnRefresh) btnRefresh.addEventListener("click", loadList);
@@ -664,9 +714,11 @@
     var bq = $("admin-review-type-quiz");
     var bt = $("admin-review-type-term");
     var bc = $("admin-review-type-case");
+    var bs = $("admin-review-type-statute");
     if (bq) bq.addEventListener("click", function () { setMode("quiz"); loadList(); });
     if (bt) bt.addEventListener("click", function () { setMode("term"); loadList(); });
     if (bc) bc.addEventListener("click", function () { setMode("case"); loadList(); });
+    if (bs) bs.addEventListener("click", function () { setMode("statute"); loadList(); });
 
     var panel = $("admin-panel-review");
     [
@@ -681,6 +733,13 @@
       "admin-review-term",
       "admin-review-aliases",
       "admin-review-definition",
+      "admin-review-statute-key",
+      "admin-review-statute-heading",
+      "admin-review-statute-body",
+      "admin-review-statute-applied-rules",
+      "admin-review-statute-subordinate-rules",
+      "admin-review-statute-exam-point",
+      "admin-review-statute-source-note",
       "admin-review-citation",
       "admin-review-case-title",
       "admin-review-facts",

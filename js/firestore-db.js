@@ -544,6 +544,9 @@
       statuteKey: statuteKey,
       heading: String(entry && entry.heading != null ? entry.heading : "").trim(),
       body: String(entry && entry.body != null ? entry.body : "").trim(),
+      appliedRules: String(entry && entry.appliedRules != null ? entry.appliedRules : "").trim(),
+      subordinateRules: String(entry && entry.subordinateRules != null ? entry.subordinateRules : "").trim(),
+      examPoint: String(entry && entry.examPoint != null ? entry.examPoint : "").trim(),
       sourceNote: String(entry && entry.sourceNote != null ? entry.sourceNote : "").trim(),
       oxQuizzes: sanitizeOxQuizzesStat(entry && entry.oxQuizzes, 3),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -557,6 +560,9 @@
         _docId: String(resolvedDocId || "").trim(),
         heading: payload.heading,
         body: payload.body,
+        appliedRules: payload.appliedRules,
+        subordinateRules: payload.subordinateRules,
+        examPoint: payload.examPoint,
         sourceNote: payload.sourceNote,
         oxQuizzes: payload.oxQuizzes
       });
@@ -586,6 +592,9 @@
           statuteKey: statuteKey,
           heading: entry && entry.heading != null ? entry.heading : "",
           body: entry && entry.body != null ? entry.body : "",
+          appliedRules: entry && entry.appliedRules != null ? entry.appliedRules : "",
+          subordinateRules: entry && entry.subordinateRules != null ? entry.subordinateRules : "",
+          examPoint: entry && entry.examPoint != null ? entry.examPoint : "",
           sourceNote: entry && entry.sourceNote != null ? entry.sourceNote : "",
           oxQuizzes: entry && entry.oxQuizzes != null ? entry.oxQuizzes : []
         },

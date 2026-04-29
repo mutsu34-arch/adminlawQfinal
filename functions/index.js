@@ -1681,8 +1681,10 @@ exports.adminRejectQuizStaging = onCall({ region: "asia-northeast3" }, async (re
 
 const STAGING_TERM_COLLECTION = "hanlaw_dict_terms_staging";
 const STAGING_CASE_COLLECTION = "hanlaw_dict_cases_staging";
+const STAGING_STATUTE_COLLECTION = "hanlaw_dict_statutes_staging";
 const TERM_COLLECTION = "hanlaw_dict_terms";
 const CASE_COLLECTION = "hanlaw_dict_cases";
+const STATUTE_COLLECTION = "hanlaw_dict_statutes";
 
 function sanitizeDictOxQuizzes(input, maxItems) {
   const cap =
@@ -1756,21 +1758,46 @@ function sanitizeCasePayload(raw) {
   return out;
 }
 
+function sanitizeStatutePayload(raw) {
+  const src = raw || {};
+  const statuteKey = String(src.statuteKey || src.key || "").trim();
+  if (!statuteKey) throw new HttpsError("invalid-argument", "조문 키(statuteKey)가 필요합니다.");
+  const out = {
+    statuteKey,
+    heading: String(src.heading || "").trim(),
+    body: String(src.body || "").trim(),
+    appliedRules: String(src.appliedRules || "").trim(),
+    subordinateRules: String(src.subordinateRules || "").trim(),
+    examPoint: String(src.examPoint || "").trim(),
+    sourceNote: String(src.sourceNote || "").trim(),
+    oxQuizzes: sanitizeDictOxQuizzes(src.oxQuizzes, 3)
+  };
+  if (!out.body) throw new HttpsError("invalid-argument", "조문 본문(body)이 필요합니다.");
+  return out;
+}
+
 function dictStagingCollectionByType(entityType) {
-  return entityType === "case" ? STAGING_CASE_COLLECTION : STAGING_TERM_COLLECTION;
+  if (entityType === "case") return STAGING_CASE_COLLECTION;
+  if (entityType === "statute") return STAGING_STATUTE_COLLECTION;
+  return STAGING_TERM_COLLECTION;
 }
 
 function dictPublishedCollectionByType(entityType) {
-  return entityType === "case" ? CASE_COLLECTION : TERM_COLLECTION;
+  if (entityType === "case") return CASE_COLLECTION;
+  if (entityType === "statute") return STATUTE_COLLECTION;
+  return TERM_COLLECTION;
 }
 
 function dictKeyByType(entityType, payload) {
   if (entityType === "case") return String(payload.citation || "").trim();
+  if (entityType === "statute") return String(payload.statuteKey || payload.key || "").trim();
   return String(payload.term || "").trim();
 }
 
 function sanitizeDictPayload(entityType, raw) {
-  return entityType === "case" ? sanitizeCasePayload(raw) : sanitizeTermPayload(raw);
+  if (entityType === "case") return sanitizeCasePayload(raw);
+  if (entityType === "statute") return sanitizeStatutePayload(raw);
+  return sanitizeTermPayload(raw);
 }
 
 exports.adminStageDictBatch = onCall({ region: "asia-northeast3" }, async (request) => {
@@ -1778,7 +1805,8 @@ exports.adminStageDictBatch = onCall({ region: "asia-northeast3" }, async (reque
   const entityTypeRaw = String((request.data && request.data.entityType) || "term")
     .trim()
     .toLowerCase();
-  const entityType = entityTypeRaw === "case" ? "case" : "term";
+  const entityType =
+    entityTypeRaw === "case" ? "case" : entityTypeRaw === "statute" ? "statute" : "term";
   const rows = Array.isArray(request.data && request.data.rows) ? request.data.rows : [];
   if (!rows.length) throw new HttpsError("invalid-argument", "rows 배열이 필요합니다.");
   if (rows.length > 500) throw new HttpsError("invalid-argument", "한 번에 최대 500건까지 가능합니다.");
@@ -1820,7 +1848,8 @@ exports.adminStageDictBatch = onCall({ region: "asia-northeast3" }, async (reque
 exports.adminListDictStaging = onCall({ region: "asia-northeast3" }, async (request) => {
   assertAdminCallable(request);
   const entityTypeRaw = String((request.data && request.data.entityType) || "term").trim().toLowerCase();
-  const entityType = entityTypeRaw === "case" ? "case" : "term";
+  const entityType =
+    entityTypeRaw === "case" ? "case" : entityTypeRaw === "statute" ? "statute" : "term";
   const status = String((request.data && request.data.status) || "reviewing").trim();
   const limitRaw = parseInt(request.data && request.data.limit, 10);
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(1000, limitRaw)) : 100;
@@ -1836,7 +1865,9 @@ exports.adminListDictStaging = onCall({ region: "asia-northeast3" }, async (requ
       title:
         entityType === "case"
           ? String(payload.citation || payload.title || "").trim()
-          : String(payload.term || "").trim(),
+          : entityType === "statute"
+            ? String(payload.statuteKey || payload.heading || "").trim()
+            : String(payload.term || "").trim(),
       status: x.status || "reviewing",
       source: x.source || "",
       version: parseInt(x.version, 10) || 1,
@@ -1855,7 +1886,8 @@ exports.adminGetDictStaging = onCall({ region: "asia-northeast3" }, async (reque
   assertAdminCallable(request);
   const id = String((request.data && request.data.id) || "").trim();
   const entityTypeRaw = String((request.data && request.data.entityType) || "term").trim().toLowerCase();
-  const entityType = entityTypeRaw === "case" ? "case" : "term";
+  const entityType =
+    entityTypeRaw === "case" ? "case" : entityTypeRaw === "statute" ? "statute" : "term";
   if (!id) throw new HttpsError("invalid-argument", "id가 필요합니다.");
   const col = dictStagingCollectionByType(entityType);
   const ref = db.collection(col).doc(id);
@@ -1866,7 +1898,8 @@ exports.adminGetDictStaging = onCall({ region: "asia-northeast3" }, async (reque
   const key = String(data.entryKey || dictKeyByType(entityType, payload)).trim();
   let published = null;
   if (key) {
-    const ps = await db.collection(dictPublishedCollectionByType(entityType)).doc(key).get();
+    const pubId = entityType === "statute" ? normalizeStatuteDocId(key, "statute") : key;
+    const ps = await db.collection(dictPublishedCollectionByType(entityType)).doc(pubId).get();
     if (ps.exists) published = ps.data() || null;
   }
   return {
@@ -1888,7 +1921,8 @@ exports.adminUpdateDictStaging = onCall({ region: "asia-northeast3" }, async (re
   assertAdminCallable(request);
   const id = String((request.data && request.data.id) || "").trim();
   const entityTypeRaw = String((request.data && request.data.entityType) || "term").trim().toLowerCase();
-  const entityType = entityTypeRaw === "case" ? "case" : "term";
+  const entityType =
+    entityTypeRaw === "case" ? "case" : entityTypeRaw === "statute" ? "statute" : "term";
   const version = parseInt(request.data && request.data.version, 10);
   if (!id) throw new HttpsError("invalid-argument", "id가 필요합니다.");
   if (!Number.isFinite(version)) throw new HttpsError("invalid-argument", "version이 필요합니다.");
@@ -1919,7 +1953,8 @@ exports.adminApproveDictStaging = onCall({ region: "asia-northeast3" }, async (r
   assertAdminCallable(request);
   const id = String((request.data && request.data.id) || "").trim();
   const entityTypeRaw = String((request.data && request.data.entityType) || "term").trim().toLowerCase();
-  const entityType = entityTypeRaw === "case" ? "case" : "term";
+  const entityType =
+    entityTypeRaw === "case" ? "case" : entityTypeRaw === "statute" ? "statute" : "term";
   const version = parseInt(request.data && request.data.version, 10);
   if (!id) throw new HttpsError("invalid-argument", "id가 필요합니다.");
   if (!Number.isFinite(version)) throw new HttpsError("invalid-argument", "version이 필요합니다.");
@@ -1935,7 +1970,8 @@ exports.adminApproveDictStaging = onCall({ region: "asia-northeast3" }, async (r
     if (curVer !== version) throw new HttpsError("aborted", "다른 관리자가 먼저 수정했습니다. 새로고침 후 다시 시도하세요.");
     const payload = sanitizeDictPayload(entityType, cur.payload || {});
     const key = dictKeyByType(entityType, payload);
-    const pubRef = db.collection(pubCol).doc(key);
+    const pubId = entityType === "statute" ? normalizeStatuteDocId(key, "statute") : key;
+    const pubRef = db.collection(pubCol).doc(pubId);
     t.set(
       pubRef,
       Object.assign({}, payload, {
@@ -1986,6 +2022,9 @@ exports.adminSaveDictStatute = onCall({ region: "asia-northeast3" }, async (requ
     statuteKey,
     heading: String(entry.heading != null ? entry.heading : "").trim(),
     body: String(entry.body != null ? entry.body : "").trim(),
+    appliedRules: String(entry.appliedRules != null ? entry.appliedRules : "").trim(),
+    subordinateRules: String(entry.subordinateRules != null ? entry.subordinateRules : "").trim(),
+    examPoint: String(entry.examPoint != null ? entry.examPoint : "").trim(),
     sourceNote: String(entry.sourceNote != null ? entry.sourceNote : "").trim(),
     oxQuizzes: sanitizeDictOxQuizzes(entry.oxQuizzes, 3),
     updatedAt: FieldValue.serverTimestamp()
@@ -2045,7 +2084,8 @@ exports.adminRejectDictStaging = onCall({ region: "asia-northeast3" }, async (re
   assertAdminCallable(request);
   const id = String((request.data && request.data.id) || "").trim();
   const entityTypeRaw = String((request.data && request.data.entityType) || "term").trim().toLowerCase();
-  const entityType = entityTypeRaw === "case" ? "case" : "term";
+  const entityType =
+    entityTypeRaw === "case" ? "case" : entityTypeRaw === "statute" ? "statute" : "term";
   const version = parseInt(request.data && request.data.version, 10);
   const reason = String((request.data && request.data.reason) || "").trim();
   if (!id) throw new HttpsError("invalid-argument", "id가 필요합니다.");

@@ -351,11 +351,119 @@
     var statuteMsg = $("admin-statute-create-msg");
     var btnStatuteGoExcel = $("admin-statute-go-excel");
     var btnStatuteSample = $("admin-statute-sample-download");
+    var btnStatuteRun = $("admin-statute-create-run");
+    var statuteKeysEl = $("admin-statute-create-keys");
+    var statuteHintEl = $("admin-statute-create-hint");
     function setStatuteMsg(text, isError) {
       if (!statuteMsg) return;
       statuteMsg.textContent = text || "";
       statuteMsg.classList.toggle("admin-msg--error", !!isError);
       statuteMsg.hidden = !text;
+    }
+    function parseStatuteKeys(raw) {
+      var src = String(raw || "");
+      var parts = src
+        .split(/\r?\n|,/g)
+        .map(function (x) {
+          return String(x || "").trim();
+        })
+        .filter(Boolean);
+      var out = [];
+      var seen = {};
+      for (var i = 0; i < parts.length; i++) {
+        var k = parts[i];
+        if (seen[k]) continue;
+        seen[k] = true;
+        out.push(k);
+      }
+      return out;
+    }
+    if (btnStatuteRun) {
+      btnStatuteRun.addEventListener("click", function () {
+        var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+        if (!isAdminUser(user)) {
+          setStatuteMsg("관리자만 사용할 수 있습니다.", true);
+          return;
+        }
+        if (typeof window.generateDictStatuteFromWeb !== "function") {
+          setStatuteMsg("조문 자동 생성 함수를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.", true);
+          return;
+        }
+        if (typeof window.adminStageDictBatch !== "function") {
+          setStatuteMsg("검수 대기 저장 함수를 찾지 못했습니다. 새로고침 후 다시 시도해 주세요.", true);
+          return;
+        }
+        var keys = parseStatuteKeys(statuteKeysEl && statuteKeysEl.value);
+        if (!keys.length) {
+          setStatuteMsg("조문 키를 1개 이상 입력해 주세요.", true);
+          return;
+        }
+        if (keys.length > 100) {
+          setStatuteMsg("한 번에 최대 100개까지 생성할 수 있습니다.", true);
+          return;
+        }
+        var hint = String((statuteHintEl && statuteHintEl.value) || "").trim();
+        btnStatuteRun.disabled = true;
+        setStatuteMsg("조문사전 생성 중… (0/" + keys.length + ")", false);
+        var rows = [];
+        var failRows = [];
+        var chain = Promise.resolve();
+        keys.forEach(function (k, idx) {
+          chain = chain.then(function () {
+            setStatuteMsg("조문사전 생성 중… (" + (idx + 1) + "/" + keys.length + ") · " + k, false);
+            return window
+              .generateDictStatuteFromWeb({
+                statuteKey: k,
+                headingHint: hint,
+                bodyHint: hint
+              })
+              .then(function (res) {
+                var entry = (res && res.entry) || {};
+                if (!entry || !entry.statuteKey || !entry.body) {
+                  failRows.push({ key: k, reason: "생성 결과가 비어 있습니다." });
+                  return;
+                }
+                rows.push({
+                  statuteKey: String(entry.statuteKey || k).trim(),
+                  heading: String(entry.heading || "").trim(),
+                  body: String(entry.body || "").trim(),
+                  appliedRules: String(entry.appliedRules || "").trim(),
+                  subordinateRules: String(entry.subordinateRules || "").trim(),
+                  examPoint: String(entry.examPoint || "").trim(),
+                  sourceNote: String(entry.sourceNote || "").trim(),
+                  oxQuizzes: Array.isArray(entry.oxQuizzes) ? entry.oxQuizzes : []
+                });
+              })
+              .catch(function (e) {
+                failRows.push({ key: k, reason: (e && e.message) || "생성 실패" });
+              });
+          });
+        });
+        chain
+          .then(function () {
+            if (!rows.length) throw new Error("생성된 조문이 없어 검수 대기에 등록할 수 없습니다.");
+            setStatuteMsg("검수 대기 등록 중… (" + rows.length + "건)", false);
+            return window.adminStageDictBatch("statute", rows).then(function (stageRes) {
+              return { stageRes: stageRes || {}, localFailRows: failRows };
+            });
+          })
+          .then(function (ret) {
+            var stagedOk = parseInt(ret.stageRes.okCount, 10) || 0;
+            var stageFails = Array.isArray(ret.stageRes.failRows) ? ret.stageRes.failRows.length : 0;
+            var localFails = Array.isArray(ret.localFailRows) ? ret.localFailRows.length : 0;
+            var msg = "조문사전 생성 완료: 검수 대기 등록 " + stagedOk + "건";
+            if (localFails || stageFails) msg += " / 실패 " + (localFails + stageFails) + "건";
+            msg += " (검수·승인 탭에서 수정/승인/반려 가능)";
+            setStatuteMsg(msg, stagedOk < 1);
+            if (typeof window.loadAdminReviewQueue === "function") window.loadAdminReviewQueue();
+          })
+          .catch(function (e) {
+            setStatuteMsg((e && e.message) || "조문사전 생성에 실패했습니다.", true);
+          })
+          .then(function () {
+            btnStatuteRun.disabled = false;
+          });
+      });
     }
     if (btnStatuteGoExcel) {
       btnStatuteGoExcel.addEventListener("click", function () {
