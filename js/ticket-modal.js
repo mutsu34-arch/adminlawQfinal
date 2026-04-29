@@ -101,14 +101,6 @@
       err.textContent = "";
       err.hidden = true;
     }
-    var qaPrivacyRow = $("ticket-modal-qa-privacy-row");
-    var qaCommunityCb = $("ticket-modal-qa-community");
-    if (qaPrivacyRow) {
-      qaPrivacyRow.hidden = true;
-    }
-    if (qaCommunityCb) {
-      qaCommunityCb.checked = false;
-    }
     var qHint = $("ticket-modal-question-hint");
     if (qHint) {
       if (currentType === "promotion") {

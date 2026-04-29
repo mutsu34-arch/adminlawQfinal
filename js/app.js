@@ -2315,7 +2315,39 @@
   window.addEventListener("hanlaw-detail-unlocked", refreshFeedbackDetailIfOpen);
   window.addEventListener("membership-updated", refreshFeedbackDetailIfOpen);
 
+  function bindMemoryContrastAnimation() {
+    var root = document.querySelector(".memory-contrast");
+    if (!root) return;
+    var bars = root.querySelectorAll(".memory-contrast__bar");
+    if (!bars.length) return;
+
+    function startBars() {
+      for (var i = 0; i < bars.length; i++) {
+        bars[i].classList.add("is-animated");
+      }
+    }
+
+    if (typeof window.IntersectionObserver !== "function") {
+      startBars();
+      return;
+    }
+
+    var io = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          startBars();
+          io.disconnect();
+        });
+      },
+      { threshold: 0.35 }
+    );
+
+    io.observe(root);
+  }
+
   syncBankUi();
+  bindMemoryContrastAnimation();
 
   /** 범위 즐겨찾기 등 외부에서 현재 폼 기준으로 퀴즈를 시작할 때 */
   window.startHanlawQuizFromSetup = startQuiz;

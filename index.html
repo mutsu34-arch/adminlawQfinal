@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css?v=20260429-admin-actions-mobile-stack-2" />
+  <link rel="stylesheet" href="/css/style.css?v=20260429-landing-hero-rework" />
 </head>
 <body>
   <div class="app">
@@ -243,16 +243,81 @@
                 <div class="card card--setup">
                   <h2 class="card__title">행정법Q</h2>
                   <section class="quiz-start-hero" aria-label="앱 소개">
+                    <p class="quiz-start-hero__q-badge" aria-label="행정법Q의 Q 의미">
+                      <span class="quiz-start-hero__q-mark">Q</span>
+                      <span class="quiz-start-hero__q-copy">Quest × Quick</span>
+                    </p>
                     <p class="quiz-start-hero__lead">
-                      변호사가 직접 만든 행정법 학습 앱, <strong>행정법Q</strong>
+                      읽기만 하는 공부는 끝났습니다. <strong>변호사가 만든 지문 인출 훈련, 행정법Q</strong>
                     </p>
                     <p class="quiz-start-hero__sub">
-                      실전형 OX, 핵심 해설, 판례·조문·용어사전을 한 번에 학습할 수 있습니다.
+                      최신 기출 반영부터 자동 오답노트까지, 가장 과학적인 방법으로 행정법을 정복하세요.
+                    </p>
+                    <p class="quiz-start-hero__q-note">
+                      행정법Q의 <strong>Q</strong>는 합격을 향한 <strong>Quest</strong>와 빠른 실력 상승의 <strong>Quick</strong>을 뜻합니다.
                     </p>
                     <div class="quiz-start-hero__actions">
-                      <button type="button" id="btn-start-full" class="btn btn--primary">퀴즈 풀기 (전범위)</button>
+                      <button type="button" id="btn-start-full" class="btn btn--primary">지금 무료로 시작하기 (전범위)</button>
                       <button type="button" id="btn-open-setup" class="btn btn--outline">범위 설정하고 풀기</button>
                     </div>
+                  </section>
+                  <section class="quiz-start-why" aria-label="왜 행정법Q인가">
+                    <h3 class="quiz-start-section__title">Why 행정법Q</h3>
+                    <p class="quiz-start-section__body">
+                      OX 인출 훈련은 단순 회독보다 기억 고정에 유리합니다. 지문을 읽고 즉시 O/X를 판단하는 과정에서
+                      약한 개념이 선명하게 드러나고, 오답노트로 바로 이어져 회독 효율이 크게 올라갑니다.
+                    </p>
+                    <div class="memory-contrast" role="img" aria-label="학습 피라미드 기반 기억률 비교: 읽기 10퍼센트, 행정법Q 75퍼센트">
+                      <p class="memory-contrast__title">학습 피라미드 기반 기억률 비교</p>
+                      <div class="memory-contrast__chart">
+                        <div class="memory-contrast__row">
+                          <span class="memory-contrast__label">Passive: 단순 회독</span>
+                          <div class="memory-contrast__track" aria-hidden="true">
+                            <span class="memory-contrast__bar memory-contrast__bar--passive" style="width: 10%;">10%</span>
+                          </div>
+                        </div>
+                        <div class="memory-contrast__row">
+                          <span class="memory-contrast__label">Active: 지문 인출</span>
+                          <div class="memory-contrast__track" aria-hidden="true">
+                            <span class="memory-contrast__bar memory-contrast__bar--active" style="width: 75%;">75%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                  <section class="quiz-start-features" aria-label="핵심 기능">
+                    <h3 class="quiz-start-section__title">핵심 포인트 5가지</h3>
+                    <div class="quiz-feature-grid">
+                      <article class="quiz-feature-card">
+                        <p class="quiz-feature-card__title">🧠 강력한 인출 효과</p>
+                        <p class="quiz-feature-card__desc">단순 회독보다 높은 기억 효율. 직접 O/X를 판단하며 뇌에 각인시키는 실전형 학습법.</p>
+                      </article>
+                      <article class="quiz-feature-card">
+                        <p class="quiz-feature-card__title">⚖️ 현직 변호사 직접 운영</p>
+                        <p class="quiz-feature-card__desc">변호사가 기출 지문을 직접 분석·검수하여 수험 적합성이 높은 지문만 선별합니다.</p>
+                      </article>
+                      <article class="quiz-feature-card">
+                        <p class="quiz-feature-card__title">🗂️ 오답노트 자동 생성</p>
+                        <p class="quiz-feature-card__desc">틀린 문항은 자동 저장. 오답만 모아 반복 회독해 약점을 빠르게 보완합니다.</p>
+                      </article>
+                      <article class="quiz-feature-card">
+                        <p class="quiz-feature-card__title">📚 최신 기출·판례 반영</p>
+                        <p class="quiz-feature-card__desc">법령·판례 업데이트를 빠르게 반영해 시험장에서 낯선 지문을 줄입니다.</p>
+                      </article>
+                      <article class="quiz-feature-card">
+                        <p class="quiz-feature-card__title">📈 정밀 학습 통계</p>
+                        <p class="quiz-feature-card__desc">단원별 정답률과 학습량을 데이터로 확인해 막연한 불안 대신 확신 있는 전략을 세웁니다.</p>
+                      </article>
+                    </div>
+                  </section>
+                  <section class="quiz-start-preview" aria-label="앱 미리보기">
+                    <h3 class="quiz-start-section__title">App Preview</h3>
+                    <p class="quiz-start-section__body">
+                      퀴즈 풀이 → 해설 확인 → 오답 자동 저장 → 다시 회독까지, 한 화면에서 끊김 없이 이어지는 학습 흐름을 제공합니다.
+                    </p>
+                  </section>
+                  <section class="quiz-start-final-cta" aria-label="마무리 안내">
+                    <p class="quiz-start-final-cta__text">당신의 합격, 행정법Q가 함께합니다.</p>
                   </section>
 
                   <div id="setup-config-wrap" hidden>
@@ -765,9 +830,9 @@
             <div class="card card--qa">
               <h2 class="card__title">Q&amp;A</h2>
               <p class="dict-lead">
-                이 목록에는 <strong>질문자가 Q&A 공개를 허용하고, 변호사 답변 또는 엘리(AI) 답변 후 대시보드에서 「공개하기」를 누른</strong> 질문만 나타납니다.
-                검색으로 다른 회원의 질문·답변 본문에 포함된 키워드를 찾을 수 있습니다. 항목을 누르면 변호사 답변 또는 엘리(AI) 답변을 확인할 수 있습니다.
-                다른 회원이 답변을 <strong>처음</strong> 열람할 때 질문을 올린 분에게 포인트가 지급될 수 있습니다(변호사 Q&amp;A 500점, 엘리 Q&amp;A 200점).
+                이 목록에는 <strong>질문자가 Q&amp;A 공개를 허용하고, 엘리(AI) 답변 후 대시보드에서 「공개하기」를 누른</strong> 질문만 나타납니다.
+                검색으로 다른 회원의 질문·답변 본문에 포함된 키워드를 찾을 수 있습니다. 항목을 누르면 엘리(AI) 답변을 확인할 수 있습니다.
+                다른 회원이 답변을 <strong>처음</strong> 열람할 때 질문을 올린 분에게 포인트가 지급될 수 있습니다(엘리 Q&amp;A 200점).
               </p>
               <div class="public-qa-search">
                 <label class="field field--grow public-qa-search__field">
@@ -2899,14 +2964,6 @@
       </div>
       <pre class="modal__context" id="ticket-modal-context" hidden></pre>
       <p id="ticket-modal-question-hint" class="modal__hint" hidden></p>
-      <div class="field ticket-modal-qa-privacy" id="ticket-modal-qa-privacy-row" hidden>
-        <label class="ticket-modal-qa-privacy__label">
-          <input type="checkbox" id="ticket-modal-qa-community" />
-          <span>
-            답변을 받은 뒤 Q&A 게시판에 올릴 수 있도록 허용합니다. 실제 공개는 대시보드에서 최종 선택합니다.
-          </span>
-        </label>
-      </div>
       <label class="field">
         <span class="field__label" id="ticket-modal-body-label">내용</span>
         <textarea id="ticket-modal-body" class="input textarea" rows="5" placeholder="유형에 맞게 입력해 주세요."></textarea>
@@ -3196,9 +3253,9 @@
   <script src="/js/quiz-wrong-note.js?v=5"></script>
   <script src="/js/quiz-master.js?v=2"></script>
   <script src="/js/quiz-favorites.js?v=6"></script>
-  <script src="/js/app.js?v=52"></script>
+  <script src="/js/app.js?v=53"></script>
   <script src="/js/scope-favorites.js?v=9"></script>
-  <script src="/js/ticket-modal.js?v=14"></script>
+  <script src="/js/ticket-modal.js?v=15"></script>
   <script src="/js/dict-panel-actions.js?v=10"></script>
   <script src="/js/quiz-note-card-actions.js?v=7"></script>
   <script src="/js/notifications-ui.js?v=4"></script>
