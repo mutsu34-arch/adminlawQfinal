@@ -76,6 +76,8 @@
     btnStartFullBottom: document.getElementById("btn-start-full-bottom"),
     btnOpenSetup: document.getElementById("btn-open-setup"),
     btnOpenSetupBottom: document.getElementById("btn-open-setup-bottom"),
+    setupAnchorTop: document.getElementById("setup-anchor-top"),
+    setupAnchorBottom: document.getElementById("setup-anchor-bottom"),
     setupConfigWrap: document.getElementById("setup-config-wrap"),
     progress: document.getElementById("quiz-progress"),
     quizTimerPanel: document.getElementById("quiz-timer-panel"),
@@ -2073,11 +2075,24 @@
     renderQuestion();
   }
 
-  function openSetupConfig() {
+  function moveSetupConfigTo(anchor) {
+    if (!el.setupConfigWrap || !anchor || !anchor.parentNode) return;
+    if (el.setupConfigWrap.previousElementSibling === anchor) return;
+    anchor.parentNode.insertBefore(el.setupConfigWrap, anchor.nextSibling);
+  }
+
+  function openSetupConfig(source) {
     if (!el.setupConfigWrap) return;
+    if (source === "bottom") moveSetupConfigTo(el.setupAnchorBottom);
+    else moveSetupConfigTo(el.setupAnchorTop);
     el.setupConfigWrap.hidden = false;
-    if (el.btnOpenSetup) el.btnOpenSetup.hidden = true;
-    if (el.btnOpenSetupBottom) el.btnOpenSetupBottom.hidden = true;
+    if (source === "bottom") {
+      if (el.btnOpenSetupBottom) el.btnOpenSetupBottom.hidden = true;
+      if (el.btnOpenSetup) el.btnOpenSetup.hidden = false;
+    } else {
+      if (el.btnOpenSetup) el.btnOpenSetup.hidden = true;
+      if (el.btnOpenSetupBottom) el.btnOpenSetupBottom.hidden = false;
+    }
   }
 
   function startQuizFullScope() {
@@ -2107,7 +2122,7 @@
     if (nw) nw.checked = false;
     if (nf) nf.checked = false;
     if (nm) nm.checked = false;
-    openSetupConfig();
+    openSetupConfig("top");
     startQuiz();
   }
 
@@ -2238,8 +2253,8 @@
   if (el.btnStart) el.btnStart.addEventListener("click", startQuiz);
   if (el.btnStartFull) el.btnStartFull.addEventListener("click", startQuizFullScope);
   if (el.btnStartFullBottom) el.btnStartFullBottom.addEventListener("click", startQuizFullScope);
-  if (el.btnOpenSetup) el.btnOpenSetup.addEventListener("click", openSetupConfig);
-  if (el.btnOpenSetupBottom) el.btnOpenSetupBottom.addEventListener("click", openSetupConfig);
+  if (el.btnOpenSetup) el.btnOpenSetup.addEventListener("click", function () { openSetupConfig("top"); });
+  if (el.btnOpenSetupBottom) el.btnOpenSetupBottom.addEventListener("click", function () { openSetupConfig("bottom"); });
   if (el.qActions) {
     el.qActions.addEventListener("click", function (e) {
       var btn = e.target.closest(".btn--ox");
