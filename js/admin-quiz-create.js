@@ -5,6 +5,7 @@
   var existingLibraryDocs = [];
   var QUIZ_CREATE_PRESET_KEY = "hanlaw_admin_quiz_create_preset_v1";
   var QUIZ_CREATE_PROGRESS_KEY = "hanlaw_admin_quiz_create_progress_v1";
+  var QUIZ_PROMPT_TEMPLATES_KEY = "hanlaw_admin_quiz_prompt_templates_v1";
   var autoMeta = { examId: "", year: "" };
   var quizGenerationRunning = false;
   var quizGenerationCancelRequested = false;
@@ -67,6 +68,27 @@
   function clearQuizCreateProgress() {
     try {
       localStorage.removeItem(QUIZ_CREATE_PROGRESS_KEY);
+    } catch (_) {}
+  }
+
+  function readPromptTemplates() {
+    try {
+      var raw = localStorage.getItem(QUIZ_PROMPT_TEMPLATES_KEY);
+      if (!raw) return { past: [], expected: [] };
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return { past: [], expected: [] };
+      return {
+        past: Array.isArray(parsed.past) ? parsed.past : [],
+        expected: Array.isArray(parsed.expected) ? parsed.expected : []
+      };
+    } catch (_) {
+      return { past: [], expected: [] };
+    }
+  }
+
+  function writePromptTemplates(v) {
+    try {
+      localStorage.setItem(QUIZ_PROMPT_TEMPLATES_KEY, JSON.stringify(v || { past: [], expected: [] }));
     } catch (_) {}
   }
 
@@ -235,7 +257,10 @@
 
   function collectPresetFromForm() {
     return {
-      prompt: String(($("admin-quiz-create-prompt") && $("admin-quiz-create-prompt").value) || "").trim(),
+      promptPast: String(($("admin-quiz-create-prompt-past") && $("admin-quiz-create-prompt-past").value) || "").trim(),
+      promptExpected: String(
+        ($("admin-quiz-create-prompt-expected") && $("admin-quiz-create-prompt-expected").value) || ""
+      ).trim(),
       examId: String(($("admin-quiz-create-exam-id") && $("admin-quiz-create-exam-id").value) || "").trim(),
       year: String(($("admin-quiz-create-year") && $("admin-quiz-create-year").value) || "").trim(),
       fastMode: !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked),
@@ -245,12 +270,19 @@
 
   function applyPresetToForm(preset) {
     var p = preset || {};
-    var promptEl = $("admin-quiz-create-prompt");
+    var promptPastEl = $("admin-quiz-create-prompt-past");
+    var promptExpectedEl = $("admin-quiz-create-prompt-expected");
     var examEl = $("admin-quiz-create-exam-id");
     var yearEl = $("admin-quiz-create-year");
     var fastEl = $("admin-quiz-create-fast-mode");
     var expectedCountEl = $("admin-quiz-create-expected-count");
-    if (promptEl && p.prompt != null && !String(promptEl.value || "").trim()) promptEl.value = String(p.prompt);
+    var legacyPrompt = String(p.prompt || "").trim();
+    if (promptPastEl && !String(promptPastEl.value || "").trim()) {
+      promptPastEl.value = String(p.promptPast || legacyPrompt);
+    }
+    if (promptExpectedEl && !String(promptExpectedEl.value || "").trim()) {
+      promptExpectedEl.value = String(p.promptExpected || legacyPrompt);
+    }
     if (examEl && p.examId != null && String(p.examId).trim()) examEl.value = String(p.examId).trim();
     if (yearEl && p.year != null && !String(yearEl.value || "").trim()) yearEl.value = String(p.year);
     if (fastEl && p.fastMode != null) fastEl.checked = !!p.fastMode;
@@ -261,7 +293,8 @@
 
   function bindPresetPersistence() {
     var ids = [
-      "admin-quiz-create-prompt",
+      "admin-quiz-create-prompt-past",
+      "admin-quiz-create-prompt-expected",
       "admin-quiz-create-exam-id",
       "admin-quiz-create-year",
       "admin-quiz-create-fast-mode",
@@ -282,6 +315,98 @@
         }
       })(ids[i]);
     }
+  }
+
+  function templateSelectIdByKind(kind) {
+    return kind === "expected" ? "admin-quiz-prompt-expected-list" : "admin-quiz-prompt-past-list";
+  }
+
+  function templateNameInputIdByKind(kind) {
+    return kind === "expected" ? "admin-quiz-prompt-expected-name" : "admin-quiz-prompt-past-name";
+  }
+
+  function templateTextareaIdByKind(kind) {
+    return kind === "expected" ? "admin-quiz-create-prompt-expected" : "admin-quiz-create-prompt-past";
+  }
+
+  function renderPromptTemplateSelect(kind) {
+    var sel = $(templateSelectIdByKind(kind));
+    if (!sel) return;
+    var store = readPromptTemplates();
+    var arr = kind === "expected" ? store.expected : store.past;
+    sel.innerHTML = "";
+    var base = document.createElement("option");
+    base.value = "";
+    base.textContent = "저장된 지침 선택";
+    sel.appendChild(base);
+    for (var i = 0; i < arr.length; i++) {
+      var it = arr[i] || {};
+      var opt = document.createElement("option");
+      opt.value = String(it.id || "");
+      opt.textContent = String(it.name || "이름 없음");
+      sel.appendChild(opt);
+    }
+  }
+
+  function savePromptTemplate(kind) {
+    var nameEl = $(templateNameInputIdByKind(kind));
+    var textEl = $(templateTextareaIdByKind(kind));
+    var msgEl = $("admin-quiz-create-run-msg");
+    var name = String((nameEl && nameEl.value) || "").trim();
+    var text = String((textEl && textEl.value) || "").trim();
+    if (!name) return setMsg(msgEl, "템플릿 이름을 입력해 주세요.", true);
+    if (!text) return setMsg(msgEl, "저장할 지침 내용을 입력해 주세요.", true);
+    var store = readPromptTemplates();
+    var key = kind === "expected" ? "expected" : "past";
+    var arr = Array.isArray(store[key]) ? store[key].slice() : [];
+    arr.unshift({
+      id: Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8),
+      name: name,
+      text: text,
+      updatedAt: Date.now()
+    });
+    if (arr.length > 50) arr = arr.slice(0, 50);
+    store[key] = arr;
+    writePromptTemplates(store);
+    renderPromptTemplateSelect(kind);
+    if (nameEl) nameEl.value = "";
+    setMsg(msgEl, "지침 템플릿을 저장했습니다.", false);
+  }
+
+  function loadPromptTemplate(kind) {
+    var sel = $(templateSelectIdByKind(kind));
+    var textEl = $(templateTextareaIdByKind(kind));
+    var msgEl = $("admin-quiz-create-run-msg");
+    var id = String((sel && sel.value) || "").trim();
+    if (!id) return setMsg(msgEl, "불러올 템플릿을 선택해 주세요.", true);
+    var store = readPromptTemplates();
+    var arr = kind === "expected" ? store.expected : store.past;
+    for (var i = 0; i < arr.length; i++) {
+      if (String(arr[i] && arr[i].id) === id) {
+        if (textEl) textEl.value = String(arr[i].text || "");
+        writePreset(collectPresetFromForm());
+        return setMsg(msgEl, "지침 템플릿을 불러왔습니다.", false);
+      }
+    }
+    setMsg(msgEl, "선택한 템플릿을 찾을 수 없습니다.", true);
+  }
+
+  function deletePromptTemplate(kind) {
+    var sel = $(templateSelectIdByKind(kind));
+    var msgEl = $("admin-quiz-create-run-msg");
+    var id = String((sel && sel.value) || "").trim();
+    if (!id) return setMsg(msgEl, "삭제할 템플릿을 선택해 주세요.", true);
+    var store = readPromptTemplates();
+    var key = kind === "expected" ? "expected" : "past";
+    var arr = Array.isArray(store[key]) ? store[key] : [];
+    var next = arr.filter(function (x) {
+      return String((x && x.id) || "") !== id;
+    });
+    if (next.length === arr.length) return setMsg(msgEl, "삭제할 템플릿을 찾을 수 없습니다.", true);
+    store[key] = next;
+    writePromptTemplates(store);
+    renderPromptTemplateSelect(kind);
+    setMsg(msgEl, "지침 템플릿을 삭제했습니다.", false);
   }
 
   function fillExamSelect(select) {
@@ -772,7 +897,7 @@
   function runGenerate() {
     var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var msgEl = $("admin-quiz-create-run-msg");
-    var prompt = String(($("admin-quiz-create-prompt") && $("admin-quiz-create-prompt").value) || "").trim();
+    var prompt = String(($("admin-quiz-create-prompt-past") && $("admin-quiz-create-prompt-past").value) || "").trim();
     var examId = String(($("admin-quiz-create-exam-id") && $("admin-quiz-create-exam-id").value) || "").trim();
     var year = parseInt(($("admin-quiz-create-year") && $("admin-quiz-create-year").value) || "", 10);
     var fastMode = !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked);
@@ -914,7 +1039,9 @@
   function runExpectedGenerate() {
     var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var msgEl = $("admin-quiz-create-run-msg");
-    var prompt = String(($("admin-quiz-create-prompt") && $("admin-quiz-create-prompt").value) || "").trim();
+    var prompt = String(
+      ($("admin-quiz-create-prompt-expected") && $("admin-quiz-create-prompt-expected").value) || ""
+    ).trim();
     var fastMode = !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked);
     var expectedCount = parseInt(($("admin-quiz-create-expected-count") && $("admin-quiz-create-expected-count").value) || "", 10);
     if (!isFinite(expectedCount)) expectedCount = 30;
@@ -1125,6 +1252,18 @@
     if (btnRun) btnRun.addEventListener("click", runGenerate);
     var btnExpectedRun = $("admin-quiz-create-expected-run");
     if (btnExpectedRun) btnExpectedRun.addEventListener("click", runExpectedGenerate);
+    var btnPastSave = $("admin-quiz-prompt-past-save");
+    if (btnPastSave) btnPastSave.addEventListener("click", function () { savePromptTemplate("past"); });
+    var btnPastLoad = $("admin-quiz-prompt-past-load");
+    if (btnPastLoad) btnPastLoad.addEventListener("click", function () { loadPromptTemplate("past"); });
+    var btnPastDelete = $("admin-quiz-prompt-past-delete");
+    if (btnPastDelete) btnPastDelete.addEventListener("click", function () { deletePromptTemplate("past"); });
+    var btnExpectedSave = $("admin-quiz-prompt-expected-save");
+    if (btnExpectedSave) btnExpectedSave.addEventListener("click", function () { savePromptTemplate("expected"); });
+    var btnExpectedLoad = $("admin-quiz-prompt-expected-load");
+    if (btnExpectedLoad) btnExpectedLoad.addEventListener("click", function () { loadPromptTemplate("expected"); });
+    var btnExpectedDelete = $("admin-quiz-prompt-expected-delete");
+    if (btnExpectedDelete) btnExpectedDelete.addEventListener("click", function () { deletePromptTemplate("expected"); });
     var btnStop = $("admin-quiz-create-stop");
     if (btnStop) btnStop.addEventListener("click", stopGenerate);
     var btnHideBundled = $("admin-quiz-hide-bundled");
@@ -1132,6 +1271,8 @@
     var btnRestoreBundled = $("admin-quiz-restore-bundled");
     if (btnRestoreBundled) btnRestoreBundled.addEventListener("click", restoreBundledQuizSet);
     bindDropzone();
+    renderPromptTemplateSelect("past");
+    renderPromptTemplateSelect("expected");
     loadExistingLibraryDocs();
     refreshVisibility();
     resumeQuizGenerationIfNeeded();

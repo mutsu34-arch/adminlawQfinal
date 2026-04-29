@@ -2095,14 +2095,61 @@
                     <p id="admin-quiz-create-existing-msg" class="admin-json-help" hidden></p>
                   </div>
                   <label class="field">
-                    <span class="field__label">생성 지시</span>
+                    <span class="field__label">기출 퀴즈 생성 지시</span>
                     <textarea
-                      id="admin-quiz-create-prompt"
+                      id="admin-quiz-create-prompt-past"
                       class="input textarea"
                       rows="4"
                       placeholder="예: 최근 업로드한 기출자료 기준으로 처분성·원고적격 중심 OX 문항을 만들어줘."
                     ></textarea>
                   </label>
+                  <div class="dict-case-create-admin__actions" style="margin-top:-0.4rem">
+                    <input
+                      type="text"
+                      id="admin-quiz-prompt-past-name"
+                      class="input"
+                      placeholder="기출 지침 템플릿 이름"
+                      style="max-width:240px"
+                    />
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-save">
+                      기출 지침 저장
+                    </button>
+                    <select id="admin-quiz-prompt-past-list" class="select" style="max-width:320px"></select>
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-load">
+                      불러오기
+                    </button>
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-delete">
+                      삭제
+                    </button>
+                  </div>
+                  <label class="field">
+                    <span class="field__label">예상문제 생성 지시</span>
+                    <textarea
+                      id="admin-quiz-create-prompt-expected"
+                      class="input textarea"
+                      rows="4"
+                      placeholder="예: 업로드한 교재를 바탕으로 핵심 개념을 응용한 예상 OX 문제를 만들어줘."
+                    ></textarea>
+                  </label>
+                  <div class="dict-case-create-admin__actions" style="margin-top:-0.4rem">
+                    <input
+                      type="text"
+                      id="admin-quiz-prompt-expected-name"
+                      class="input"
+                      placeholder="예상문제 지침 템플릿 이름"
+                      style="max-width:240px"
+                    />
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-save">
+                      예상문제 지침 저장
+                    </button>
+                    <select id="admin-quiz-prompt-expected-list" class="select" style="max-width:320px"></select>
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-load">
+                      불러오기
+                    </button>
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-delete">
+                      삭제
+                    </button>
+                  </div>
                   <label class="field" style="margin-top: -0.25rem">
                     <span class="check" style="justify-content: flex-start">
                       <input type="checkbox" id="admin-quiz-create-fast-mode" />
@@ -3156,7 +3203,7 @@
   <script src="/js/quiz-note-card-actions.js?v=7"></script>
   <script src="/js/notifications-ui.js?v=4"></script>
   <script src="/js/admin-panel.js?v=2"></script>
-  <script src="/js/admin-quiz-create.js?v=18"></script>
+  <script src="/js/admin-quiz-create.js?v=19"></script>
   <script src="/js/admin-review.js?v=18"></script>
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
