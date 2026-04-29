@@ -295,7 +295,7 @@
       " · 버전: " +
       (item.version || 1) +
       (formatAiReviewBadge(item) ? " · " + formatAiReviewBadge(item) : "");
-    if (mode === "quiz" && item.aiReview && typeof item.aiReview === "object") {
+    if (item.aiReview && typeof item.aiReview === "object") {
       var rv = item.aiReview;
       var summary = String(rv.summary || "").trim();
       var reasons = Array.isArray(rv.reasons)

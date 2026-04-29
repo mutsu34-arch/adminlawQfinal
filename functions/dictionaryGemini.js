@@ -793,6 +793,52 @@ function entryKeyByKind(asCase, payload) {
   return asCase ? String(payload.citation || "").trim() : String(payload.term || "").trim();
 }
 
+function defaultAiReviewForDict(asCase) {
+  return {
+    risk: "medium",
+    summary: asCase ? "AI 1차 검수 결과 없음(판례 기본값)" : "AI 1차 검수 결과 없음(용어 기본값)",
+    reasons: []
+  };
+}
+
+async function reviewDictionaryPayloadWithAi(gen, modelId, asCase, payload, tagInput) {
+  const entryKey = entryKeyByKind(asCase, payload);
+  if (!entryKey) return defaultAiReviewForDict(asCase);
+  const reviewPrompt = [
+    "당신은 행정법 사전 콘텐츠 품질검수자입니다.",
+    "아래 항목을 검토해 JSON만 출력하세요.",
+    "출력 스키마: {\"risk\":\"low|medium|high\",\"summary\":\"한 줄 요약\",\"reasons\":[\"사유1\",\"사유2\"]}",
+    "사유는 최대 3개.",
+    "",
+    "[엔터티]",
+    asCase ? "case" : "term",
+    "",
+    "[입력 태그]",
+    String(tagInput || ""),
+    "",
+    "[항목 키]",
+    entryKey,
+    "",
+    "[항목 JSON]",
+    JSON.stringify(payload)
+  ].join("\n");
+  try {
+    const out = await generateJsonWithModelFallback(gen, modelId, reviewPrompt);
+    const riskRaw = String(out && out.risk ? out.risk : "").trim().toLowerCase();
+    const risk = riskRaw === "high" || riskRaw === "medium" || riskRaw === "low" ? riskRaw : "medium";
+    const reasons = Array.isArray(out && out.reasons)
+      ? out.reasons.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 3)
+      : [];
+    return {
+      risk,
+      summary: String((out && out.summary) || "").trim().slice(0, 400) || defaultAiReviewForDict(asCase).summary,
+      reasons
+    };
+  } catch (_) {
+    return defaultAiReviewForDict(asCase);
+  }
+}
+
 const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -840,9 +886,11 @@ const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async
   }
 
   try {
+    const gen = new GoogleGenerativeAI(apiKey);
     const payload = asCase
       ? await generateCaseWithGemini(raw, apiKey, modelId, learnerNick, caseFullText)
       : await generateTermWithGemini(raw, apiKey, modelId, learnerNick);
+    const aiReview = await reviewDictionaryPayloadWithAi(gen, modelId, asCase, payload, raw);
 
     if (asCase) {
       if (caseFullText) payload.caseFullText = caseFullText;
@@ -879,7 +927,8 @@ const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async
         approvedAt: null,
         approvedBy: null,
         rejectReason: "",
-        version: 1
+        version: 1,
+        aiReview
       },
       { merge: true }
     );

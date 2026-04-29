@@ -943,6 +943,66 @@ async function autoReviewQuizRows(apiKey, modelId, rows, userPrompt, ragContext)
   return byId;
 }
 
+function defaultAiReviewSummary(entityType) {
+  if (entityType === "case") return "AI 1차 검수 결과 없음(판례 기본값)";
+  if (entityType === "statute") return "AI 1차 검수 결과 없음(조문 기본값)";
+  if (entityType === "term") return "AI 1차 검수 결과 없음(용어 기본값)";
+  return "AI 1차 검수 결과 없음(기본값)";
+}
+
+function buildDefaultAiReview(entityType) {
+  return {
+    risk: "medium",
+    summary: defaultAiReviewSummary(entityType),
+    reasons: []
+  };
+}
+
+async function autoReviewDictRows(apiKey, modelId, entityType, rows) {
+  if (!Array.isArray(rows) || !rows.length || !apiKey) return {};
+  const gen = new GoogleGenerativeAI(apiKey);
+  const out = {};
+  const batchSize = 20;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const prompt = [
+      "당신은 행정법 사전 콘텐츠 품질검수자입니다.",
+      "입력 배열 각 항목의 품질 위험도를 판정해 JSON 배열만 출력하세요.",
+      "출력 스키마: [{\"entryKey\":\"키\",\"risk\":\"low|medium|high\",\"summary\":\"한 줄 요약\",\"reasons\":[\"사유1\",\"사유2\"]}]",
+      "사유는 최대 3개. 근거 없는 추측 금지.",
+      "평가 관점: 사실오류 가능성, 정의/요건 누락, 과도한 단정, 문장 명확성.",
+      "",
+      "[엔터티 유형]",
+      entityType,
+      "",
+      "[검수 대상 배열]",
+      JSON.stringify(batch)
+    ].join("\n");
+    let reviewed = [];
+    try {
+      reviewed = await generateLibraryQuizRows(apiKey, modelId, prompt);
+    } catch (_) {
+      reviewed = [];
+    }
+    for (let j = 0; j < reviewed.length; j++) {
+      const r = reviewed[j] || {};
+      const key = String(r.entryKey || "").trim();
+      if (!key) continue;
+      const riskRaw = String(r.risk || "").trim().toLowerCase();
+      const risk = riskRaw === "high" || riskRaw === "medium" || riskRaw === "low" ? riskRaw : "medium";
+      const reasons = Array.isArray(r.reasons)
+        ? r.reasons.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 3)
+        : [];
+      out[key] = {
+        risk,
+        summary: String(r.summary || "").trim().slice(0, 400),
+        reasons
+      };
+    }
+  }
+  return out;
+}
+
 async function generateLibraryTermRows(apiKey, modelId, prompt) {
   const gen = new GoogleGenerativeAI(apiKey);
   const candidates = uniqueGeminiModelCandidates();
@@ -1457,11 +1517,7 @@ exports.adminGenerateQuizFromLibrary = onCall(
         approvedAt: null,
         rejectReason: "",
         version: 1,
-        aiReview: aiReviewById[clean.id] || {
-          risk: "medium",
-          summary: "AI 1차 검수 결과 없음(기본값)",
-          reasons: []
-        }
+        aiReview: aiReviewById[clean.id] || buildDefaultAiReview("quiz")
       });
       stagedRows.push(clean);
       if (stagedRows.length >= 500) break;
@@ -1641,11 +1697,7 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
           approvedAt: null,
           rejectReason: "",
           version: 1,
-          aiReview: aiReviewById[clean.id] || {
-            risk: "medium",
-            summary: "AI 1차 검수 결과 없음(기본값)",
-            reasons: []
-          }
+          aiReview: aiReviewById[clean.id] || buildDefaultAiReview("quiz")
         });
         stagedRows.push(clean);
         if (stagedRows.length >= count) break;
@@ -1746,32 +1798,54 @@ exports.adminGenerateTermsFromLibrary = onCall({ region: "asia-northeast3" }, as
   const batch = db.batch();
   const failRows = [];
   const stagedRows = [];
+  const prepared = [];
   for (let i = 0; i < rows.length; i++) {
     try {
       const payload = sanitizeTermPayload(rows[i] || {});
       const entryKey = String(payload.term || "").trim();
-      const ref = db.collection(STAGING_TERM_COLLECTION).doc();
-      batch.set(ref, {
-        entityType: "term",
-        entryKey,
-        payload,
-        status: "reviewing",
-        source: "ai-library",
-        changeType: "upsert",
-        createdBy: email,
-        updatedBy: email,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        approvedBy: null,
-        approvedAt: null,
-        rejectReason: "",
-        version: 1
-      });
-      stagedRows.push(payload);
-      if (stagedRows.length >= count) break;
+      prepared.push({ entryKey, payload });
+      if (prepared.length >= count) break;
     } catch (e) {
       failRows.push({ index: i + 1, reason: e && e.message ? e.message : "형식 오류" });
     }
+  }
+  let aiReviewByKey = {};
+  try {
+    aiReviewByKey = await autoReviewDictRows(
+      apiKey,
+      modelId,
+      "term",
+      prepared.map((x) => ({
+        entryKey: x.entryKey,
+        term: x.payload.term,
+        aliases: x.payload.aliases || [],
+        definition: x.payload.definition || ""
+      }))
+    );
+  } catch (_) {
+    aiReviewByKey = {};
+  }
+  for (let i = 0; i < prepared.length; i++) {
+    const row = prepared[i];
+    const ref = db.collection(STAGING_TERM_COLLECTION).doc();
+    batch.set(ref, {
+      entityType: "term",
+      entryKey: row.entryKey,
+      payload: row.payload,
+      status: "reviewing",
+      source: "ai-library",
+      changeType: "upsert",
+      createdBy: email,
+      updatedBy: email,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      approvedBy: null,
+      approvedAt: null,
+      rejectReason: "",
+      version: 1,
+      aiReview: aiReviewByKey[row.entryKey] || buildDefaultAiReview("term")
+    });
+    stagedRows.push(row.payload);
   }
   if (!stagedRows.length) {
     throw new HttpsError("failed-precondition", "유효한 용어가 생성되지 않았습니다.");
@@ -2107,31 +2181,75 @@ exports.adminStageDictBatch = onCall({ region: "asia-northeast3" }, async (reque
   const batch = db.batch();
   let okCount = 0;
   const failRows = [];
+  const parsedRows = [];
   rows.forEach((row, idx) => {
     try {
       const payload = sanitizeDictPayload(entityType, row);
       const entryKey = dictKeyByType(entityType, payload);
-      const ref = db.collection(col).doc();
-      batch.set(ref, {
-        entityType,
+      parsedRows.push({
         entryKey,
-        payload,
-        status: "reviewing",
-        source: "excel",
-        changeType: "upsert",
-        createdBy: email,
-        updatedBy: email,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        approvedBy: null,
-        approvedAt: null,
-        rejectReason: "",
-        version: 1
+        payload
       });
-      okCount += 1;
     } catch (err) {
       failRows.push({ index: idx + 1, reason: err && err.message ? err.message : "형식 오류" });
     }
+  });
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  const modelId = effectiveGeminiModelId();
+  let aiReviewByKey = {};
+  try {
+    const reviewInput = parsedRows.map((x) => {
+      if (entityType === "case") {
+        return {
+          entryKey: x.entryKey,
+          citation: x.payload.citation || "",
+          title: x.payload.title || "",
+          issues: x.payload.issues || "",
+          judgment: x.payload.judgment || ""
+        };
+      }
+      if (entityType === "statute") {
+        return {
+          entryKey: x.entryKey,
+          statuteKey: x.payload.statuteKey || "",
+          heading: x.payload.heading || "",
+          body: String(x.payload.body || "").slice(0, 1200),
+          appliedRules: x.payload.appliedRules || "",
+          subordinateRules: x.payload.subordinateRules || "",
+          examPoint: x.payload.examPoint || ""
+        };
+      }
+      return {
+        entryKey: x.entryKey,
+        term: x.payload.term || "",
+        aliases: x.payload.aliases || [],
+        definition: x.payload.definition || ""
+      };
+    });
+    aiReviewByKey = await autoReviewDictRows(apiKey, modelId, entityType, reviewInput);
+  } catch (_) {
+    aiReviewByKey = {};
+  }
+  parsedRows.forEach((row) => {
+    const ref = db.collection(col).doc();
+    batch.set(ref, {
+      entityType,
+      entryKey: row.entryKey,
+      payload: row.payload,
+      status: "reviewing",
+      source: "excel",
+      changeType: "upsert",
+      createdBy: email,
+      updatedBy: email,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      approvedBy: null,
+      approvedAt: null,
+      rejectReason: "",
+      version: 1,
+      aiReview: aiReviewByKey[row.entryKey] || buildDefaultAiReview(entityType)
+    });
+    okCount += 1;
   });
   if (okCount > 0) await batch.commit();
   return { ok: true, okCount, failRows };
@@ -2162,6 +2280,7 @@ exports.adminListDictStaging = onCall({ region: "asia-northeast3" }, async (requ
             : String(payload.term || "").trim(),
       status: x.status || "reviewing",
       source: x.source || "",
+      aiReview: x.aiReview && typeof x.aiReview === "object" ? x.aiReview : null,
       version: parseInt(x.version, 10) || 1,
       updatedAtMs: x.updatedAt && typeof x.updatedAt.toMillis === "function" ? x.updatedAt.toMillis() : 0
     };
@@ -2202,6 +2321,7 @@ exports.adminGetDictStaging = onCall({ region: "asia-northeast3" }, async (reque
       entryKey: key,
       payload,
       status: data.status || "reviewing",
+      aiReview: data.aiReview && typeof data.aiReview === "object" ? data.aiReview : null,
       version: parseInt(data.version, 10) || 1,
       rejectReason: data.rejectReason || ""
     },
