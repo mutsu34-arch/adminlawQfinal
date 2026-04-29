@@ -269,19 +269,30 @@
                     </p>
                     <div class="memory-contrast" role="img" aria-label="학습 피라미드 기반 기억률 비교: 읽기 10퍼센트, 행정법Q 75퍼센트">
                       <p class="memory-contrast__title">학습 피라미드 기반 기억률 비교</p>
-                      <div class="memory-contrast__chart">
-                        <div class="memory-contrast__row">
-                          <span class="memory-contrast__label">Passive: 단순 회독</span>
-                          <div class="memory-contrast__track" aria-hidden="true">
-                            <span class="memory-contrast__bar memory-contrast__bar--passive" style="width: 10%;">10%</span>
+                      <div class="memory-contrast__layout">
+                        <div class="memory-contrast__chart">
+                          <div class="memory-contrast__row">
+                            <span class="memory-contrast__label">Passive: 단순 회독</span>
+                            <div class="memory-contrast__track" aria-hidden="true">
+                              <span class="memory-contrast__bar memory-contrast__bar--passive" style="width: 10%;">10%</span>
+                            </div>
+                          </div>
+                          <div class="memory-contrast__row">
+                            <span class="memory-contrast__label">Active: 지문 인출</span>
+                            <div class="memory-contrast__track" aria-hidden="true">
+                              <span class="memory-contrast__bar memory-contrast__bar--active" style="width: 75%;">75%</span>
+                            </div>
                           </div>
                         </div>
-                        <div class="memory-contrast__row">
-                          <span class="memory-contrast__label">Active: 지문 인출</span>
-                          <div class="memory-contrast__track" aria-hidden="true">
-                            <span class="memory-contrast__bar memory-contrast__bar--active" style="width: 75%;">75%</span>
-                          </div>
-                        </div>
+                        <figure class="memory-contrast__pyramid-wrap">
+                          <img
+                            src="/content/learning-pyramid.svg"
+                            alt="학습 피라미드: Reading 10%, Practice doing 75%를 포함한 능동 학습 비교"
+                            class="memory-contrast__pyramid"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </figure>
                       </div>
                     </div>
                   </section>

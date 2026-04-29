@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 560" role="img" aria-labelledby="title desc">
+  <title id="title">Yµ <|øÜ</title>
+  <desc id="desc">Ù Yµü ¥Ù YµX Éà 0µ`D èÄÄ\ \\ Yµ <|øÜ</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#111a2a"/>
+      <stop offset="100%" stop-color="#0c1422"/>
+    </linearGradient>
+    <linearGradient id="passive" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff9f43"/>
+      <stop offset="100%" stop-color="#ffd166"/>
+    </linearGradient>
+    <linearGradient id="active" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2f80ff"/>
+      <stop offset="100%" stop-color="#5ad0ff"/>
+    </linearGradient>
+    <style>
+      .label { font: 600 20px 'Pretendard', 'Noto Sans KR', sans-serif; fill: #eaf1ff; }
+      .small { font: 500 16px 'Pretendard', 'Noto Sans KR', sans-serif; fill: #b8c6dd; }
+      .pct { font: 700 24px 'Pretendard', 'Noto Sans KR', sans-serif; fill: #fff; }
+      .title { font: 700 26px 'Pretendard', 'Noto Sans KR', sans-serif; fill: #f3f7ff; }
+      .tag { font: 700 18px 'Pretendard', 'Noto Sans KR', sans-serif; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="760" height="560" fill="url(#bg)"/>
+  <text x="34" y="44" class="title">Yµ <|øÜ (Learning Pyramid)</text>
+  <text x="34" y="74" class="small">}0 10% vs À8 xœ(Practice doing) 75%</text>
+
+  <rect x="26" y="108" width="10" height="390" rx="5" fill="#3a4963"/>
+  <rect x="26" y="108" width="10" height="126" rx="5" fill="#ffb84d"/>
+  <text x="20" y="104" class="tag" fill="#ffd28a">Passive</text>
+  <text x="20" y="516" class="tag" fill="#7ec7ff">Active</text>
+
+  <polygon points="380,130 520,130 548,160 352,160" fill="#ff8f3f"/>
+  <text x="375" y="152" class="pct">5%</text>
+  <text x="562" y="151" class="label">Lecture</text>
+
+  <polygon points="330,178 570,178 598,212 302,212" fill="url(#passive)"/>
+  <text x="348" y="202" class="pct">10%</text>
+  <text x="612" y="202" class="label">Reading</text>
+
+  <polygon points="280,232 620,232 648,270 252,270" fill="#9fb455"/>
+  <text x="300" y="258" class="pct">20%</text>
+  <text x="662" y="258" class="label">Audio-visual</text>
+
+  <polygon points="235,292 665,292 693,335 207,335" fill="#4ea36d"/>
+  <text x="255" y="320" class="pct">30%</text>
+  <text x="707" y="321" class="label">Demonstration</text>
+
+  <polygon points="175,360 725,360 753,411 147,411" fill="#44a4c3"/>
+  <text x="200" y="393" class="pct">50%</text>
+  <text x="567" y="394" class="label">Discussion</text>
+
+  <polygon points="115,435 725,435 753,490 87,490" fill="url(#active)"/>
+  <text x="145" y="470" class="pct">75%</text>
+  <text x="520" y="470" class="label">Practice doing (À8 xœ)</text>
+</svg>

@@ -5017,6 +5017,25 @@ button.feedback-tag--link:hover {
   gap: 0.5rem;
 }
 
+.memory-contrast__layout {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.memory-contrast__pyramid-wrap {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0f1927;
+}
+
+.memory-contrast__pyramid {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .memory-contrast__row {
   display: grid;
   gap: 0.3rem;
@@ -5061,6 +5080,13 @@ button.feedback-tag--link:hover {
   background: linear-gradient(120deg, #1f7aff, #5bc0ff);
   box-shadow: 0 0 16px color-mix(in srgb, #1f7aff 38%, transparent);
   animation-delay: 110ms;
+}
+
+@media (min-width: 860px) {
+  .memory-contrast__layout {
+    grid-template-columns: minmax(0, 1.4fr) minmax(210px, 0.9fr);
+    align-items: center;
+  }
 }
 
 @keyframes memory-contrast-fill {
