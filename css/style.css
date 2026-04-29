@@ -6860,6 +6860,27 @@ html[data-theme="light"] .public-qa-item__stem-kicker {
 }
 
 @media (max-width: 768px) {
+  #admin-quiz-create-admin .admin-quiz-create-main-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    overflow-x: visible !important;
+  }
+
+  #admin-quiz-create-admin .admin-quiz-create-main-actions > .btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+    white-space: normal !important;
+    align-self: stretch !important;
+  }
+
+  #admin-quiz-create-admin .admin-quiz-create-main-actions > .dict-memo-panel__msg {
+    margin-left: 0 !important;
+    white-space: normal !important;
+  }
+
   .dict-case-create-admin__actions {
     flex-direction: column !important;
     flex-wrap: nowrap !important;
