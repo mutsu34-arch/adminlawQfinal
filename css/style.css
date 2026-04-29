@@ -2339,7 +2339,7 @@ body {
 
 .settings-nickname-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.35rem;
@@ -2347,13 +2347,28 @@ body {
 
 .settings-nickname-row .input {
   flex: 1;
-  min-width: 10rem;
-  max-width: 22rem;
+  min-width: 0;
+  max-width: none;
+}
+
+.settings-nickname-save-btn {
+  width: auto !important;
+  flex: 0 0 auto;
+  margin-bottom: 0 !important;
+  padding-inline: 0.85rem;
 }
 
 .settings-nickname-current-row {
   margin-top: 0.55rem;
-  display: inline-flex;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-nickname-current-box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.38rem 0.45rem;
@@ -2368,15 +2383,19 @@ body {
 }
 
 .settings-nickname-current-value {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: var(--text);
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .settings-nickname-remove-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   width: 2.1rem;
   height: 2.1rem;
   border-radius: 8px;
@@ -2403,6 +2422,12 @@ body {
 
 .settings-trash-icon {
   display: block;
+}
+
+@media (max-width: 640px) {
+  .settings-nickname-current-box {
+    flex-wrap: wrap;
+  }
 }
 
 .settings-nickname-msg {
