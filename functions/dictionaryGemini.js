@@ -665,13 +665,10 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
   const prompt =
     "당신은 한국 행정법 조문사전 편집자입니다.\n" +
     "아래 조문 키를 기준으로 조문사전용 JSON을 출력하세요. 반드시 JSON만 출력.\n" +
-    "키: heading, body, appliedRules, subordinateRules, sourceNote, oxQuizzes.\n" +
-    "body는 다음 구성으로 작성:\n" +
-    "1) 조문 본문 요약/핵심 문언\n" +
-    "2) 준용 규정(있으면 '준용되는 조문'을 함께)\n" +
-    "3) 관련 하위 법령(시행령/시행규칙)\n" +
-    "4) 수험 포인트(짧게)\n" +
-    "appliedRules에는 준용되는 규정을 분리해 쓰고, subordinateRules에는 시행령·시행규칙 정보를 분리해 쓰세요.\n" +
+    "키: heading, body, appliedRules, subordinateRules, examPoint, sourceNote, oxQuizzes.\n" +
+    "body는 반드시 '조문 원문(가능한 한 원문 그대로)' 중심으로 작성하고, 요약/해설문 위주로 쓰지 마세요.\n" +
+    "appliedRules에는 준용 규정만, subordinateRules에는 하위법령(시행령/시행규칙)만, examPoint에는 수험 포인트만 분리해 쓰세요.\n" +
+    "위 3개 섹션 내용을 body에 중복해서 길게 넣지 마세요.\n" +
     "불확실한 내용은 '확인 필요'로 표시하고 단정 금지.\n" +
     "oxQuizzes는 1~3개, statement/answer/explanation 형식.\n\n" +
     "[조문 키]\n" +
@@ -682,9 +679,56 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
 
   const o = await generateJsonWithModelFallback(gen, modelId, prompt);
   const heading = clampStr(o.heading || headingRaw || sk, 500);
-  const body = clampStr(o.body || bodyRaw || "", MAX_STR);
-  const appliedRules = clampStr(o.appliedRules || "", 3000);
-  const subordinateRules = clampStr(o.subordinateRules || "", 3000);
+  const bodyRawOut = clampStr(o.body || bodyRaw || "", MAX_STR);
+  const appliedRulesRaw = clampStr(o.appliedRules || "", 3000);
+  const subordinateRulesRaw = clampStr(o.subordinateRules || "", 3000);
+  const examPointRaw = clampStr(o.examPoint || "", 3000);
+
+  // 모델이 섹션을 body에 몰아 쓰는 경우를 대비해 서버에서 강제 분리한다.
+  function splitSectionsFromBody(bodyText) {
+    const lines = String(bodyText || "")
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map((x) => String(x || "").trim());
+    const kept = [];
+    const applied = [];
+    const sub = [];
+    const exam = [];
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      if (!ln) continue;
+      const low = ln.toLowerCase();
+      const isApplied = ln.includes("준용") || low.includes("appliedrules");
+      const isSub =
+        ln.includes("하위법령") || ln.includes("시행령") || ln.includes("시행규칙") || low.includes("subordinaterules");
+      const isExam = ln.includes("수험 포인트") || ln.includes("수험포인트") || low.includes("exampoint");
+      if (isApplied) {
+        applied.push(ln.replace(/^(준용\s*규정|appliedrules)\s*[:：]?\s*/i, "").trim());
+        continue;
+      }
+      if (isSub) {
+        sub.push(ln.replace(/^(하위법령|subordinaterules)\s*[:：]?\s*/i, "").trim());
+        continue;
+      }
+      if (isExam) {
+        exam.push(ln.replace(/^(수험\s*포인트|수험포인트|exampoint)\s*[:：]?\s*/i, "").trim());
+        continue;
+      }
+      kept.push(ln);
+    }
+    return {
+      body: clampStr(kept.join("\n").trim(), MAX_STR),
+      appliedRules: clampStr(applied.filter(Boolean).join("\n").trim(), 3000),
+      subordinateRules: clampStr(sub.filter(Boolean).join("\n").trim(), 3000),
+      examPoint: clampStr(exam.filter(Boolean).join("\n").trim(), 3000)
+    };
+  }
+
+  const split = splitSectionsFromBody(bodyRawOut);
+  const body = split.body || bodyRawOut;
+  const appliedRules = split.appliedRules || appliedRulesRaw;
+  const subordinateRules = split.subordinateRules || subordinateRulesRaw;
+  const examPoint = split.examPoint || examPointRaw;
   const sourceNote = clampStr(
     o.sourceNote ||
       "내부 자동 생성: 법령 검색 텍스트를 참고해 작성됨. 최신 조문은 국가법령정보센터에서 재확인 필요.",
@@ -704,6 +748,7 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
     body,
     appliedRules,
     subordinateRules,
+    examPoint,
     sourceNote,
     oxQuizzes,
     fetchSummary: {
