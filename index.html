@@ -2058,7 +2058,7 @@
               </div>
               <section id="admin-panel-quiz-create" hidden>
                 <section id="admin-quiz-create-admin" class="dict-case-create-admin" hidden>
-                  <h3 class="dict-term-index__title">기출 기반 퀴즈 생성 (관리자)</h3>
+                  <h3 class="dict-term-index__title">기출/교재 기반 퀴즈 생성 (관리자)</h3>
                   <p class="admin-json-help">
                     기출 PDF/Excel을 업로드하면 자료실 파이프라인(벡터화, PDF OCR 포함)으로 처리됩니다.
                     처리 완료 후 AI가 자료를 바탕으로 퀴즈를 생성해 검수 대기에 등록합니다.
@@ -2109,6 +2109,10 @@
                       <span>빠른 모드 (상세해설 보강 생략, 속도 우선)</span>
                     </span>
                   </label>
+                  <label class="field">
+                    <span class="field__label">예상문제 생성 개수 (1~200)</span>
+                    <input type="number" id="admin-quiz-create-expected-count" class="input" min="1" max="200" value="30" />
+                  </label>
                   <div class="admin-row-2">
                     <label class="field">
                       <span class="field__label">시작 문제번호 (선택)</span>
@@ -2148,6 +2152,9 @@
                   </p>
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--primary" id="admin-quiz-create-run">AI 퀴즈 생성·검수 대기 등록</button>
+                    <button type="button" class="btn btn--primary" id="admin-quiz-create-expected-run">
+                      AI 예상문제 생성·검수 대기 등록
+                    </button>
                     <button type="button" class="btn btn--outline btn--small" id="admin-quiz-create-stop">퀴즈 생성 중단</button>
                     <button type="button" class="btn btn--outline btn--small" id="admin-quiz-hide-bundled">
                       기본 퀴즈 숨김 처리
@@ -3149,7 +3156,7 @@
   <script src="/js/quiz-note-card-actions.js?v=7"></script>
   <script src="/js/notifications-ui.js?v=4"></script>
   <script src="/js/admin-panel.js?v=2"></script>
-  <script src="/js/admin-quiz-create.js?v=17"></script>
+  <script src="/js/admin-quiz-create.js?v=18"></script>
   <script src="/js/admin-review.js?v=16"></script>
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>

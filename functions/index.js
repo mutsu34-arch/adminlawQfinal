@@ -1382,6 +1382,174 @@ exports.adminGenerateQuizFromLibrary = onCall(
   }
 );
 
+exports.adminGenerateExpectedQuizFromLibrary = onCall(
+  { region: "asia-northeast3", timeoutSeconds: 300, memory: "1GiB" },
+  async (request) => {
+    assertAdminCallable(request);
+    const data = request.data || {};
+    const userPrompt = String(data.prompt || "").trim();
+    const countInput = parseInt(data.count, 10);
+    const count = Number.isFinite(countInput) ? Math.max(1, Math.min(200, countInput)) : 30;
+    const fastMode = data.fastMode !== false;
+    const fileIds = Array.isArray(data.fileIds)
+      ? data.fileIds.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 30)
+      : [];
+    if (!userPrompt) throw new HttpsError("invalid-argument", "생성 지시(prompt)가 필요합니다.");
+
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    if (!apiKey) {
+      throw new HttpsError("failed-precondition", "서버에 GEMINI_API_KEY가 설정되지 않았습니다.");
+    }
+
+    const t0 = Date.now();
+    let ragContext = "";
+    try {
+      ragContext = await retrieveLibraryContextForQuiz(
+        userPrompt,
+        { topic: "행정법 교과서 예상문제", statement: "" },
+        fileIds.length ? { fileIds } : undefined
+      );
+    } catch (e) {
+      console.warn("adminGenerateExpectedQuizFromLibrary RAG", e && e.message);
+    }
+    if (!String(ragContext || "").trim()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "자료실 컨텍스트를 찾지 못했습니다. 파일 업로드 후 '학습 중'이 '완료'가 된 뒤 다시 시도하세요."
+      );
+    }
+
+    const modelId = effectiveGeminiModelId();
+    const generationPrompt = [
+      "당신은 행정법 교과서 기반 예상문제 출제 편집자입니다.",
+      "아래 자료 발췌를 바탕으로 수험용 OX 예상문제를 JSON 배열만 출력하세요.",
+      "마크다운/설명/코드블록 금지, JSON 배열만 출력.",
+      "",
+      "[출력 스키마]",
+      "[",
+      "  {",
+      '    "id": "ai-고유값",',
+      '    "topic": "주제",',
+      '    "statement": "OX 판단문 1문장",',
+      '    "answer": true 또는 false,',
+      '    "explanation": "2~5문장 해설",',
+      '    "explanationBasic": "1문장 핵심",',
+      '    "legal": "법령 포인트(선택)",',
+      '    "trap": "함정 포인트(선택)",',
+      '    "precedent": "판례 포인트(선택)",',
+      '    "tags": ["태그1","태그2"],',
+      '    "importance": 1~5,',
+      '    "difficulty": 1~5',
+      "  }",
+      "]",
+      "",
+      "[규칙]",
+      "- 총 " + count + "개를 생성하세요.",
+      "- 같은 문장을 반복하지 마세요.",
+      "- statement는 근거설명(~이므로, 따라서)을 붙이지 말고 OX 판단문으로만 작성.",
+      "- 자료에 없는 내용 추측 금지.",
+      "- 수험생이 헷갈리는 개념을 고르게 포함.",
+      "- 법령/판례/개념 문제를 균형 있게 섞으세요.",
+      "",
+      "[사용자 생성 지시]",
+      userPrompt,
+      "",
+      "[자료실 발췌(RAG)]",
+      String(ragContext || "").slice(0, 16000)
+    ].join("\n");
+
+    const rows = await generateLibraryQuizRows(apiKey, modelId, generationPrompt);
+    if (!rows.length) {
+      throw new HttpsError("failed-precondition", "생성 결과가 비어 있습니다. 지시문을 구체화해 주세요.");
+    }
+
+    const email = String(request.auth.token.email || "").toLowerCase();
+    const batch = db.batch();
+    const failRows = [];
+    const stagedRows = [];
+    const normalizedSet = new Set();
+    const outYear = new Date().getFullYear();
+    for (let i = 0; i < rows.length; i++) {
+      try {
+        const r = rows[i] || {};
+        const ansRaw = parseBoolLoose(r.answer);
+        const ans = ansRaw == null ? false : ansRaw;
+        const statement = String(r.statement || "").trim();
+        const norm = normalizeStatementForDedupe(statement);
+        if (!norm) {
+          failRows.push({ index: i + 1, reason: "statement 비어 있음" });
+          continue;
+        }
+        if (normalizedSet.has(norm)) {
+          failRows.push({ index: i + 1, reason: "중복 statement 감지" });
+          continue;
+        }
+        normalizedSet.add(norm);
+        const fallback = defaultExplainFromStatement(statement, ans, r.topic || "행정법 예상문제");
+        const payload = {
+          id: String(r.id || "").trim() || `ai-expected-${Date.now().toString(36)}-${i + 1}`,
+          examId: "expected",
+          year: outYear,
+          exam: "expected",
+          topic: String(r.topic || "행정법 예상문제").trim(),
+          statement,
+          answer: ans,
+          explanation: String(r.explanation || "").trim() || fallback.explanation,
+          explanationBasic: String(r.explanationBasic || "").trim() || fallback.explanationBasic,
+          detail: {
+            legal: String(r.legal || "").trim(),
+            trap: String(r.trap || "").trim(),
+            precedent: String(r.precedent || "").trim()
+          },
+          tags: Array.isArray(r.tags) ? r.tags.map((x) => String(x || "").trim()).filter(Boolean) : [],
+          importance: parseIntInRange(r.importance, 1, 5) || 3,
+          difficulty: parseIntInRange(r.difficulty, 1, 5) || (fastMode ? 3 : 4)
+        };
+        if (!payload.tags.length) delete payload.tags;
+        if (!payload.detail.legal && !payload.detail.trap && !payload.detail.precedent) delete payload.detail;
+        const clean = sanitizeQuizPayload(payload);
+        const ref = db.collection(STAGING_QUIZ_COLLECTION).doc();
+        batch.set(ref, {
+          entityType: "quiz",
+          questionId: clean.id,
+          payload: clean,
+          status: "reviewing",
+          source: "ai-library-expected",
+          changeType: "upsert",
+          createdBy: email,
+          updatedBy: email,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          approvedBy: null,
+          approvedAt: null,
+          rejectReason: "",
+          version: 1
+        });
+        stagedRows.push(clean);
+        if (stagedRows.length >= count) break;
+      } catch (e) {
+        failRows.push({ index: i + 1, reason: e && e.message ? e.message : "형식 오류" });
+      }
+    }
+    if (!stagedRows.length) {
+      throw new HttpsError("failed-precondition", "유효한 예상문제가 생성되지 않았습니다.");
+    }
+    await batch.commit();
+    console.info("adminGenerateExpectedQuizFromLibrary phase:done", {
+      staged: stagedRows.length,
+      failCount: failRows.length,
+      elapsedMs: Date.now() - t0
+    });
+    return {
+      ok: true,
+      okCount: stagedRows.length,
+      expectedCount: count,
+      failRows,
+      items: stagedRows.slice(0, 20)
+    };
+  }
+);
+
 exports.adminGenerateTermsFromLibrary = onCall({ region: "asia-northeast3" }, async (request) => {
   assertAdminCallable(request);
   const data = request.data || {};

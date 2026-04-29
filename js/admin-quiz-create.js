@@ -238,7 +238,8 @@
       prompt: String(($("admin-quiz-create-prompt") && $("admin-quiz-create-prompt").value) || "").trim(),
       examId: String(($("admin-quiz-create-exam-id") && $("admin-quiz-create-exam-id").value) || "").trim(),
       year: String(($("admin-quiz-create-year") && $("admin-quiz-create-year").value) || "").trim(),
-      fastMode: !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked)
+      fastMode: !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked),
+      expectedCount: String(($("admin-quiz-create-expected-count") && $("admin-quiz-create-expected-count").value) || "").trim()
     };
   }
 
@@ -248,10 +249,14 @@
     var examEl = $("admin-quiz-create-exam-id");
     var yearEl = $("admin-quiz-create-year");
     var fastEl = $("admin-quiz-create-fast-mode");
+    var expectedCountEl = $("admin-quiz-create-expected-count");
     if (promptEl && p.prompt != null && !String(promptEl.value || "").trim()) promptEl.value = String(p.prompt);
     if (examEl && p.examId != null && String(p.examId).trim()) examEl.value = String(p.examId).trim();
     if (yearEl && p.year != null && !String(yearEl.value || "").trim()) yearEl.value = String(p.year);
     if (fastEl && p.fastMode != null) fastEl.checked = !!p.fastMode;
+    if (expectedCountEl && p.expectedCount != null && !String(expectedCountEl.value || "").trim()) {
+      expectedCountEl.value = String(p.expectedCount);
+    }
   }
 
   function bindPresetPersistence() {
@@ -259,7 +264,8 @@
       "admin-quiz-create-prompt",
       "admin-quiz-create-exam-id",
       "admin-quiz-create-year",
-      "admin-quiz-create-fast-mode"
+      "admin-quiz-create-fast-mode",
+      "admin-quiz-create-expected-count"
     ];
     for (var i = 0; i < ids.length; i++) {
       (function (id) {
@@ -905,6 +911,77 @@
       });
   }
 
+  function runExpectedGenerate() {
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    var msgEl = $("admin-quiz-create-run-msg");
+    var prompt = String(($("admin-quiz-create-prompt") && $("admin-quiz-create-prompt").value) || "").trim();
+    var fastMode = !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked);
+    var expectedCount = parseInt(($("admin-quiz-create-expected-count") && $("admin-quiz-create-expected-count").value) || "", 10);
+    if (!isFinite(expectedCount)) expectedCount = 30;
+    if (expectedCount < 1 || expectedCount > 200) {
+      return setMsg(msgEl, "예상문제 생성 개수는 1~200 범위로 입력해 주세요.", true);
+    }
+    if (quizGenerationRunning) return setMsg(msgEl, "이미 퀴즈 생성 작업이 진행 중입니다. 잠시만 기다려 주세요.", true);
+    if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
+    if (!prompt) return setMsg(msgEl, "생성 지시를 입력해 주세요.", true);
+    var selectedIds = dedupeIds(uploadedLibraryIds.concat(selectedExistingLibraryIds));
+    if (!selectedIds.length) {
+      return setMsg(msgEl, "교과서/자료실 파일을 1개 이상 선택하거나 새 파일을 업로드해 주세요.", true);
+    }
+    if (typeof firebase === "undefined" || !firebase.functions) {
+      return setMsg(msgEl, "Firebase Functions를 사용할 수 없습니다.", true);
+    }
+
+    quizGenerationRunning = true;
+    quizGenerationCancelRequested = false;
+    setMsg(msgEl, "예상문제 생성 준비 중…", false);
+    fetchLibraryDocsByIds(selectedIds)
+      .then(function (docs) {
+        if (docs.length) {
+          var pending = docs.filter(function (d) {
+            return d && d.status !== "complete";
+          });
+          if (pending.length) {
+            throw new Error(
+              "업로드한 파일 중 학습이 아직 완료되지 않은 항목이 있습니다. (예: " +
+                String(pending[0].title || pending[0].id || "") +
+                ") 자료실에서 상태가 '완료'가 된 뒤 다시 시도해 주세요."
+            );
+          }
+        }
+        var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+        var callable = firebase.app().functions(region).httpsCallable("adminGenerateExpectedQuizFromLibrary");
+        return callWithRetry(
+          callable,
+          {
+            prompt: prompt,
+            count: expectedCount,
+            fastMode: fastMode,
+            fileIds: selectedIds
+          },
+          msgEl,
+          function (suffix) {
+            return "AI 예상문제 생성 중… · " + suffix;
+          }
+        );
+      })
+      .then(function (res) {
+        renderGenerateDone(msgEl, res);
+      })
+      .catch(function (e) {
+        var msg = (e && e.message) || "AI 예상문제 생성에 실패했습니다.";
+        if (msg.indexOf("중단") >= 0) {
+          setMsg(msgEl, "예상문제 생성이 중단되었습니다. 설정을 확인한 뒤 다시 실행하세요.", false);
+          return;
+        }
+        setMsg(msgEl, msg, true);
+      })
+      .finally(function () {
+        quizGenerationRunning = false;
+        quizGenerationCancelRequested = false;
+      });
+  }
+
   function stopGenerate() {
     var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var msgEl = $("admin-quiz-create-run-msg");
@@ -1046,6 +1123,8 @@
     if (btnUp) btnUp.addEventListener("click", uploadFiles);
     var btnRun = $("admin-quiz-create-run");
     if (btnRun) btnRun.addEventListener("click", runGenerate);
+    var btnExpectedRun = $("admin-quiz-create-expected-run");
+    if (btnExpectedRun) btnExpectedRun.addEventListener("click", runExpectedGenerate);
     var btnStop = $("admin-quiz-create-stop");
     if (btnStop) btnStop.addEventListener("click", stopGenerate);
     var btnHideBundled = $("admin-quiz-hide-bundled");
