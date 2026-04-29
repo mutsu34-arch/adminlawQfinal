@@ -5017,25 +5017,6 @@ button.feedback-tag--link:hover {
   gap: 0.5rem;
 }
 
-.memory-contrast__layout {
-  display: grid;
-  gap: 0.7rem;
-}
-
-.memory-contrast__pyramid-wrap {
-  margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: #0f1927;
-}
-
-.memory-contrast__pyramid {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
 .memory-contrast__row {
   display: grid;
   gap: 0.3rem;
@@ -5082,11 +5063,30 @@ button.feedback-tag--link:hover {
   animation-delay: 110ms;
 }
 
-@media (min-width: 860px) {
-  .memory-contrast__layout {
-    grid-template-columns: minmax(0, 1.4fr) minmax(210px, 0.9fr);
-    align-items: center;
-  }
+.learning-pyramid-note {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+.learning-pyramid-note__lead,
+.learning-pyramid-note__desc {
+  margin: 0 0 0.55rem;
+  color: var(--muted);
+  line-height: 1.62;
+}
+
+.learning-pyramid-note__title,
+.learning-pyramid-note__group {
+  margin: 0.55rem 0 0.35rem;
+  font-weight: 700;
+}
+
+.learning-pyramid-note__list {
+  margin: 0 0 0.4rem 1rem;
+  padding: 0;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 @keyframes memory-contrast-fill {
