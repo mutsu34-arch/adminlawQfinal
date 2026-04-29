@@ -1985,6 +1985,7 @@
                 <button type="button" class="admin-tab" id="admin-tab-quiz-create" role="tab">퀴즈 생성</button>
                 <button type="button" class="admin-tab" id="admin-tab-case-dict-create" role="tab">판례사전 생성</button>
                 <button type="button" class="admin-tab" id="admin-tab-term-dict-create" role="tab">용어사전 생성</button>
+                <button type="button" class="admin-tab" id="admin-tab-statute-dict-create" role="tab">조문사전 생성</button>
                 <button type="button" class="admin-tab" id="admin-tab-quotes" role="tab">명언</button>
                 <button type="button" class="admin-tab" id="admin-tab-json" role="tab">JSON 업로드</button>
                 <button type="button" class="admin-tab" id="admin-tab-excel" role="tab">엑셀 업로드</button>
@@ -2256,6 +2257,29 @@
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--secondary" id="dict-term-create-run-batch">자료 기반 용어 자동 생성</button>
                     <button type="button" class="btn btn--outline" id="dict-term-create-upload-excel">용어사전 엑셀 업로드</button>
+                  </div>
+                </section>
+              </section>
+              <section id="admin-panel-statute-dict-create" hidden>
+                <section id="dict-statute-create-admin" class="dict-case-create-admin" hidden>
+                  <h3 class="dict-term-index__title">조문사전 생성 (관리자)</h3>
+                  <p class="admin-json-help">
+                    조문사전은 엑셀 업로드 탭에서 <code class="pricing-code">사전 종류 = 조문사전</code>을 선택해 반영합니다.
+                    아래 바로가기 버튼을 누르면 엑셀 업로드 탭으로 이동하고 조문사전 모드가 자동 선택됩니다.
+                  </p>
+                  <p class="admin-json-help">
+                    권장 열: <code class="pricing-code">statuteKey</code>, <code class="pricing-code">body</code>, <code class="pricing-code">heading</code>,
+                    <code class="pricing-code">appliedRules</code>, <code class="pricing-code">subordinateRules</code>,
+                    <code class="pricing-code">sourceNote</code>, <code class="pricing-code">ox1_statement</code>/<code class="pricing-code">ox1_answer</code>/<code class="pricing-code">ox1_explanation</code>
+                  </p>
+                  <div class="dict-case-create-admin__actions">
+                    <button type="button" class="btn btn--primary" id="admin-statute-go-excel">
+                      엑셀 업로드 탭에서 조문사전 생성 시작
+                    </button>
+                    <button type="button" class="btn btn--outline" id="admin-statute-sample-download">
+                      조문사전 샘플 내려받기
+                    </button>
+                    <span id="admin-statute-create-msg" class="dict-memo-panel__msg" hidden role="status"></span>
                   </div>
                 </section>
               </section>
@@ -3061,7 +3085,7 @@
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/admin-excel.js?v=9"></script>
-  <script src="/js/admin-tickets.js?v=10"></script>
+  <script src="/js/admin-tickets.js?v=11"></script>
   <script src="/js/admin-quotes.js?v=8"></script>
 </body>
 </html>

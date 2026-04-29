@@ -23,6 +23,7 @@
     var tabQuizCreate = $("admin-tab-quiz-create");
     var tabCaseDictCreate = $("admin-tab-case-dict-create");
     var tabTermDictCreate = $("admin-tab-term-dict-create");
+    var tabStatuteDictCreate = $("admin-tab-statute-dict-create");
     var tabJson = $("admin-tab-json");
     var tabExcel = $("admin-tab-excel");
     var tabReview = $("admin-tab-review");
@@ -33,6 +34,7 @@
     var panelQuizCreate = $("admin-panel-quiz-create");
     var panelCaseDictCreate = $("admin-panel-case-dict-create");
     var panelTermDictCreate = $("admin-panel-term-dict-create");
+    var panelStatuteDictCreate = $("admin-panel-statute-dict-create");
     var panelJson = $("admin-panel-json");
     var panelExcel = $("admin-panel-excel");
     var panelReview = $("admin-panel-review");
@@ -40,10 +42,10 @@
     var panelInbox = $("admin-panel-inbox");
     var panelQuotes = $("admin-panel-quotes");
     function off() {
-      [tabSingle, tabQuizCreate, tabCaseDictCreate, tabTermDictCreate, tabJson, tabExcel, tabReview, tabLibrary, tabInbox, tabQuotes].forEach(function (t) {
+      [tabSingle, tabQuizCreate, tabCaseDictCreate, tabTermDictCreate, tabStatuteDictCreate, tabJson, tabExcel, tabReview, tabLibrary, tabInbox, tabQuotes].forEach(function (t) {
         if (t) t.classList.remove("admin-tab--active");
       });
-      [panelSingle, panelQuizCreate, panelCaseDictCreate, panelTermDictCreate, panelJson, panelExcel, panelReview, panelLibrary, panelInbox, panelQuotes].forEach(
+      [panelSingle, panelQuizCreate, panelCaseDictCreate, panelTermDictCreate, panelStatuteDictCreate, panelJson, panelExcel, panelReview, panelLibrary, panelInbox, panelQuotes].forEach(
         function (p) {
           if (p) p.hidden = true;
         }
@@ -80,6 +82,9 @@
     } else if (which === "term-dict-create") {
       if (tabTermDictCreate) tabTermDictCreate.classList.add("admin-tab--active");
       if (panelTermDictCreate) panelTermDictCreate.hidden = false;
+    } else if (which === "statute-dict-create") {
+      if (tabStatuteDictCreate) tabStatuteDictCreate.classList.add("admin-tab--active");
+      if (panelStatuteDictCreate) panelStatuteDictCreate.hidden = false;
     } else {
       if (tabSingle) tabSingle.classList.add("admin-tab--active");
       if (panelSingle) panelSingle.hidden = false;
@@ -280,6 +285,7 @@
     var tabQuizCreate = $("admin-tab-quiz-create");
     var tabCaseDictCreate = $("admin-tab-case-dict-create");
     var tabTermDictCreate = $("admin-tab-term-dict-create");
+    var tabStatuteDictCreate = $("admin-tab-statute-dict-create");
     var tabJson = $("admin-tab-json");
     var tabExcel = $("admin-tab-excel");
     var tabReview = $("admin-tab-review");
@@ -310,6 +316,11 @@
         switchAdminTab("term-dict-create");
       });
     }
+    if (tabStatuteDictCreate) {
+      tabStatuteDictCreate.addEventListener("click", function () {
+        switchAdminTab("statute-dict-create");
+      });
+    }
     if (tabExcel) {
       tabExcel.addEventListener("click", function () {
         switchAdminTab("excel");
@@ -334,6 +345,35 @@
     if (tabQuotes) {
       tabQuotes.addEventListener("click", function () {
         switchAdminTab("quotes");
+      });
+    }
+
+    var statuteMsg = $("admin-statute-create-msg");
+    var btnStatuteGoExcel = $("admin-statute-go-excel");
+    var btnStatuteSample = $("admin-statute-sample-download");
+    function setStatuteMsg(text, isError) {
+      if (!statuteMsg) return;
+      statuteMsg.textContent = text || "";
+      statuteMsg.classList.toggle("admin-msg--error", !!isError);
+      statuteMsg.hidden = !text;
+    }
+    if (btnStatuteGoExcel) {
+      btnStatuteGoExcel.addEventListener("click", function () {
+        switchAdminTab("excel");
+        var typeSel = $("admin-excel-type");
+        if (typeSel) typeSel.value = "statute";
+        setStatuteMsg("엑셀 업로드 탭으로 이동했습니다. 사전 종류가 '조문사전'으로 선택되었습니다.", false);
+      });
+    }
+    if (btnStatuteSample) {
+      btnStatuteSample.addEventListener("click", function () {
+        var sampleBtn = $("admin-btn-excel-template-statute");
+        if (!sampleBtn || typeof sampleBtn.click !== "function") {
+          setStatuteMsg("조문사전 샘플 버튼을 찾지 못했습니다. 엑셀 업로드 탭에서 직접 내려받아 주세요.", true);
+          return;
+        }
+        sampleBtn.click();
+        setStatuteMsg("조문사전 샘플 파일 다운로드를 시작했습니다.", false);
       });
     }
 
