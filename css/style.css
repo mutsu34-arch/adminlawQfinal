@@ -5105,6 +5105,10 @@ button.feedback-tag--link:hover {
   color: var(--accent);
 }
 
+.quiz-start-final-cta__actions {
+  margin-top: 0.6rem;
+}
+
 @keyframes quiz-start-fade-up {
   from {
     opacity: 0;

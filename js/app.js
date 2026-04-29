@@ -73,7 +73,9 @@
     questionCount: document.getElementById("question-count"),
     btnStart: document.getElementById("btn-start"),
     btnStartFull: document.getElementById("btn-start-full"),
+    btnStartFullBottom: document.getElementById("btn-start-full-bottom"),
     btnOpenSetup: document.getElementById("btn-open-setup"),
+    btnOpenSetupBottom: document.getElementById("btn-open-setup-bottom"),
     setupConfigWrap: document.getElementById("setup-config-wrap"),
     progress: document.getElementById("quiz-progress"),
     quizTimerPanel: document.getElementById("quiz-timer-panel"),
@@ -2075,6 +2077,7 @@
     if (!el.setupConfigWrap) return;
     el.setupConfigWrap.hidden = false;
     if (el.btnOpenSetup) el.btnOpenSetup.hidden = true;
+    if (el.btnOpenSetupBottom) el.btnOpenSetupBottom.hidden = true;
   }
 
   function startQuizFullScope() {
@@ -2218,6 +2221,7 @@
   function goHome() {
     if (el.setupConfigWrap) el.setupConfigWrap.hidden = true;
     if (el.btnOpenSetup) el.btnOpenSetup.hidden = false;
+    if (el.btnOpenSetupBottom) el.btnOpenSetupBottom.hidden = false;
     showScreen("start");
     resetQuizUrlIfNeeded();
     resetSeoToDefault();
@@ -2233,7 +2237,9 @@
 
   if (el.btnStart) el.btnStart.addEventListener("click", startQuiz);
   if (el.btnStartFull) el.btnStartFull.addEventListener("click", startQuizFullScope);
+  if (el.btnStartFullBottom) el.btnStartFullBottom.addEventListener("click", startQuizFullScope);
   if (el.btnOpenSetup) el.btnOpenSetup.addEventListener("click", openSetupConfig);
+  if (el.btnOpenSetupBottom) el.btnOpenSetupBottom.addEventListener("click", openSetupConfig);
   if (el.qActions) {
     el.qActions.addEventListener("click", function (e) {
       var btn = e.target.closest(".btn--ox");
