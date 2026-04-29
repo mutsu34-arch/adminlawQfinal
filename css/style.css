@@ -5065,7 +5065,7 @@ button.feedback-tag--link:hover {
   justify-content: flex-end;
   height: 100%;
   padding-right: 0.38rem;
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 700;
   color: #f6f9ff;
   white-space: nowrap;
@@ -5086,6 +5086,34 @@ button.feedback-tag--link:hover {
   background: linear-gradient(120deg, #1f7aff, #5bc0ff);
   box-shadow: 0 0 16px color-mix(in srgb, #1f7aff 38%, transparent);
   animation-delay: 110ms;
+}
+
+.learning-pyramid-details {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+}
+
+.learning-pyramid-details__summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.58rem 0.72rem;
+  font-weight: 700;
+}
+
+.learning-pyramid-details__summary::-webkit-details-marker {
+  display: none;
+}
+
+.learning-pyramid-details__summary::after {
+  content: "▾";
+  float: right;
+  color: var(--muted);
+}
+
+.learning-pyramid-details[open] .learning-pyramid-details__summary::after {
+  content: "▴";
 }
 
 .learning-pyramid-note {
@@ -5127,6 +5155,17 @@ button.feedback-tag--link:hover {
   padding: 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+@media (max-width: 640px) {
+  .memory-contrast__track {
+    height: 1.15rem;
+  }
+
+  .memory-contrast__bar {
+    font-size: 0.62rem;
+    padding-right: 0.3rem;
+  }
 }
 
 @keyframes memory-contrast-fill {
