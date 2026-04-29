@@ -284,14 +284,50 @@
                             </div>
                           </div>
                         </div>
-                        <figure class="memory-contrast__pyramid-wrap">
-                          <img
-                            src="/content/learning-pyramid.svg"
-                            alt="학습 피라미드: Reading 10%, Practice doing 75%를 포함한 능동 학습 비교"
-                            class="memory-contrast__pyramid"
-                            loading="lazy"
-                            decoding="async"
-                          />
+                        <figure class="memory-contrast__pyramid-wrap" aria-label="학습 피라미드 도식">
+                          <svg class="memory-contrast__pyramid" viewBox="0 0 1240 560" role="img" aria-labelledby="lpTitle lpDesc" xmlns="http://www.w3.org/2000/svg">
+                            <title id="lpTitle">Learning Pyramid</title>
+                            <desc id="lpDesc">Learning pyramid comparing passive reading retention and active practice retention.</desc>
+                            <defs>
+                              <linearGradient id="lpBg" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#111a2a"></stop>
+                                <stop offset="100%" stop-color="#0c1422"></stop>
+                              </linearGradient>
+                              <linearGradient id="lpPassive" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stop-color="#ff9f43"></stop>
+                                <stop offset="100%" stop-color="#ffd166"></stop>
+                              </linearGradient>
+                              <linearGradient id="lpActive" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stop-color="#2f80ff"></stop>
+                                <stop offset="100%" stop-color="#5ad0ff"></stop>
+                              </linearGradient>
+                            </defs>
+                            <rect x="0" y="0" width="1240" height="560" fill="url(#lpBg)"></rect>
+                            <text x="34" y="44" fill="#f3f7ff" font-size="26" font-weight="700" font-family="Arial, sans-serif">Learning Pyramid</text>
+                            <text x="34" y="74" fill="#b8c6dd" font-size="16" font-weight="500" font-family="Arial, sans-serif">Reading 10% vs Practice doing 75%</text>
+                            <rect x="26" y="108" width="10" height="390" rx="5" fill="#3a4963"></rect>
+                            <rect x="26" y="108" width="10" height="126" rx="5" fill="#ffb84d"></rect>
+                            <text x="20" y="104" fill="#ffd28a" font-size="18" font-weight="700" font-family="Arial, sans-serif">Passive</text>
+                            <text x="20" y="516" fill="#7ec7ff" font-size="18" font-weight="700" font-family="Arial, sans-serif">Active</text>
+                            <polygon points="380,130 520,130 548,160 352,160" fill="#ff8f3f"></polygon>
+                            <text x="375" y="152" fill="#fff" font-size="24" font-weight="700" font-family="Arial, sans-serif">5%</text>
+                            <text x="562" y="151" fill="#eaf1ff" font-size="20" font-weight="600" font-family="Arial, sans-serif">Lecture</text>
+                            <polygon points="330,178 570,178 598,212 302,212" fill="url(#lpPassive)"></polygon>
+                            <text x="348" y="202" fill="#fff" font-size="24" font-weight="700" font-family="Arial, sans-serif">10%</text>
+                            <text x="612" y="202" fill="#eaf1ff" font-size="20" font-weight="600" font-family="Arial, sans-serif">Reading</text>
+                            <polygon points="280,232 620,232 648,270 252,270" fill="#9fb455"></polygon>
+                            <text x="300" y="258" fill="#fff" font-size="24" font-weight="700" font-family="Arial, sans-serif">20%</text>
+                            <text x="662" y="258" fill="#eaf1ff" font-size="20" font-weight="600" font-family="Arial, sans-serif">Audio-visual</text>
+                            <polygon points="235,292 665,292 693,335 207,335" fill="#4ea36d"></polygon>
+                            <text x="255" y="320" fill="#fff" font-size="24" font-weight="700" font-family="Arial, sans-serif">30%</text>
+                            <text x="707" y="321" fill="#eaf1ff" font-size="20" font-weight="600" font-family="Arial, sans-serif">Demonstration</text>
+                            <polygon points="175,360 725,360 753,411 147,411" fill="#44a4c3"></polygon>
+                            <text x="200" y="393" fill="#fff" font-size="24" font-weight="700" font-family="Arial, sans-serif">50%</text>
+                            <text x="567" y="394" fill="#eaf1ff" font-size="20" font-weight="600" font-family="Arial, sans-serif">Discussion</text>
+                            <polygon points="115,435 725,435 753,490 87,490" fill="url(#lpActive)"></polygon>
+                            <text x="145" y="470" fill="#fff" font-size="24" font-weight="700" font-family="Arial, sans-serif">75%</text>
+                            <text x="520" y="470" fill="#eaf1ff" font-size="20" font-weight="600" font-family="Arial, sans-serif">Practice doing</text>
+                          </svg>
                         </figure>
                       </div>
                     </div>
