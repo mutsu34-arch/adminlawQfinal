@@ -4,7 +4,9 @@
   var selectedExistingLibraryIds = [];
   var existingLibraryDocs = [];
   var QUIZ_CREATE_PRESET_KEY = "hanlaw_admin_quiz_create_preset_v1";
+  var QUIZ_CREATE_PROGRESS_KEY = "hanlaw_admin_quiz_create_progress_v1";
   var autoMeta = { examId: "", year: "" };
+  var quizGenerationRunning = false;
 
   function $(id) {
     return document.getElementById(id);
@@ -42,6 +44,189 @@
     try {
       localStorage.setItem(QUIZ_CREATE_PRESET_KEY, JSON.stringify(preset || {}));
     } catch (_) {}
+  }
+
+  function readQuizCreateProgress() {
+    try {
+      var raw = localStorage.getItem(QUIZ_CREATE_PROGRESS_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeQuizCreateProgress(progress) {
+    try {
+      localStorage.setItem(QUIZ_CREATE_PROGRESS_KEY, JSON.stringify(progress || {}));
+    } catch (_) {}
+  }
+
+  function clearQuizCreateProgress() {
+    try {
+      localStorage.removeItem(QUIZ_CREATE_PROGRESS_KEY);
+    } catch (_) {}
+  }
+
+  function isLikelyNetworkError(err) {
+    var msg = String((err && (err.message || err.details)) || "").toLowerCase();
+    var code = String((err && err.code) || "").toLowerCase();
+    if (!msg && !code) return false;
+    return (
+      code.indexOf("unavailable") >= 0 ||
+      code.indexOf("deadline-exceeded") >= 0 ||
+      msg.indexOf("network") >= 0 ||
+      msg.indexOf("failed to fetch") >= 0 ||
+      msg.indexOf("timeout") >= 0 ||
+      msg.indexOf("offline") >= 0 ||
+      msg.indexOf("unavailable") >= 0
+    );
+  }
+
+  function waitUntilOnline() {
+    if (typeof navigator === "undefined" || navigator.onLine !== false) return Promise.resolve();
+    return new Promise(function (resolve) {
+      function onOnline() {
+        window.removeEventListener("online", onOnline);
+        resolve();
+      }
+      window.addEventListener("online", onOnline);
+    });
+  }
+
+  function callWithRetry(callable, payload, msgEl, renderMsg) {
+    var attempt = 0;
+    function run() {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        if (typeof renderMsg === "function") setMsg(msgEl, renderMsg("오프라인 감지 · 네트워크 복구 대기 중"), true);
+        return waitUntilOnline().then(run);
+      }
+      return callable(payload).catch(function (err) {
+        if (!isLikelyNetworkError(err)) throw err;
+        attempt += 1;
+        if (attempt > 8) throw err;
+        var waitMs = Math.min(12000, 800 * Math.pow(2, attempt - 1));
+        if (typeof renderMsg === "function") {
+          setMsg(msgEl, renderMsg("네트워크 오류 · 자동 재시도 " + attempt + "/8 (" + Math.round(waitMs / 1000) + "초 후)"), true);
+        }
+        return new Promise(function (resolve) {
+          setTimeout(resolve, waitMs);
+        }).then(run);
+      });
+    }
+    return run();
+  }
+
+  function splitIntoChunks(arr, size) {
+    var src = Array.isArray(arr) ? arr : [];
+    var n = Math.max(1, parseInt(size, 10) || 1);
+    var out = [];
+    for (var i = 0; i < src.length; i += n) out.push(src.slice(i, i + n));
+    return out;
+  }
+
+  function mergeUniqueQuestionNos(base, extra) {
+    var map = {};
+    var out = [];
+    function addAll(list) {
+      for (var i = 0; i < (list ? list.length : 0); i++) {
+        var q = parseInt(list[i], 10);
+        if (!isFinite(q)) continue;
+        if (map[q]) continue;
+        map[q] = true;
+        out.push(q);
+      }
+    }
+    addAll(base);
+    addAll(extra);
+    out.sort(function (a, b) {
+      return a - b;
+    });
+    return out;
+  }
+
+  function mergeGenerateResult(total, piece) {
+    var all = total || { okCount: 0, failRows: [], items: [], expectedCount: 0 };
+    var d = piece && piece.data ? piece.data : {};
+    all.okCount += parseInt(d.okCount, 10) || 0;
+    all.expectedCount += parseInt(d.expectedCount, 10) || 0;
+    all.failRows = all.failRows.concat(Array.isArray(d.failRows) ? d.failRows : []);
+    if (Array.isArray(d.items)) all.items = all.items.concat(d.items);
+    return all;
+  }
+
+  function scanWithAutoSplit(callable, basePayload, msgEl) {
+    var fileIds = Array.isArray(basePayload.fileIds) ? basePayload.fileIds : [];
+    return callWithRetry(callable, Object.assign({}, basePayload, { scanOnly: true }), msgEl, function (suffix) {
+      return "문항 범위 분석 중… · " + suffix;
+    }).catch(function (err) {
+      if (!isLikelyNetworkError(err) || fileIds.length <= 1) throw err;
+      var chunks = splitIntoChunks(fileIds, 2);
+      var merged = { questionNos: [], detectedChoiceCount: 4 };
+      var chain = Promise.resolve();
+      chunks.forEach(function (chunk, idx) {
+        chain = chain.then(function () {
+          setMsg(msgEl, "문항 범위 분석 자동 분할 실행 중… (" + (idx + 1) + "/" + chunks.length + ")", false);
+          return callWithRetry(
+            callable,
+            Object.assign({}, basePayload, { scanOnly: true, fileIds: chunk }),
+            msgEl,
+            function (suffix) {
+              return "문항 범위 분석 자동 분할 실행 중… (" + (idx + 1) + "/" + chunks.length + ") · " + suffix;
+            }
+          )
+            .then(function (res) {
+              var d = (res && res.data) || {};
+              merged.questionNos = mergeUniqueQuestionNos(merged.questionNos, Array.isArray(d.questionNos) ? d.questionNos : []);
+              var c = parseInt(d.detectedChoiceCount, 10);
+              if (isFinite(c) && c >= 2 && c <= 5) merged.detectedChoiceCount = Math.max(merged.detectedChoiceCount, c);
+            })
+            .catch(function () {
+              return null;
+            });
+        });
+      });
+      return chain.then(function () {
+        if (!merged.questionNos.length) throw err;
+        return { data: merged };
+      });
+    });
+  }
+
+  function generateWithAutoSplit(callable, basePayload, msgEl, choiceCount) {
+    var fileIds = Array.isArray(basePayload.fileIds) ? basePayload.fileIds : [];
+    return callWithRetry(
+      callable,
+      Object.assign({}, basePayload, { expectedCount: choiceCount }),
+      msgEl,
+      function (suffix) {
+        return "AI 퀴즈 생성 중… · " + suffix;
+      }
+    ).catch(function (err) {
+      if (!isLikelyNetworkError(err) || fileIds.length <= 1) throw err;
+      var chunks = splitIntoChunks(fileIds, 2);
+      var total = { okCount: 0, failRows: [], items: [], expectedCount: 0 };
+      var chain = Promise.resolve();
+      chunks.forEach(function (chunk, idx) {
+        chain = chain.then(function () {
+          setMsg(msgEl, "AI 퀴즈 생성 자동 분할 실행 중… (" + (idx + 1) + "/" + chunks.length + ")", false);
+          return callWithRetry(
+            callable,
+            Object.assign({}, basePayload, { fileIds: chunk, expectedCount: choiceCount }),
+            msgEl,
+            function (suffix) {
+              return "AI 퀴즈 생성 자동 분할 실행 중… (" + (idx + 1) + "/" + chunks.length + ") · " + suffix;
+            }
+          ).then(function (res) {
+            total = mergeGenerateResult(total, res);
+          });
+        });
+      });
+      return chain.then(function () {
+        return { data: total };
+      });
+    });
   }
 
   function collectPresetFromForm() {
@@ -454,6 +639,119 @@
     box.hidden = false;
   }
 
+  function renderGenerateDone(msgEl, res) {
+    var d = res && res.data ? res.data : {};
+    var okCount = parseInt(d.okCount, 10) || 0;
+    var failRows = Array.isArray(d.failRows) ? d.failRows : [];
+    var expected = parseInt(d.expectedCount, 10) || 0;
+    var msg = okCount + "건을 검수 대기에 등록했습니다.";
+    if (expected > 0) msg += " (목표 " + expected + "건)";
+    if (failRows.length) msg += " 실패 " + failRows.length + "건.";
+    if (failRows.length) {
+      var previewFail = failRows
+        .slice(0, 3)
+        .map(function (f) {
+          return "#" + String(f.index || "?") + " " + String(f.reason || "형식 오류");
+        })
+        .join(" | ");
+      msg += " 예: " + previewFail;
+    }
+    setMsg(msgEl, msg + " 검수·승인 탭에서 최종 승인하세요.", false);
+    renderPreview(Array.isArray(d.items) ? d.items : []);
+    var adminTab = $("admin-tab-review");
+    if (adminTab && typeof adminTab.click === "function") adminTab.click();
+    if (typeof window.loadAdminReviewQueue === "function") window.loadAdminReviewQueue();
+  }
+
+  function executePairJobsWithResume(callable, msgEl, state) {
+    var safeState = state || {};
+    var pairJobs = Array.isArray(safeState.pairJobs) ? safeState.pairJobs : [];
+    var basePayload = safeState.basePayload || {};
+    if (!pairJobs.length) return Promise.resolve({ data: safeState.all || {} });
+    var nextIndex = parseInt(safeState.nextIndex, 10);
+    if (!isFinite(nextIndex) || nextIndex < 0) nextIndex = 0;
+    var all = safeState.all || { okCount: 0, failRows: [], items: [], expectedCount: pairJobs.length };
+    var chain = Promise.resolve();
+    for (var idx = nextIndex; idx < pairJobs.length; idx++) {
+      (function (jobIndex) {
+        chain = chain.then(function () {
+          var job = pairJobs[jobIndex];
+          var prefix =
+            "AI 퀴즈 생성 중… (" +
+            (jobIndex + 1) +
+            "/" +
+            pairJobs.length +
+            ") · " +
+            job.qNo +
+            "번 문제의 " +
+            job.cNo +
+            "번 지문 퀴즈 생성 중";
+          setMsg(msgEl, prefix, false);
+          return callWithRetry(
+            callable,
+            Object.assign({}, basePayload, {
+              questionOnly: job.qNo,
+              choiceOnly: job.cNo,
+              expectedCount: 1,
+              excludeStatements: (all.items || [])
+                .map(function (it) {
+                  return String((it && it.statement) || "").trim();
+                })
+                .filter(Boolean)
+                .slice(-120)
+            }),
+            msgEl,
+            function (suffix) {
+              return prefix + " · " + suffix;
+            }
+          ).then(function (res) {
+            var d = res && res.data ? res.data : {};
+            all.okCount += parseInt(d.okCount, 10) || 0;
+            all.failRows = all.failRows.concat(Array.isArray(d.failRows) ? d.failRows : []);
+            if (Array.isArray(d.items)) all.items = all.items.concat(d.items);
+            safeState.nextIndex = jobIndex + 1;
+            safeState.all = all;
+            safeState.updatedAt = Date.now();
+            writeQuizCreateProgress(safeState);
+          });
+        });
+      })(idx);
+    }
+    return chain.then(function () {
+      return { data: all };
+    });
+  }
+
+  function resumeQuizGenerationIfNeeded() {
+    if (quizGenerationRunning) return;
+    var state = readQuizCreateProgress();
+    if (!state || state.kind !== "pair-jobs") return;
+    var pairJobs = Array.isArray(state.pairJobs) ? state.pairJobs : [];
+    var nextIndex = parseInt(state.nextIndex, 10);
+    if (!pairJobs.length || (isFinite(nextIndex) && nextIndex >= pairJobs.length)) {
+      clearQuizCreateProgress();
+      return;
+    }
+    if (typeof firebase === "undefined" || !firebase.functions) return;
+    var msgEl = $("admin-quiz-create-run-msg");
+    var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+    var callable = firebase.app().functions(region).httpsCallable("adminGenerateQuizFromLibrary");
+    quizGenerationRunning = true;
+    setMsg(msgEl, "이전 퀴즈 생성 작업을 이어서 진행합니다…", false);
+    executePairJobsWithResume(callable, msgEl, state)
+      .then(function (res) {
+        clearQuizCreateProgress();
+        renderGenerateDone(msgEl, res);
+      })
+      .catch(function (e) {
+        var msg = (e && e.message) || "이전 퀴즈 생성 이어하기에 실패했습니다.";
+        setMsg(msgEl, msg + " (네트워크 복구 후 자동으로 다시 이어집니다)", true);
+      })
+      .finally(function () {
+        quizGenerationRunning = false;
+      });
+  }
+
   function runGenerate() {
     var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var msgEl = $("admin-quiz-create-run-msg");
@@ -474,6 +772,7 @@
     if (startNo != null && endNo != null && endNo < startNo) {
       return setMsg(msgEl, "끝 문제번호는 시작 문제번호보다 크거나 같아야 합니다.", true);
     }
+    if (quizGenerationRunning) return setMsg(msgEl, "이미 퀴즈 생성 작업이 진행 중입니다. 잠시만 기다려 주세요.", true);
     if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
     if (!prompt) return setMsg(msgEl, "생성 지시를 입력해 주세요.", true);
     var selectedIds = dedupeIds(uploadedLibraryIds.concat(selectedExistingLibraryIds));
@@ -486,6 +785,7 @@
       return setMsg(msgEl, "Firebase Functions를 사용할 수 없습니다.", true);
     }
 
+    quizGenerationRunning = true;
     setMsg(msgEl, "업로드 파일 상태 확인 중…", false);
     fetchLibraryDocsByIds(selectedIds)
       .then(function (docs) {
@@ -518,7 +818,7 @@
           questionStartNo: startNo != null ? startNo : undefined,
           questionEndNo: endNo != null ? endNo : undefined
         };
-        return callable(Object.assign({}, basePayload, { scanOnly: true })).then(function (scanRes) {
+        return scanWithAutoSplit(callable, basePayload, msgEl).then(function (scanRes) {
           var scan = (scanRes && scanRes.data) || {};
           var questionNosRaw = Array.isArray(scan.questionNos) ? scan.questionNos : [];
           var questionNos = questionNosRaw.filter(function (n) {
@@ -542,79 +842,36 @@
           var choiceCount = parseInt(scan.detectedChoiceCount, 10);
           if (!isFinite(choiceCount) || choiceCount < 2 || choiceCount > 5) choiceCount = 4;
           if (!questionNos.length) {
-            return callable(Object.assign({}, basePayload, { expectedCount: choiceCount })).then(function (res) {
+            return generateWithAutoSplit(callable, basePayload, msgEl, choiceCount).then(function (res) {
               return { data: (res && res.data) || {} };
             });
           }
-          var all = {
-            okCount: 0,
-            failRows: [],
-            items: [],
-            expectedCount: questionNos.length * choiceCount
+          var state = {
+            kind: "pair-jobs",
+            startedAt: Date.now(),
+            updatedAt: Date.now(),
+            basePayload: basePayload,
+            pairJobs: [],
+            nextIndex: 0,
+            all: {
+              okCount: 0,
+              failRows: [],
+              items: [],
+              expectedCount: questionNos.length * choiceCount
+            }
           };
-          var pairJobs = [];
           for (var qi = 0; qi < questionNos.length; qi++) {
             for (var ci = 1; ci <= choiceCount; ci++) {
-              pairJobs.push({ qNo: questionNos[qi], cNo: ci });
+              state.pairJobs.push({ qNo: questionNos[qi], cNo: ci });
             }
           }
-          var chain = Promise.resolve();
-          pairJobs.forEach(function (job, idx) {
-            chain = chain.then(function () {
-              setMsg(
-                msgEl,
-                "AI 퀴즈 생성 중… (" +
-                  (idx + 1) +
-                  "/" +
-                  pairJobs.length +
-                  ") · " +
-                  job.qNo +
-                  "번 문제의 " +
-                  job.cNo +
-                  "번 지문 퀴즈 생성 중",
-                false
-              );
-              return callable(
-                Object.assign({}, basePayload, {
-                  questionOnly: job.qNo,
-                  choiceOnly: job.cNo,
-                  expectedCount: 1
-                })
-              ).then(function (res) {
-                var d = res && res.data ? res.data : {};
-                all.okCount += parseInt(d.okCount, 10) || 0;
-                all.failRows = all.failRows.concat(Array.isArray(d.failRows) ? d.failRows : []);
-                if (Array.isArray(d.items)) all.items = all.items.concat(d.items);
-              });
-            });
-          });
-          return chain.then(function () {
-            return { data: all };
-          });
+          writeQuizCreateProgress(state);
+          return executePairJobsWithResume(callable, msgEl, state);
         });
       })
       .then(function (res) {
-        var d = res && res.data ? res.data : {};
-        var okCount = parseInt(d.okCount, 10) || 0;
-        var failRows = Array.isArray(d.failRows) ? d.failRows : [];
-        var expected = parseInt(d.expectedCount, 10) || 0;
-        var msg = okCount + "건을 검수 대기에 등록했습니다.";
-        if (expected > 0) msg += " (목표 " + expected + "건)";
-        if (failRows.length) msg += " 실패 " + failRows.length + "건.";
-        if (failRows.length) {
-          var previewFail = failRows
-            .slice(0, 3)
-            .map(function (f) {
-              return "#" + String(f.index || "?") + " " + String(f.reason || "형식 오류");
-            })
-            .join(" | ");
-          msg += " 예: " + previewFail;
-        }
-        setMsg(msgEl, msg + " 검수·승인 탭에서 최종 승인하세요.", false);
-        renderPreview(Array.isArray(d.items) ? d.items : []);
-        var adminTab = $("admin-tab-review");
-        if (adminTab && typeof adminTab.click === "function") adminTab.click();
-        if (typeof window.loadAdminReviewQueue === "function") window.loadAdminReviewQueue();
+        clearQuizCreateProgress();
+        renderGenerateDone(msgEl, res);
       })
       .catch(function (e) {
         var msg = (e && e.message) || "AI 퀴즈 생성에 실패했습니다.";
@@ -623,7 +880,10 @@
           msg =
             "서버 생성 작업 시간이 초과되었습니다. 파일 수를 줄이거나 생성 지시를 간결하게 줄여 다시 시도해 주세요.";
         }
-        setMsg(msgEl, msg, true);
+        setMsg(msgEl, msg + " (네트워크 문제라면 자동 이어하기 대상이 저장되어 있습니다.)", true);
+      })
+      .finally(function () {
+        quizGenerationRunning = false;
       });
   }
 
@@ -763,8 +1023,10 @@
     bindDropzone();
     loadExistingLibraryDocs();
     refreshVisibility();
+    resumeQuizGenerationIfNeeded();
     window.addEventListener("app-auth", refreshVisibility);
     window.addEventListener("membership-updated", refreshVisibility);
+    window.addEventListener("online", resumeQuizGenerationIfNeeded);
   }
 
   document.addEventListener("DOMContentLoaded", bind);

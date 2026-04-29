@@ -704,48 +704,50 @@ function inferChoiceLabelFromRow(row) {
 
 function detectChoiceCountFromContext(text) {
   const s = String(text || "");
-  let maxChoice = 0;
-  if (s.includes("⑤")) maxChoice = Math.max(maxChoice, 5);
-  if (s.includes("④")) maxChoice = Math.max(maxChoice, 4);
-  if (s.includes("③")) maxChoice = Math.max(maxChoice, 3);
-  if (s.includes("②")) maxChoice = Math.max(maxChoice, 2);
-  if (s.includes("①")) maxChoice = Math.max(maxChoice, 1);
-
-  const digitMarks = [
-    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*5\s*[.)]/m, n: 5 },
-    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*4\s*[.)]/m, n: 4 },
-    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*3\s*[.)]/m, n: 3 },
-    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*2\s*[.)]/m, n: 2 },
-    { re: /(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*1\s*[.)]/m, n: 1 }
-  ];
-  for (let i = 0; i < digitMarks.length; i++) {
-    if (digitMarks[i].re.test(s)) {
-      maxChoice = Math.max(maxChoice, digitMarks[i].n);
-      break;
-    }
+  function count(re) {
+    const m = s.match(re);
+    return m ? m.length : 0;
   }
 
-  const korCho = ["ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ"];
-  for (let i = korCho.length - 1; i >= 0; i--) {
-    const ch = korCho[i];
-    const re = new RegExp("(?:^|\\n)\\s*" + ch + "\\s*[.)\\],:：]", "m");
-    if (re.test(s)) {
-      maxChoice = Math.max(maxChoice, i + 1);
-      break;
-    }
-  }
-  const korGa = ["가", "나", "다", "라", "마"];
-  for (let i = korGa.length - 1; i >= 0; i--) {
-    const ch = korGa[i];
-    const re = new RegExp("(?:^|\\n)\\s*" + ch + "\\s*[.)\\],:：]", "m");
-    if (re.test(s)) {
-      maxChoice = Math.max(maxChoice, i + 1);
-      break;
-    }
-  }
+  // 1) 기본은 4지선다로 시작한다.
+  let detected = 4;
 
-  if (maxChoice < 2) return 4;
-  return Math.max(2, Math.min(5, maxChoice));
+  // 2) 원문 선지 표기 패턴(줄 시작 기준) 개수를 본다.
+  const c1 = count(/(?:^|\n)\s*①\s+/g);
+  const c2 = count(/(?:^|\n)\s*②\s+/g);
+  const c3 = count(/(?:^|\n)\s*③\s+/g);
+  const c4 = count(/(?:^|\n)\s*④\s+/g);
+  const c5 = count(/(?:^|\n)\s*⑤\s+/g);
+
+  // 숫자 선지(1. 2. 3. 4. 5.)는 해설 숫자와 충돌하므로 줄 시작 + 뒤 공백을 강제한다.
+  const d1 = count(/(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*1[.)]\s+/g);
+  const d2 = count(/(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*2[.)]\s+/g);
+  const d3 = count(/(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*3[.)]\s+/g);
+  const d4 = count(/(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*4[.)]\s+/g);
+  const d5 = count(/(?:^|\n)\s*(?:보기|선지|지문|선택지)?\s*5[.)]\s+/g);
+
+  // 3) 5지선다는 강한 근거가 있을 때만 허용한다.
+  const hasStrong5Circled = c5 > 0 && c4 > 0 && c3 > 0 && c2 > 0 && c1 > 0;
+  const hasStrong5Digit = d5 > 0 && d4 > 0 && d3 > 0 && d2 > 0 && d1 > 0;
+  if (hasStrong5Circled || hasStrong5Digit) detected = 5;
+
+  // 4) ㄱ~ㄹ / 가~라 체계가 주로 보이면 최소 4지선다로 본다.
+  //    (ㅁ/마가 확실히 있을 때만 5로 올린다.)
+  const cho1 = count(/(?:^|\n)\s*ㄱ\s*[.)\],:：]\s*/g);
+  const cho2 = count(/(?:^|\n)\s*ㄴ\s*[.)\],:：]\s*/g);
+  const cho3 = count(/(?:^|\n)\s*ㄷ\s*[.)\],:：]\s*/g);
+  const cho4 = count(/(?:^|\n)\s*ㄹ\s*[.)\],:：]\s*/g);
+  const cho5 = count(/(?:^|\n)\s*ㅁ\s*[.)\],:：]\s*/g);
+  const ga1 = count(/(?:^|\n)\s*가\s*[.)\],:：]\s*/g);
+  const ga2 = count(/(?:^|\n)\s*나\s*[.)\],:：]\s*/g);
+  const ga3 = count(/(?:^|\n)\s*다\s*[.)\],:：]\s*/g);
+  const ga4 = count(/(?:^|\n)\s*라\s*[.)\],:：]\s*/g);
+  const ga5 = count(/(?:^|\n)\s*마\s*[.)\],:：]\s*/g);
+  const hasStrong5Cho = cho5 > 0 && cho4 > 0 && cho3 > 0 && cho2 > 0 && cho1 > 0;
+  const hasStrong5Ga = ga5 > 0 && ga4 > 0 && ga3 > 0 && ga2 > 0 && ga1 > 0;
+  if (hasStrong5Cho || hasStrong5Ga) detected = 5;
+
+  return Math.max(2, Math.min(5, detected));
 }
 
 function extractJsonArrayFromText(raw) {
@@ -800,6 +802,14 @@ function inferYearLoose(text) {
   const y = parseInt(m[0], 10);
   if (!Number.isFinite(y) || y < 1990 || y > 2100) return null;
   return y;
+}
+
+function normalizeStatementForDedupe(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^\w가-힣\s]/g, "")
+    .trim();
 }
 
 async function generateLibraryQuizRows(apiKey, modelId, prompt) {
@@ -984,6 +994,9 @@ exports.adminGenerateQuizFromLibrary = onCall(
   const questionStartNo = parseIntInRange(data.questionStartNo, 1, 500);
   const questionEndNo = parseIntInRange(data.questionEndNo, 1, 500);
   const expectedCountInput = parseInt(data.expectedCount, 10);
+  const excludeStatements = Array.isArray(data.excludeStatements)
+    ? data.excludeStatements.map((x) => String(x || "").trim()).filter(Boolean).slice(-200)
+    : [];
   const scanOnly = data.scanOnly === true;
   const fastMode = data.fastMode !== false;
   const fileIds = Array.isArray(data.fileIds)
@@ -1064,6 +1077,9 @@ exports.adminGenerateQuizFromLibrary = onCall(
   const modelId = effectiveGeminiModelId();
   const collectedRows = [];
   const collectedPairSet = new Set();
+  const blockedStatementSet = new Set(
+    excludeStatements.map((x) => normalizeStatementForDedupe(x)).filter(Boolean)
+  );
   const failRows = [];
 
   function buildMissingPairs(maxQuestionNo) {
@@ -1110,10 +1126,16 @@ exports.adminGenerateQuizFromLibrary = onCall(
       "- 각 문제는 보기 1~" + (detectedChoiceCount || 4) + "를 각각 1개 OX 문항으로 분해하세요.",
       "- 박스형 보기(ㄱ/ㄴ/ㄷ/ㄹ/ㅁ 또는 가/나/다/라/마)도 각각 별도 문항으로 분해하고 sourceChoiceNo를 1~5로 매핑하세요.",
       "- sourceQuestionNo/sourceChoiceNo를 반드시 채우세요.",
+      "- statement는 해당 선지 문장을 원문에 가깝게 유지하세요. 결론/해설식 재서술을 만들지 마세요.",
+      "- statement에는 근거 설명(예: '~이므로', '~때문에', '따라서')을 붙이지 말고 OX 판단문 한 문장으로 작성하세요.",
       questionOnly ? "- 이번 배치는 sourceQuestionNo를 반드시 " + questionOnly + "로만 생성하세요." : "",
       choiceOnly ? "- 이번 배치는 sourceChoiceNo를 반드시 " + choiceOnly + "로만 생성하세요." : "",
       "- 파일 순서 기준으로 1번부터 마지막까지 생성하되, 누락 쌍을 우선 보완하세요.",
       "- 누락 쌍(문항-보기): " + missingHint,
+      excludeStatements.length
+        ? "- 아래 금지 문장(기생성 문장)과 동일/유사한 statement는 절대 생성하지 마세요: " +
+          excludeStatements.slice(-50).join(" | ")
+        : "",
       "- 목표 생성 개수(총): " + expectedCount,
       "- 이 단계는 해설 생성이 아니라 구조 추출 단계다.",
       "- 자료에 없는 내용 추측 금지.",
@@ -1154,6 +1176,15 @@ exports.adminGenerateQuizFromLibrary = onCall(
       if (cNo > (detectedChoiceCount || 4)) continue;
       const key = pairKey(qNo, cNo);
       if (collectedPairSet.has(key)) continue;
+      const normalizedStmt = normalizeStatementForDedupe(r.statement);
+      if (!normalizedStmt) {
+        failRows.push({ index: i + 1, reason: "statement 비어 있음" });
+        continue;
+      }
+      if (blockedStatementSet.has(normalizedStmt)) {
+        failRows.push({ index: i + 1, reason: "중복 statement 감지" });
+        continue;
+      }
       r.sourceQuestionNo = qNo;
       r.sourceChoiceNo = cNo;
       if (!r.sourceChoiceLabel) {
@@ -1162,6 +1193,7 @@ exports.adminGenerateQuizFromLibrary = onCall(
       }
       collectedRows.push(r);
       collectedPairSet.add(key);
+      blockedStatementSet.add(normalizedStmt);
       acceptedInRound += 1;
       if (collectedRows.length >= expectedCount) break;
     }
