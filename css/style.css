@@ -5069,6 +5069,20 @@ button.feedback-tag--link:hover {
   padding-top: 0.7rem;
 }
 
+.learning-pyramid-figure {
+  margin: 0.75rem 0 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0d1725;
+}
+
+.learning-pyramid-figure__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .learning-pyramid-note__lead,
 .learning-pyramid-note__desc {
   margin: 0 0 0.55rem;
