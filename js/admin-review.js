@@ -518,6 +518,66 @@
       });
     }
 
+    var btnRejectAll = $("admin-review-reject-all");
+    if (btnRejectAll) {
+      btnRejectAll.addEventListener("click", function () {
+        if (!currentListItems || !currentListItems.length) {
+          setMsg("일괄 반려할 검수 항목이 없습니다.", true);
+          return;
+        }
+        var reason = window.prompt("일괄 반려 사유를 입력하세요.", "일괄 검토 필요");
+        if (reason == null) return;
+        var targets = currentListItems.slice();
+        if (
+          !window.confirm(
+            "현재 목록 " +
+              targets.length +
+              "건을 모두 반려할까요? 처리 시간이 조금 걸릴 수 있습니다."
+          )
+        ) {
+          return;
+        }
+        btnRejectAll.disabled = true;
+        var okCount = 0;
+        var failCount = 0;
+        var firstErr = "";
+        var chain = Promise.resolve();
+        targets.forEach(function (it, i) {
+          chain = chain.then(function () {
+            setMsg("일괄 반려 중… (" + (i + 1) + "/" + targets.length + ")", false);
+            var p =
+              mode === "quiz"
+                ? window.adminRejectQuizStaging(it.id, it.version, reason)
+                : window.adminRejectDictStaging(mode, it.id, it.version, reason);
+            return p
+              .then(function () {
+                okCount += 1;
+              })
+              .catch(function (e) {
+                failCount += 1;
+                if (!firstErr) firstErr = (e && e.message) || "반려 실패";
+              });
+          });
+        });
+        chain
+          .then(function () {
+            var msg = "일괄 반려 완료: " + okCount + "건";
+            if (failCount) msg += ", 실패 " + failCount + "건";
+            if (firstErr) msg += " (예: " + firstErr + ")";
+            setMsg(msg, failCount > 0 && okCount === 0);
+            selected = null;
+            fillDetail(null);
+            loadList();
+          })
+          .catch(function (e) {
+            setMsg((e && e.message) || "일괄 반려 처리 실패", true);
+          })
+          .then(function () {
+            btnRejectAll.disabled = false;
+          });
+      });
+    }
+
     var btnSave = $("admin-review-save");
     if (btnSave) {
       btnSave.addEventListener("click", function () {

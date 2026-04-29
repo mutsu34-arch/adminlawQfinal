@@ -2147,6 +2147,7 @@
                   </p>
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--primary" id="admin-quiz-create-run">AI 퀴즈 생성·검수 대기 등록</button>
+                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-create-stop">퀴즈 생성 중단</button>
                     <button type="button" class="btn btn--outline btn--small" id="admin-quiz-hide-bundled">
                       기본 퀴즈 숨김 처리
                     </button>
@@ -2420,6 +2421,7 @@
                 <div class="admin-review-toolbar">
                   <button type="button" class="btn btn--secondary" id="admin-review-refresh">목록 새로고침</button>
                   <button type="button" class="btn btn--secondary" id="admin-review-approve-all">검수 목록 일괄 승인·반영</button>
+                  <button type="button" class="btn btn--outline" id="admin-review-reject-all">검수 목록 일괄 반려</button>
                   <div class="admin-review-tabs" role="tablist" aria-label="검수 유형 선택">
                     <button
                       type="button"
@@ -3057,8 +3059,8 @@
   <script src="/js/quiz-note-card-actions.js?v=7"></script>
   <script src="/js/notifications-ui.js?v=4"></script>
   <script src="/js/admin-panel.js?v=2"></script>
-  <script src="/js/admin-quiz-create.js?v=16"></script>
-  <script src="/js/admin-review.js?v=14"></script>
+  <script src="/js/admin-quiz-create.js?v=17"></script>
+  <script src="/js/admin-review.js?v=15"></script>
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/admin-excel.js?v=9"></script>

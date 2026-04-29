@@ -7,6 +7,7 @@
   var QUIZ_CREATE_PROGRESS_KEY = "hanlaw_admin_quiz_create_progress_v1";
   var autoMeta = { examId: "", year: "" };
   var quizGenerationRunning = false;
+  var quizGenerationCancelRequested = false;
 
   function $(id) {
     return document.getElementById(id);
@@ -98,6 +99,9 @@
   function callWithRetry(callable, payload, msgEl, renderMsg) {
     var attempt = 0;
     function run() {
+      if (quizGenerationCancelRequested) {
+        return Promise.reject(new Error("퀴즈 생성이 중단되었습니다."));
+      }
       if (typeof navigator !== "undefined" && navigator.onLine === false) {
         if (typeof renderMsg === "function") setMsg(msgEl, renderMsg("오프라인 감지 · 네트워크 복구 대기 중"), true);
         return waitUntilOnline().then(run);
@@ -675,6 +679,7 @@
     for (var idx = nextIndex; idx < pairJobs.length; idx++) {
       (function (jobIndex) {
         chain = chain.then(function () {
+          if (quizGenerationCancelRequested) throw new Error("퀴즈 생성이 중단되었습니다.");
           var job = pairJobs[jobIndex];
           var prefix =
             "AI 퀴즈 생성 중… (" +
@@ -737,6 +742,7 @@
     var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
     var callable = firebase.app().functions(region).httpsCallable("adminGenerateQuizFromLibrary");
     quizGenerationRunning = true;
+    quizGenerationCancelRequested = false;
     setMsg(msgEl, "이전 퀴즈 생성 작업을 이어서 진행합니다…", false);
     executePairJobsWithResume(callable, msgEl, state)
       .then(function (res) {
@@ -745,6 +751,11 @@
       })
       .catch(function (e) {
         var msg = (e && e.message) || "이전 퀴즈 생성 이어하기에 실패했습니다.";
+        if (msg.indexOf("중단") >= 0) {
+          clearQuizCreateProgress();
+          setMsg(msgEl, "퀴즈 생성이 중단되었습니다. 다시 시작하려면 'AI 퀴즈 생성·검수 대기 등록'을 누르세요.", false);
+          return;
+        }
         setMsg(msgEl, msg + " (네트워크 복구 후 자동으로 다시 이어집니다)", true);
       })
       .finally(function () {
@@ -786,6 +797,7 @@
     }
 
     quizGenerationRunning = true;
+    quizGenerationCancelRequested = false;
     setMsg(msgEl, "업로드 파일 상태 확인 중…", false);
     fetchLibraryDocsByIds(selectedIds)
       .then(function (docs) {
@@ -875,6 +887,11 @@
       })
       .catch(function (e) {
         var msg = (e && e.message) || "AI 퀴즈 생성에 실패했습니다.";
+        if (msg.indexOf("중단") >= 0) {
+          clearQuizCreateProgress();
+          setMsg(msgEl, "퀴즈 생성이 중단되었습니다. 설정을 확인한 뒤 다시 실행하세요.", false);
+          return;
+        }
         var low = String(msg).toLowerCase();
         if (low === "internal" || low.indexOf("deadline") >= 0 || low.indexOf("timeout") >= 0) {
           msg =
@@ -884,7 +901,20 @@
       })
       .finally(function () {
         quizGenerationRunning = false;
+        quizGenerationCancelRequested = false;
       });
+  }
+
+  function stopGenerate() {
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    var msgEl = $("admin-quiz-create-run-msg");
+    if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
+    if (!quizGenerationRunning && !readQuizCreateProgress()) {
+      return setMsg(msgEl, "현재 진행 중이거나 이어하기 대상인 생성 작업이 없습니다.", true);
+    }
+    quizGenerationCancelRequested = true;
+    clearQuizCreateProgress();
+    setMsg(msgEl, "퀴즈 생성 중단 요청을 보냈습니다. 현재 호출이 끝나면 즉시 중단됩니다.", false);
   }
 
   function hideBundledQuizSet() {
@@ -1016,6 +1046,8 @@
     if (btnUp) btnUp.addEventListener("click", uploadFiles);
     var btnRun = $("admin-quiz-create-run");
     if (btnRun) btnRun.addEventListener("click", runGenerate);
+    var btnStop = $("admin-quiz-create-stop");
+    if (btnStop) btnStop.addEventListener("click", stopGenerate);
     var btnHideBundled = $("admin-quiz-hide-bundled");
     if (btnHideBundled) btnHideBundled.addEventListener("click", hideBundledQuizSet);
     var btnRestoreBundled = $("admin-quiz-restore-bundled");
