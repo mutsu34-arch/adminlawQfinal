@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 560" role="img" aria-labelledby="title desc">
-  <title id="title">Yµ <|øÜ</title>
-  <desc id="desc">Ù Yµü ¥Ù YµX Éà 0µ`D èÄÄ\ \\ Yµ <|øÜ</desc>
+  <title id="title">Learning Pyramid</title>
+  <desc id="desc">Learning pyramid comparing passive reading retention and active practice retention.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#111a2a"/>
@@ -15,17 +15,17 @@
       <stop offset="100%" stop-color="#5ad0ff"/>
     </linearGradient>
     <style>
-      .label { font: 600 20px 'Pretendard', 'Noto Sans KR', sans-serif; fill: #eaf1ff; }
-      .small { font: 500 16px 'Pretendard', 'Noto Sans KR', sans-serif; fill: #b8c6dd; }
-      .pct { font: 700 24px 'Pretendard', 'Noto Sans KR', sans-serif; fill: #fff; }
-      .title { font: 700 26px 'Pretendard', 'Noto Sans KR', sans-serif; fill: #f3f7ff; }
-      .tag { font: 700 18px 'Pretendard', 'Noto Sans KR', sans-serif; }
+      .label { font: 600 20px Arial, sans-serif; fill: #eaf1ff; }
+      .small { font: 500 16px Arial, sans-serif; fill: #b8c6dd; }
+      .pct { font: 700 24px Arial, sans-serif; fill: #fff; }
+      .title { font: 700 26px Arial, sans-serif; fill: #f3f7ff; }
+      .tag { font: 700 18px Arial, sans-serif; }
     </style>
   </defs>
 
   <rect x="0" y="0" width="760" height="560" fill="url(#bg)"/>
-  <text x="34" y="44" class="title">Yµ <|øÜ (Learning Pyramid)</text>
-  <text x="34" y="74" class="small">}0 10% vs À8 xœ(Practice doing) 75%</text>
+  <text x="34" y="44" class="title">Learning Pyramid</text>
+  <text x="34" y="74" class="small">Reading 10% vs Practice doing 75%</text>
 
   <rect x="26" y="108" width="10" height="390" rx="5" fill="#3a4963"/>
   <rect x="26" y="108" width="10" height="126" rx="5" fill="#ffb84d"/>
@@ -54,5 +54,5 @@
 
   <polygon points="115,435 725,435 753,490 87,490" fill="url(#active)"/>
   <text x="145" y="470" class="pct">75%</text>
-  <text x="520" y="470" class="label">Practice doing (À8 xœ)</text>
+  <text x="520" y="470" class="label">Practice doing</text>
 </svg>
