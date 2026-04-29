@@ -455,6 +455,22 @@ function stripUndesiredLeadPhrases(text) {
   return s.trim();
 }
 
+function enforcePoliteKorean(text) {
+  let s = String(text || "").trim();
+  if (!s) return s;
+  // 요청된 표현 우선 치환
+  s = s.replace(/알아야\s*한다\./g, "알아야 합니다.");
+  s = s.replace(/중요하다\./g, "중요합니다.");
+  // 자주 나오는 서술형 반말 어미를 보수적으로 정중체로 변환
+  s = s.replace(/해야\s*한다\./g, "해야 합니다.");
+  s = s.replace(/된다\./g, "됩니다.");
+  s = s.replace(/있다\./g, "있습니다.");
+  s = s.replace(/없다\./g, "없습니다.");
+  s = s.replace(/이다\./g, "입니다.");
+  s = s.replace(/하다\./g, "합니다.");
+  return s;
+}
+
 async function generateTermWithGemini(tag, apiKey, modelId, learnerNickname) {
   const gen = new GoogleGenerativeAI(apiKey);
   const prompt =
@@ -627,6 +643,7 @@ async function generateStatuteOxQuizzesGemini(statuteKey, heading, body, apiKey,
     "키는 oxQuizzes 하나만. 각 원소는 statement/answer/explanation. answer는 boolean(true=O, false=X).\n" +
     "목적: 조문의 요건·효과·적용 범위를 문언에 맞게 이해했는지 확인.\n" +
     "규칙: 지문은 한 문장 위주로 짧게. 본문에 근거 없는 추측은 금지.\n" +
+    "문체 규칙: explanation/explanationBasic은 반드시 정중한 서술형(합니다체, 예: ~입니다/~합니다)으로 작성하세요. 반말체(~다/~한다) 금지.\n" +
     "요건·효과·예외·금지되는 해석 등을 고르게 다룰 것.\n\n" +
     "[조문 식별자]\n" +
     JSON.stringify(sk) +
@@ -652,6 +669,12 @@ async function generateStatuteOxQuizzesGemini(statuteKey, heading, body, apiKey,
   if (ox.length < 1) {
     ox = buildFallbackOxQuizzesStatute({ statuteKey: sk, heading: hd, body: bd });
   }
+  ox = ox.map((row) =>
+    Object.assign({}, row, {
+      explanation: enforcePoliteKorean(row && row.explanation),
+      explanationBasic: enforcePoliteKorean(row && row.explanationBasic)
+    })
+  );
   return ox;
 }
 
@@ -669,6 +692,7 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
     "body는 반드시 '조문 원문(가능한 한 원문 그대로)' 중심으로 작성하고, 요약/해설문 위주로 쓰지 마세요.\n" +
     "appliedRules에는 준용 규정만, subordinateRules에는 하위법령(시행령/시행규칙)만, examPoint에는 수험 포인트만 분리해 쓰세요.\n" +
     "위 3개 섹션 내용을 body에 중복해서 길게 넣지 마세요.\n" +
+    "문체 규칙: examPoint와 oxQuizzes의 explanation/explanationBasic은 반드시 정중한 서술형(합니다체)으로 작성하세요. 반말체(~다/~한다) 금지.\n" +
     "불확실한 내용은 '확인 필요'로 표시하고 단정 금지.\n" +
     "oxQuizzes는 1~3개, statement/answer/explanation 형식.\n\n" +
     "[조문 키]\n" +
@@ -728,7 +752,7 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
   const body = split.body || bodyRawOut;
   const appliedRules = split.appliedRules || appliedRulesRaw;
   const subordinateRules = split.subordinateRules || subordinateRulesRaw;
-  const examPoint = split.examPoint || examPointRaw;
+  const examPoint = enforcePoliteKorean(split.examPoint || examPointRaw);
   const sourceNote = clampStr(
     o.sourceNote ||
       "내부 자동 생성: 법령 검색 텍스트를 참고해 작성됨. 최신 조문은 국가법령정보센터에서 재확인 필요.",
@@ -742,6 +766,12 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
       body
     });
   }
+  oxQuizzes = oxQuizzes.map((row) =>
+    Object.assign({}, row, {
+      explanation: enforcePoliteKorean(row && row.explanation),
+      explanationBasic: enforcePoliteKorean(row && row.explanationBasic)
+    })
+  );
   return {
     statuteKey: sk,
     heading,
