@@ -6838,17 +6838,20 @@ html[data-theme="light"] .public-qa-item__stem-kicker {
 
 /* 관리자 생성 액션: 주요 버튼들을 가로 한 줄 배치 */
 .dict-case-create-admin__actions {
-  display: flex;
-  flex-wrap: nowrap;
+  display: flex !important;
+  flex-wrap: nowrap !important;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.5rem;
   overflow-x: auto;
 }
 
 .dict-case-create-admin__actions > .btn {
-  width: auto;
-  flex: 0 0 auto;
+  width: auto !important;
+  max-width: none !important;
+  flex: 0 0 auto !important;
   white-space: nowrap;
+  align-self: center !important;
 }
 
 .dict-case-create-admin__actions > .dict-memo-panel__msg {
