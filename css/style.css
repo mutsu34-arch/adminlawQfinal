@@ -5077,10 +5077,11 @@ button.feedback-tag--link:hover {
   background: #0d1725;
 }
 
-.learning-pyramid-figure__svg {
+.learning-pyramid-figure__img {
   display: block;
   width: 100%;
   height: auto;
+  object-fit: contain;
 }
 
 .learning-pyramid-note__lead,
