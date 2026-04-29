@@ -6836,6 +6836,26 @@ html[data-theme="light"] .public-qa-item__stem-kicker {
   margin-top: 0.5rem;
 }
 
+/* 관리자 생성 액션: 주요 버튼들을 가로 한 줄 배치 */
+.dict-case-create-admin__actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+}
+
+.dict-case-create-admin__actions > .btn {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.dict-case-create-admin__actions > .dict-memo-panel__msg {
+  margin-left: 0.25rem;
+  white-space: nowrap;
+}
+
 .dict-memo-panel__msg {
   font-size: 0.82rem;
 }

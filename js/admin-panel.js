@@ -100,7 +100,6 @@
     var btnJson = document.getElementById("admin-btn-json-upload");
     var msgSingle = document.getElementById("admin-msg-single");
     var msgJson = document.getElementById("admin-msg-json");
-    var btnReload = document.getElementById("admin-btn-reload");
     var examSel = document.getElementById("admin-exam-id");
     fillExamSelect(examSel);
 
@@ -190,24 +189,6 @@
           }
         };
         reader.readAsText(f, "UTF-8");
-      });
-    }
-
-    if (btnReload) {
-      btnReload.addEventListener("click", function () {
-        if (typeof window.loadRemoteQuestions !== "function") {
-          window.alert("문항 로드 함수를 찾지 못했습니다. 새로고침 후 다시 시도해 주세요.");
-          return;
-        }
-        window
-          .loadRemoteQuestions()
-          .then(function () {
-            setMsg(msgSingle, "문항을 다시 불러왔습니다.", false);
-            window.alert("문항을 다시 불러왔습니다.");
-          })
-          .catch(function (err3) {
-            window.alert((err3 && err3.message) || "문항 다시 불러오기에 실패했습니다.");
-          });
       });
     }
 
