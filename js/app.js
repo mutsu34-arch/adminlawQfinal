@@ -623,6 +623,17 @@
     return out;
   }
 
+  function sortL1WithPriority(values) {
+    var list = uniqueSorted(values);
+    var top = "행정법총론(일반행정법)";
+    list.sort(function (a, b) {
+      if (a === top && b !== top) return -1;
+      if (b === top && a !== top) return 1;
+      return a.localeCompare(b, "ko");
+    });
+    return list;
+  }
+
   function fillSelect(select, options, includeAll) {
     if (!select) return;
     select.innerHTML = "";
@@ -927,7 +938,7 @@
     var prevL2 = el.filterTopicL2 ? String(el.filterTopicL2.value || ALL) : ALL;
     var prev = el.filterTopic ? String(el.filterTopic.value || ALL) : ALL;
     var prevSearch = el.filterTopicSearch ? String(el.filterTopicSearch.value || "") : "";
-    fillSelect(el.filterTopicL1, uniqueSorted(ADMIN_LAW_TOPIC_TREE.map(function (x) { return x.l1; })), true);
+    fillSelect(el.filterTopicL1, sortL1WithPriority(ADMIN_LAW_TOPIC_TREE.map(function (x) { return x.l1; })), true);
     if (el.filterTopicL1) el.filterTopicL1.value = prevL1 || ALL;
     var l1 = el.filterTopicL1 ? String(el.filterTopicL1.value || ALL) : ALL;
     fillSelect(el.filterTopicL2, optionsForL2(l1), true);
