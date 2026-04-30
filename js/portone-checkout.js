@@ -177,7 +177,7 @@
             var provider = String(d.easyPayProvider || "KAKAOPAY").trim().toUpperCase();
             payload.easyPay = { easyPayProvider: provider || "KAKAOPAY" };
           }
-          if (cfg().preferRedirect === true) {
+          if (cfg().preferRedirect === true && payload.payMethod !== "EASY_PAY") {
             payload.redirectUrl = buildReturnUrl();
             payload.forceRedirect = true;
           }
@@ -200,6 +200,9 @@
         } catch (e) {}
       })
       .catch(function (e) {
+        try {
+          console.error("[PortOne] requestPayment failed:", e);
+        } catch (_) {}
         var msg = e && e.message ? String(e.message) : "결제를 완료할 수 없습니다.";
         if (e && e.code === "functions/failed-precondition") msg = e.message || msg;
         window.alert(msg);
