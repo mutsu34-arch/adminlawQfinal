@@ -110,8 +110,7 @@ function productSpec(product) {
       tier: "basic",
       orderName: "행정법Q 베이직 1개월 구독권",
       amount: oneMonth.one_month_basic,
-      payMethod: "EASY_PAY",
-      easyPayProvider: "KAKAOPAY"
+      payMethod: "CARD"
     };
   }
   if (p === "one_month_super") {
@@ -120,8 +119,7 @@ function productSpec(product) {
       tier: "super",
       orderName: "행정법Q 슈퍼 1개월 구독권",
       amount: oneMonth.one_month_super,
-      payMethod: "EASY_PAY",
-      easyPayProvider: "KAKAOPAY"
+      payMethod: "CARD"
     };
   }
   if (p === "one_month_ultra") {
@@ -130,8 +128,7 @@ function productSpec(product) {
       tier: "ultra",
       orderName: "행정법Q 울트라 1개월 구독권",
       amount: oneMonth.one_month_ultra,
-      payMethod: "EASY_PAY",
-      easyPayProvider: "KAKAOPAY"
+      payMethod: "CARD"
     };
   }
   if (p === "recurring_basic") {

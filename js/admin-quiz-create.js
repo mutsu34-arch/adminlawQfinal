@@ -182,6 +182,98 @@
     return all;
   }
 
+  function toPositiveInt(v, fallback) {
+    var n = parseInt(v, 10);
+    if (!isFinite(n) || n < 1) return fallback;
+    return n;
+  }
+
+  function docChunkUnits(doc) {
+    var d = doc || {};
+    return toPositiveInt(d.chunkCount, toPositiveInt(d.numPages, 1));
+  }
+
+  function docPages(doc) {
+    return toPositiveInt(doc && doc.numPages, 0);
+  }
+
+  function buildExpectedGenerationGroups(docs) {
+    var ordered = Array.isArray(docs) ? docs : [];
+    var groups = [];
+    var maxUnitsPerGroup = 120;
+    var cur = { docs: [], fileIds: [], unitSum: 0, pageSum: 0 };
+    for (var i = 0; i < ordered.length; i++) {
+      var d = ordered[i] || {};
+      var fileId = String(d.id || "").trim();
+      if (!fileId) continue;
+      var units = docChunkUnits(d);
+      var pages = docPages(d);
+      if (cur.docs.length && cur.unitSum + units > maxUnitsPerGroup) {
+        groups.push(cur);
+        cur = { docs: [], fileIds: [], unitSum: 0, pageSum: 0 };
+      }
+      cur.docs.push(d);
+      cur.fileIds.push(fileId);
+      cur.unitSum += units;
+      cur.pageSum += pages;
+    }
+    if (cur.docs.length) groups.push(cur);
+    if (!groups.length) {
+      groups.push({ docs: [], fileIds: [], unitSum: 1, pageSum: 0 });
+    }
+    return groups;
+  }
+
+  function allocateExpectedCounts(totalCount, groups) {
+    var count = Math.max(1, parseInt(totalCount, 10) || 1);
+    var g = Array.isArray(groups) ? groups : [];
+    var out = [];
+    var i;
+    if (!g.length) return [count];
+    if (g.length === 1) return [count];
+
+    var totalUnits = 0;
+    for (i = 0; i < g.length; i++) totalUnits += Math.max(1, parseInt(g[i].unitSum, 10) || 1);
+    if (totalUnits < 1) totalUnits = g.length;
+
+    var used = 0;
+    for (i = 0; i < g.length; i++) {
+      var units = Math.max(1, parseInt(g[i].unitSum, 10) || 1);
+      var base = Math.floor((count * units) / totalUnits);
+      if (base < 1) base = 1;
+      out.push(base);
+      used += base;
+    }
+    while (used > count) {
+      for (i = out.length - 1; i >= 0 && used > count; i--) {
+        if (out[i] > 1) {
+          out[i] -= 1;
+          used -= 1;
+        }
+      }
+      break;
+    }
+    while (used < count) {
+      for (i = 0; i < out.length && used < count; i++) {
+        out[i] += 1;
+        used += 1;
+      }
+    }
+    return out;
+  }
+
+  function groupUnitRange(groups, index) {
+    var g = Array.isArray(groups) ? groups : [];
+    var idx = parseInt(index, 10) || 0;
+    var start = 1;
+    for (var i = 0; i < idx; i++) start += Math.max(1, parseInt(g[i].unitSum, 10) || 1);
+    var units = Math.max(1, parseInt(g[idx] && g[idx].unitSum, 10) || 1);
+    return {
+      start: start,
+      end: start + units - 1
+    };
+  }
+
   function scanWithAutoSplit(callable, basePayload, msgEl) {
     var fileIds = Array.isArray(basePayload.fileIds) ? basePayload.fileIds : [];
     return callWithRetry(callable, Object.assign({}, basePayload, { scanOnly: true }), msgEl, function (suffix) {
@@ -1099,19 +1191,90 @@
         }
         var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
         var callable = firebase.app().functions(region).httpsCallable("adminGenerateExpectedQuizFromLibrary");
-        return callWithRetry(
-          callable,
-          {
-            prompt: promptFinal,
-            count: expectedCount,
-            fastMode: fastMode,
-            fileIds: selectedIds
-          },
+        var map = {};
+        for (var di = 0; di < docs.length; di++) {
+          var dd = docs[di] || {};
+          if (dd.id) map[String(dd.id)] = dd;
+        }
+        var orderedDocs = selectedIds.map(function (id) {
+          return map[id] || { id: id, title: id, chunkCount: 1, numPages: 0 };
+        });
+        var groups = buildExpectedGenerationGroups(orderedDocs);
+        var groupCounts = allocateExpectedCounts(expectedCount, groups);
+        var totalUnits = 0;
+        var totalPages = 0;
+        for (var gi = 0; gi < groups.length; gi++) {
+          totalUnits += Math.max(1, parseInt(groups[gi].unitSum, 10) || 1);
+          totalPages += Math.max(0, parseInt(groups[gi].pageSum, 10) || 0);
+        }
+        setMsg(
           msgEl,
-          function (suffix) {
-            return "AI 예상문제 생성 중… · " + suffix;
-          }
+          "AI 예상문제 생성 시작… 전체 약 " +
+            totalUnits +
+            "개 청크" +
+            (totalPages > 0 ? " / 약 " + totalPages + "쪽" : "") +
+            ", " +
+            groups.length +
+            "개 구간으로 나누어 생성합니다.",
+          false
         );
+
+        var total = { okCount: 0, failRows: [], items: [], expectedCount: 0 };
+        var chain = Promise.resolve();
+        for (var idx = 0; idx < groups.length; idx++) {
+          (function (groupIndex) {
+            chain = chain.then(function () {
+              if (quizGenerationCancelRequested) throw new Error("예상문제 생성이 중단되었습니다.");
+              var group = groups[groupIndex];
+              var range = groupUnitRange(groups, groupIndex);
+              var firstDoc = (group.docs && group.docs[0]) || {};
+              var firstTitle = String(firstDoc.title || firstDoc.fileName || firstDoc.id || "자료").trim();
+              var prefix =
+                "AI 예상문제 생성 중… (" +
+                (groupIndex + 1) +
+                "/" +
+                groups.length +
+                ") · 청크 " +
+                range.start +
+                "~" +
+                range.end +
+                "/" +
+                totalUnits +
+                (group.pageSum > 0 ? " · 약 " + group.pageSum + "쪽 구간" : "") +
+                " · " +
+                firstTitle;
+              setMsg(msgEl, prefix, false);
+              return callWithRetry(
+                callable,
+                {
+                  prompt: promptFinal,
+                  count: groupCounts[groupIndex],
+                  fastMode: fastMode,
+                  fileIds: group.fileIds
+                },
+                msgEl,
+                function (suffix) {
+                  return prefix + " · " + suffix;
+                }
+              ).then(function (res) {
+                total = mergeGenerateResult(total, res);
+                setMsg(
+                  msgEl,
+                  prefix +
+                    " · 완료 (누적 " +
+                    (parseInt(total.okCount, 10) || 0) +
+                    "건 / 목표 " +
+                    expectedCount +
+                    "건)",
+                  false
+                );
+              });
+            });
+          })(idx);
+        }
+        return chain.then(function () {
+          return { data: total };
+        });
       })
       .then(function (res) {
         renderGenerateDone(msgEl, res);
