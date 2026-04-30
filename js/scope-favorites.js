@@ -156,6 +156,10 @@
     return {
       examIds: examIds,
       years: years,
+      questionSource:
+        typeof window.getStudyQuestionSource === "function"
+          ? window.getStudyQuestionSource()
+          : "past_only",
       filterTopicL1: ft1 ? String(ft1.value || ALL_TOPIC) : ALL_TOPIC,
       filterTopicL2: ft2 ? String(ft2.value || ALL_TOPIC) : ALL_TOPIC,
       filterTopic: ft ? String(ft.value || ALL_TOPIC) : ALL_TOPIC,
@@ -261,7 +265,8 @@
     if (typeof window.applyStudyScopeFromObject !== "function") return;
     window.applyStudyScopeFromObject({
       examIds: preset.examIds,
-      years: preset.years
+      years: preset.years,
+      questionSource: preset.questionSource
     });
     setTimeout(function () {
       applyFormFields(preset);
@@ -300,6 +305,7 @@
       name: label,
       examIds: cur.examIds,
       years: cur.years,
+      questionSource: cur.questionSource,
       filterTopicL1: cur.filterTopicL1,
       filterTopicL2: cur.filterTopicL2,
       filterTopic: cur.filterTopic,

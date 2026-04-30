@@ -10,7 +10,8 @@
    */
   window.APP_SCOPE = {
     examIds: [],
-    years: []
+    years: [],
+    questionSource: "past_only"
   };
 
   function finiteNumber(n) {
@@ -90,7 +91,8 @@
         STORAGE_V3,
         JSON.stringify({
           examIds: window.APP_SCOPE.examIds,
-          years: window.APP_SCOPE.years
+          years: window.APP_SCOPE.years,
+          questionSource: window.APP_SCOPE.questionSource
         })
       );
       try {
@@ -157,6 +159,10 @@
   function applyV3(o) {
     window.APP_SCOPE.examIds = Array.isArray(o.examIds) ? o.examIds.slice() : [];
     window.APP_SCOPE.years = Array.isArray(o.years) ? o.years.slice() : [];
+    window.APP_SCOPE.questionSource =
+      String(o && o.questionSource ? o.questionSource : "past_only") === "include_expected"
+        ? "include_expected"
+        : "past_only";
     validateExamIds();
     validateYears();
   }
@@ -189,6 +195,7 @@
     }
     window.APP_SCOPE.years = years;
     validateYears();
+    window.APP_SCOPE.questionSource = "past_only";
   }
 
   /** 저장값이 없을 때: 개별 클릭이 곧바로 ‘추가 선택’이 되도록 빈 범위로 시작 */
@@ -307,8 +314,24 @@
     if (!o || typeof o !== "object") return;
     applyV3({
       examIds: o.examIds,
-      years: o.years
+      years: o.years,
+      questionSource: o.questionSource
     });
+    save();
+    emitScopeChange();
+  };
+
+  window.getStudyQuestionSource = function () {
+    return window.APP_SCOPE && window.APP_SCOPE.questionSource === "include_expected"
+      ? "include_expected"
+      : "past_only";
+  };
+
+  window.setStudyQuestionSource = function (mode) {
+    var next = String(mode || "").trim() === "include_expected" ? "include_expected" : "past_only";
+    if (!window.APP_SCOPE) window.APP_SCOPE = { examIds: [], years: [], questionSource: next };
+    if (window.APP_SCOPE.questionSource === next) return;
+    window.APP_SCOPE.questionSource = next;
     save();
     emitScopeChange();
   };
@@ -340,7 +363,11 @@
         })
         .join(", ");
     }
-    return examPart + " · " + yPart;
+    var src =
+      window.getStudyQuestionSource && window.getStudyQuestionSource() === "include_expected"
+        ? "예상 포함"
+        : "기출만";
+    return examPart + " · " + yPart + " · " + src;
   };
 
   if (window.EXAM_CATALOG && window.EXAM_CATALOG.length) {

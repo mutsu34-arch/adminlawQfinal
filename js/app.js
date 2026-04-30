@@ -587,12 +587,19 @@
   }
 
   function matchesScope(q) {
-    var exams = window.APP_SCOPE && window.APP_SCOPE.examIds;
-    var ys = window.APP_SCOPE && window.APP_SCOPE.years;
-    if (!Array.isArray(exams) || exams.length === 0) return false;
     var ex = String(q.examId || "")
       .trim()
       .toLowerCase();
+    var sourceMode =
+      typeof window.getStudyQuestionSource === "function"
+        ? window.getStudyQuestionSource()
+        : "past_only";
+    if (sourceMode === "include_expected" && ex === "expected") {
+      return true;
+    }
+    var exams = window.APP_SCOPE && window.APP_SCOPE.examIds;
+    var ys = window.APP_SCOPE && window.APP_SCOPE.years;
+    if (!Array.isArray(exams) || exams.length === 0) return false;
     if (!ex || exams.indexOf(ex) < 0) return false;
     if (!Array.isArray(ys) || ys.length === 0) return false;
     if (q.year == null || q.year === "") return false;
@@ -933,6 +940,7 @@
   }
 
   function initFilters() {
+    syncQuestionSourceScopeUi();
     var scoped = scopedBank();
     var bankTopics = uniqueSorted(scoped.map(function (q) { return normalizeTopicLabel(q.topic); }));
     var prevL1 = el.filterTopicL1 ? String(el.filterTopicL1.value || ALL) : ALL;
@@ -968,6 +976,17 @@
       el.filterTopic.value = ALL;
     }
     if (el.filterTopicSearch) el.filterTopicSearch.value = prevSearch;
+  }
+
+  function syncQuestionSourceScopeUi() {
+    var pastOnly = document.getElementById("scope-source-past-only");
+    var includeExpected = document.getElementById("scope-source-include-expected");
+    var mode =
+      typeof window.getStudyQuestionSource === "function"
+        ? window.getStudyQuestionSource()
+        : "past_only";
+    if (pastOnly) pastOnly.checked = mode !== "include_expected";
+    if (includeExpected) includeExpected.checked = mode === "include_expected";
   }
 
   function topicCurriculumRank(topic) {
@@ -2298,6 +2317,13 @@
       var t = e.target;
       if (t && t.id && String(t.id).indexOf("scope-note-") === 0) {
         initFilters();
+      }
+      if (t && (t.id === "scope-source-past-only" || t.id === "scope-source-include-expected")) {
+        if (typeof window.setStudyQuestionSource === "function") {
+          window.setStudyQuestionSource(t.value === "include_expected" ? "include_expected" : "past_only");
+        } else {
+          initFilters();
+        }
       }
       if (t && (t.id === "filter-topic-l1" || t.id === "filter-topic-l2")) {
         initFilters();

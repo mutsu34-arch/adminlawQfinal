@@ -440,6 +440,23 @@
                     </div>
                   </div>
 
+                  <div class="field field--question-source-scope">
+                    <span class="field__label">문항 출처 옵션</span>
+                    <p class="field__hint field__hint--compact">
+                      기본은 기출 지문만 출제합니다. <strong>예상 문제 포함</strong>을 선택하면 관리자 생성 예상문제(<code class="pricing-code">examId=expected</code>)도 함께 출제합니다.
+                    </p>
+                    <div class="scope-note-toggles" role="radiogroup" aria-label="문항 출처">
+                      <label class="scope-note-toggles__item">
+                        <input type="radio" name="scope-question-source" id="scope-source-past-only" value="past_only" checked />
+                        <span>기출 지문 한정</span>
+                      </label>
+                      <label class="scope-note-toggles__item">
+                        <input type="radio" name="scope-question-source" id="scope-source-include-expected" value="include_expected" />
+                        <span>예상 문제 포함</span>
+                      </label>
+                    </div>
+                  </div>
+
                   <label class="field field--question-count">
                     <span class="field__label">한 세트당 문항 수</span>
                     <div class="field__question-count-row">
