@@ -65,13 +65,31 @@ function tierFromProduct(product) {
 function productSpec(product) {
   const p = String(product || "").trim();
   if (p === "elly_10") {
-    return { kind: "elly_pack", pack: 10, orderName: "행정법Q 엘리(AI) 질문권 10건", amount: expectedKrwForEllyPack(10) };
+    return {
+      kind: "elly_pack",
+      pack: 10,
+      orderName: "행정법Q 엘리(AI) 질문권 10건",
+      amount: expectedKrwForEllyPack(10),
+      payMethod: "EASY_PAY"
+    };
   }
   if (p === "elly_20") {
-    return { kind: "elly_pack", pack: 20, orderName: "행정법Q 엘리(AI) 질문권 20건", amount: expectedKrwForEllyPack(20) };
+    return {
+      kind: "elly_pack",
+      pack: 20,
+      orderName: "행정법Q 엘리(AI) 질문권 20건",
+      amount: expectedKrwForEllyPack(20),
+      payMethod: "EASY_PAY"
+    };
   }
   if (p === "elly_30") {
-    return { kind: "elly_pack", pack: 30, orderName: "행정법Q 엘리(AI) 질문권 30건", amount: expectedKrwForEllyPack(30) };
+    return {
+      kind: "elly_pack",
+      pack: 30,
+      orderName: "행정법Q 엘리(AI) 질문권 30건",
+      amount: expectedKrwForEllyPack(30),
+      payMethod: "EASY_PAY"
+    };
   }
   const oneMonth = {
     one_month_basic: Math.max(1000, parseInt(process.env.PORTONE_KRW_1M_BASIC || "12000", 10) || 12000),
@@ -88,7 +106,8 @@ function productSpec(product) {
       kind: "sub_one_month",
       tier: "basic",
       orderName: "행정법Q 베이직 1개월 구독권",
-      amount: oneMonth.one_month_basic
+      amount: oneMonth.one_month_basic,
+      payMethod: "EASY_PAY"
     };
   }
   if (p === "one_month_super") {
@@ -96,7 +115,8 @@ function productSpec(product) {
       kind: "sub_one_month",
       tier: "super",
       orderName: "행정법Q 슈퍼 1개월 구독권",
-      amount: oneMonth.one_month_super
+      amount: oneMonth.one_month_super,
+      payMethod: "EASY_PAY"
     };
   }
   if (p === "one_month_ultra") {
@@ -104,7 +124,8 @@ function productSpec(product) {
       kind: "sub_one_month",
       tier: "ultra",
       orderName: "행정법Q 울트라 1개월 구독권",
-      amount: oneMonth.one_month_ultra
+      amount: oneMonth.one_month_ultra,
+      payMethod: "EASY_PAY"
     };
   }
   if (p === "recurring_basic") {
@@ -112,7 +133,8 @@ function productSpec(product) {
       kind: "sub_recurring_month",
       tier: "basic",
       orderName: "행정법Q 베이직 월 구독(첫 결제)",
-      amount: recurring.recurring_basic
+      amount: recurring.recurring_basic,
+      payMethod: "CARD"
     };
   }
   if (p === "recurring_super") {
@@ -120,7 +142,8 @@ function productSpec(product) {
       kind: "sub_recurring_month",
       tier: "super",
       orderName: "행정법Q 슈퍼 월 구독(첫 결제)",
-      amount: recurring.recurring_super
+      amount: recurring.recurring_super,
+      payMethod: "CARD"
     };
   }
   if (p === "recurring_ultra") {
@@ -128,7 +151,8 @@ function productSpec(product) {
       kind: "sub_recurring_month",
       tier: "ultra",
       orderName: "행정법Q 울트라 월 구독(첫 결제)",
-      amount: recurring.recurring_ultra
+      amount: recurring.recurring_ultra,
+      payMethod: "CARD"
     };
   }
   return null;
@@ -269,7 +293,7 @@ const preparePortOnePayment = onCall({ region: REGION }, async (request) => {
     orderName: spec.orderName,
     totalAmount: spec.amount,
     currency: "CURRENCY_KRW",
-    payMethod: "CARD"
+    payMethod: spec.payMethod || "CARD"
   };
 });
 
