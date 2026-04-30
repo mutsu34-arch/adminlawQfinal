@@ -21,6 +21,7 @@
   function switchAdminTab(which) {
     var tabSingle = $("admin-tab-single");
     var tabQuizCreate = $("admin-tab-quiz-create");
+    var tabBundledQuiz = $("admin-tab-bundled-quiz");
     var tabCaseDictCreate = $("admin-tab-case-dict-create");
     var tabTermDictCreate = $("admin-tab-term-dict-create");
     var tabStatuteDictCreate = $("admin-tab-statute-dict-create");
@@ -32,6 +33,7 @@
     var tabQuotes = $("admin-tab-quotes");
     var panelSingle = $("admin-panel-single");
     var panelQuizCreate = $("admin-panel-quiz-create");
+    var panelBundledQuiz = $("admin-panel-bundled-quiz");
     var panelCaseDictCreate = $("admin-panel-case-dict-create");
     var panelTermDictCreate = $("admin-panel-term-dict-create");
     var panelStatuteDictCreate = $("admin-panel-statute-dict-create");
@@ -42,10 +44,10 @@
     var panelInbox = $("admin-panel-inbox");
     var panelQuotes = $("admin-panel-quotes");
     function off() {
-      [tabSingle, tabQuizCreate, tabCaseDictCreate, tabTermDictCreate, tabStatuteDictCreate, tabJson, tabExcel, tabReview, tabLibrary, tabInbox, tabQuotes].forEach(function (t) {
+      [tabSingle, tabQuizCreate, tabBundledQuiz, tabCaseDictCreate, tabTermDictCreate, tabStatuteDictCreate, tabJson, tabExcel, tabReview, tabLibrary, tabInbox, tabQuotes].forEach(function (t) {
         if (t) t.classList.remove("admin-tab--active");
       });
-      [panelSingle, panelQuizCreate, panelCaseDictCreate, panelTermDictCreate, panelStatuteDictCreate, panelJson, panelExcel, panelReview, panelLibrary, panelInbox, panelQuotes].forEach(
+      [panelSingle, panelQuizCreate, panelBundledQuiz, panelCaseDictCreate, panelTermDictCreate, panelStatuteDictCreate, panelJson, panelExcel, panelReview, panelLibrary, panelInbox, panelQuotes].forEach(
         function (p) {
           if (p) p.hidden = true;
         }
@@ -76,6 +78,10 @@
     } else if (which === "quiz-create") {
       if (tabQuizCreate) tabQuizCreate.classList.add("admin-tab--active");
       if (panelQuizCreate) panelQuizCreate.hidden = false;
+    } else if (which === "bundled-quiz") {
+      if (tabBundledQuiz) tabBundledQuiz.classList.add("admin-tab--active");
+      if (panelBundledQuiz) panelBundledQuiz.hidden = false;
+      if (typeof window.loadAdminBundledQuizList === "function") window.loadAdminBundledQuizList();
     } else if (which === "case-dict-create") {
       if (tabCaseDictCreate) tabCaseDictCreate.classList.add("admin-tab--active");
       if (panelCaseDictCreate) panelCaseDictCreate.hidden = false;
@@ -283,6 +289,7 @@
     var tabInbox = $("admin-tab-inbox");
     var tabSingle = $("admin-tab-single");
     var tabQuizCreate = $("admin-tab-quiz-create");
+    var tabBundledQuiz = $("admin-tab-bundled-quiz");
     var tabCaseDictCreate = $("admin-tab-case-dict-create");
     var tabTermDictCreate = $("admin-tab-term-dict-create");
     var tabStatuteDictCreate = $("admin-tab-statute-dict-create");
@@ -309,6 +316,11 @@
     if (tabQuizCreate) {
       tabQuizCreate.addEventListener("click", function () {
         switchAdminTab("quiz-create");
+      });
+    }
+    if (tabBundledQuiz) {
+      tabBundledQuiz.addEventListener("click", function () {
+        switchAdminTab("bundled-quiz");
       });
     }
     if (tabTermDictCreate) {

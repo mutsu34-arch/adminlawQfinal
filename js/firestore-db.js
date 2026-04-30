@@ -309,6 +309,30 @@
       });
   };
 
+  window.restoreBundledQuestion = function (questionId) {
+    var db = getDb();
+    if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    var qid = String(questionId || "").trim();
+    if (!qid) return Promise.reject(new Error("복구할 퀴즈 ID가 없습니다."));
+    return db
+      .collection(COLLECTION)
+      .doc(qid)
+      .get()
+      .then(function (snap) {
+        if (!snap.exists) return { restored: 0 };
+        var d = snap.data() || {};
+        if (!(d.bundledShadow === true && d.hidden === true)) return { restored: 0 };
+        return snap.ref.delete().then(function () {
+          return { restored: 1 };
+        });
+      })
+      .then(function (res) {
+        return window.loadRemoteQuestions().then(function () {
+          return res;
+        });
+      });
+  };
+
   window.saveTermEntryToFirestore = function (entry, docId) {
     var db = getDb();
     if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));

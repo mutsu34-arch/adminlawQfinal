@@ -1055,6 +1055,12 @@
     var prompt = String(
       ($("admin-quiz-create-prompt-expected") && $("admin-quiz-create-prompt-expected").value) || ""
     ).trim();
+    var toneRule =
+      "문체 규칙: 모든 문제 문장, 선택지, 해설은 반드시 존댓말(하십시오체)로 작성합니다. 반말·구어체는 사용하지 않습니다.";
+    var promptFinal = prompt;
+    if (prompt && prompt.indexOf("존댓말") < 0 && prompt.indexOf("하십시오체") < 0) {
+      promptFinal = prompt + "\n\n" + toneRule;
+    }
     var fastMode = !!(
       $("admin-quiz-create-fast-mode-expected") && $("admin-quiz-create-fast-mode-expected").checked
     );
@@ -1096,7 +1102,7 @@
         return callWithRetry(
           callable,
           {
-            prompt: prompt,
+            prompt: promptFinal,
             count: expectedCount,
             fastMode: fastMode,
             fileIds: selectedIds
@@ -1134,70 +1140,6 @@
     quizGenerationCancelRequested = true;
     clearQuizCreateProgress();
     setMsg(msgEl, "퀴즈 생성 중단 요청을 보냈습니다. 현재 호출이 끝나면 즉시 중단됩니다.", false);
-  }
-
-  function hideBundledQuizSet() {
-    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
-    var msgEl = $("admin-quiz-create-run-msg");
-    if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
-    if (typeof window.softHideBundledQuestion !== "function") {
-      return setMsg(msgEl, "기본 퀴즈 숨김 함수를 찾지 못했습니다.", true);
-    }
-    var staticList = Array.isArray(window.QUESTION_BANK_STATIC) ? window.QUESTION_BANK_STATIC : [];
-    var ids = staticList
-      .map(function (q) {
-        return q && q.id ? String(q.id).trim() : "";
-      })
-      .filter(Boolean);
-    if (!ids.length) return setMsg(msgEl, "숨김 처리할 기본 퀴즈가 없습니다.", false);
-    if (!window.confirm("기본 퀴즈 " + ids.length + "개를 모두 숨김 처리할까요?")) return;
-    var done = 0;
-    var fail = 0;
-    setMsg(msgEl, "기본 퀴즈 숨김 처리 중... (0/" + ids.length + ")", false);
-    var chain = Promise.resolve();
-    ids.forEach(function (id) {
-      chain = chain.then(function () {
-        return window
-          .softHideBundledQuestion(id)
-          .catch(function () {
-            fail += 1;
-            return null;
-          })
-          .then(function () {
-            done += 1;
-            setMsg(msgEl, "기본 퀴즈 숨김 처리 중... (" + done + "/" + ids.length + ")", false);
-          });
-      });
-    });
-    chain.then(function () {
-      setMsg(msgEl, "기본 퀴즈 숨김 완료: 성공 " + (ids.length - fail) + "개, 실패 " + fail + "개", fail > 0);
-    });
-  }
-
-  function restoreBundledQuizSet() {
-    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
-    var msgEl = $("admin-quiz-create-run-msg");
-    if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
-    if (typeof window.restoreHiddenBundledQuestions !== "function") {
-      return setMsg(msgEl, "숨김 퀴즈 복구 함수를 찾지 못했습니다.", true);
-    }
-    if (!window.confirm("숨김 처리된 기본 퀴즈를 복구할까요?")) return;
-    setMsg(msgEl, "숨김 퀴즈 복구 중...", false);
-    window
-      .restoreHiddenBundledQuestions()
-      .then(function (res) {
-        var total = res && typeof res.total === "number" ? res.total : 0;
-        var restored = res && typeof res.restored === "number" ? res.restored : 0;
-        var failed = res && typeof res.failed === "number" ? res.failed : 0;
-        setMsg(
-          msgEl,
-          "숨김 퀴즈 복구 완료: 대상 " + total + "개, 복구 " + restored + "개, 실패 " + failed + "개",
-          failed > 0
-        );
-      })
-      .catch(function (e) {
-        setMsg(msgEl, (e && e.message) || "숨김 퀴즈 복구에 실패했습니다.", true);
-      });
   }
 
   function refreshVisibility() {
@@ -1281,10 +1223,6 @@
     if (btnExpectedDelete) btnExpectedDelete.addEventListener("click", function () { deletePromptTemplate("expected"); });
     var btnStop = $("admin-quiz-create-stop");
     if (btnStop) btnStop.addEventListener("click", stopGenerate);
-    var btnHideBundled = $("admin-quiz-hide-bundled");
-    if (btnHideBundled) btnHideBundled.addEventListener("click", hideBundledQuizSet);
-    var btnRestoreBundled = $("admin-quiz-restore-bundled");
-    if (btnRestoreBundled) btnRestoreBundled.addEventListener("click", restoreBundledQuizSet);
     bindDropzone();
     renderPromptTemplateSelect("past");
     renderPromptTemplateSelect("expected");

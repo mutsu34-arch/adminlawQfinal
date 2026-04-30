@@ -1773,6 +1773,9 @@
               <h3 id="dash-heading-member" class="dashboard-subtitle settings-block__title">회원 유형</h3>
               <p id="dashboard-membership" class="dashboard-membership">—</p>
               <p id="dashboard-membership-until" class="dashboard-membership-until" hidden></p>
+              <div id="dashboard-portone-recurring-cancel-wrap" class="pricing-card__pay-actions" hidden>
+                <button type="button" class="btn btn--outline btn--small" id="dashboard-portone-recurring-cancel-btn">정기결제 해지</button>
+              </div>
               <p id="dashboard-membership-hint" class="dashboard-lead dashboard-membership-hint" hidden>
                 상세 해설(법리·함정·판례)은 유료 구독 또는 광고 확인 후 일정 시간 열람이 가능합니다.
                 <button type="button" class="btn btn--link" id="dashboard-goto-pricing">요금제 보기</button>
@@ -2087,6 +2090,7 @@
               <div class="admin-tabs" role="tablist" aria-label="관리자 하위 메뉴">
                 <button type="button" class="admin-tab admin-tab--active" id="admin-tab-single" role="tab">한 건 등록</button>
                 <button type="button" class="admin-tab" id="admin-tab-quiz-create" role="tab">퀴즈 생성</button>
+                <button type="button" class="admin-tab" id="admin-tab-bundled-quiz" role="tab">기본 퀴즈</button>
                 <button type="button" class="admin-tab" id="admin-tab-case-dict-create" role="tab">판례사전 생성</button>
                 <button type="button" class="admin-tab" id="admin-tab-term-dict-create" role="tab">용어사전 생성</button>
                 <button type="button" class="admin-tab" id="admin-tab-statute-dict-create" role="tab">조문사전 생성</button>
@@ -2284,7 +2288,7 @@
                         id="admin-quiz-create-prompt-expected"
                         class="input textarea"
                         rows="4"
-                        placeholder="예: 업로드한 교재를 바탕으로 핵심 개념을 응용한 예상 OX 문제를 만들어줘."
+                        placeholder="예: 업로드한 교재를 바탕으로 핵심 개념을 응용한 예상 OX 문제를 만들어줘. (문항/해설은 존댓말로 작성)"
                       ></textarea>
                     </label>
                     <div class="dict-case-create-admin__actions" style="margin-top:-0.4rem">
@@ -2328,15 +2332,30 @@
 
                   <div class="dict-case-create-admin__actions admin-quiz-create-main-actions">
                     <button type="button" class="btn btn--outline btn--small" id="admin-quiz-create-stop">퀴즈 생성 중단</button>
-                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-hide-bundled">
-                      기본 퀴즈 숨김 처리
-                    </button>
-                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-restore-bundled">
-                      숨김 퀴즈 복구
-                    </button>
                     <span id="admin-quiz-create-run-msg" class="dict-memo-panel__msg" hidden role="status"></span>
                   </div>
                   <div id="admin-quiz-create-preview" class="admin-json-help" hidden></div>
+                </section>
+              </section>
+              <section id="admin-panel-bundled-quiz" hidden>
+                <section id="admin-bundled-quiz-admin" class="dict-case-create-admin" hidden>
+                  <h3 class="dict-term-index__title">기본 퀴즈 관리 (관리자)</h3>
+                  <p class="admin-json-help">
+                    기본 퀴즈를 개별 숨김/복구하거나 전체 숨김/전체 복구할 수 있습니다.
+                  </p>
+                  <div class="dict-case-create-admin__actions">
+                    <button type="button" class="btn btn--outline btn--small" id="admin-bundled-quiz-hide-all">
+                      전체 숨김
+                    </button>
+                    <button type="button" class="btn btn--outline btn--small" id="admin-bundled-quiz-restore-all">
+                      전체 복구
+                    </button>
+                    <button type="button" class="btn btn--ghost btn--small" id="admin-bundled-quiz-refresh">
+                      목록 새로고침
+                    </button>
+                    <span id="admin-bundled-quiz-msg" class="dict-memo-panel__msg" hidden role="status"></span>
+                  </div>
+                  <div id="admin-bundled-quiz-list" class="admin-bundled-quiz-list"></div>
                 </section>
               </section>
               <section id="admin-panel-case-dict-create" hidden>
@@ -3321,6 +3340,7 @@
   <script src="/js/notifications-ui.js?v=4"></script>
   <script src="/js/admin-panel.js?v=2"></script>
   <script src="/js/admin-quiz-create.js?v=19"></script>
+  <script src="/js/admin-bundled-quiz.js?v=1"></script>
   <script src="/js/admin-review.js?v=18"></script>
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>

@@ -13,7 +13,8 @@
     paidUntil: null,
     ellyDailyTier: "basic",
     loading: false,
-    payappRebillActive: false
+    payappRebillActive: false,
+    portoneRecurringActive: false
   };
 
   function getDb() {
@@ -99,9 +100,9 @@
       }
     }
 
-    var rebillWrap = $("dashboard-payapp-rebill-cancel-wrap");
+    var rebillWrap = $("dashboard-portone-recurring-cancel-wrap");
     if (rebillWrap) {
-      rebillWrap.hidden = !(m.payappRebillActive && tier === "paid");
+      rebillWrap.hidden = !(m.portoneRecurringActive && tier === "paid");
     }
   }
 
@@ -119,6 +120,7 @@
     // 관리자 계정은 항상 유료 권한으로 처리
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var rebillActive = !!(d && d.payappRebillNo);
+    var portoneRecurringActive = !!(d && d.portoneAutoRenewEnabled === true && d.portoneBillingKey);
     var ellyTier = "basic";
     if (d && tier === "paid") {
       ellyTier = normalizeEllyDailyTier(d.ellyDailyTier);
@@ -127,6 +129,7 @@
       tier = "paid";
       paidUntil = null;
       rebillActive = false;
+      portoneRecurringActive = false;
       ellyTier = "ultra";
     }
     window.APP_MEMBERSHIP = {
@@ -134,7 +137,8 @@
       paidUntil: paidUntil,
       ellyDailyTier: ellyTier,
       loading: false,
-      payappRebillActive: rebillActive
+      payappRebillActive: rebillActive,
+      portoneRecurringActive: portoneRecurringActive
     };
     updateDom();
     window.dispatchEvent(
@@ -148,7 +152,8 @@
       paidUntil: null,
       ellyDailyTier: "basic",
       loading: false,
-      payappRebillActive: false
+      payappRebillActive: false,
+      portoneRecurringActive: false
     };
     var badge = $("user-membership");
     if (badge) {
@@ -167,7 +172,7 @@
       untilEl.textContent = "";
       untilEl.hidden = true;
     }
-    var rebillWrapReset = $("dashboard-payapp-rebill-cancel-wrap");
+    var rebillWrapReset = $("dashboard-portone-recurring-cancel-wrap");
     if (rebillWrapReset) rebillWrapReset.hidden = true;
     window.dispatchEvent(
       new CustomEvent("membership-updated", { detail: window.APP_MEMBERSHIP })
@@ -195,7 +200,8 @@
         paidUntil: null,
         ellyDailyTier: "ultra",
         loading: false,
-        payappRebillActive: false
+        payappRebillActive: false,
+        portoneRecurringActive: false
       };
       updateDom();
       window.dispatchEvent(
@@ -211,7 +217,8 @@
         paidUntil: null,
         ellyDailyTier: "basic",
         loading: false,
-        payappRebillActive: false
+        payappRebillActive: false,
+        portoneRecurringActive: false
       };
       updateDom();
       return;
@@ -222,7 +229,8 @@
       paidUntil: null,
       ellyDailyTier: "basic",
       loading: true,
-      payappRebillActive: false
+      payappRebillActive: false,
+      portoneRecurringActive: false
     };
     updateDom();
 
@@ -236,7 +244,8 @@
           paidUntil: null,
           ellyDailyTier: "basic",
           loading: false,
-          payappRebillActive: false
+          payappRebillActive: false,
+          portoneRecurringActive: false
         };
         updateDom();
       });

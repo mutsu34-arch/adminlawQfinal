@@ -12,7 +12,9 @@
   window.PORTONE_CONFIG = Object.assign(
     {
       enabled: true,
-      sdkUrl: "https://cdn.portone.io/v2/browser-sdk.js"
+      sdkUrl: "https://cdn.portone.io/v2/browser-sdk.js",
+      // true면 레이어 대신 리다이렉트 기반으로 결제창을 엽니다(가독성 개선 목적)
+      preferRedirect: true
     },
     window.PORTONE_CONFIG || {}
   );

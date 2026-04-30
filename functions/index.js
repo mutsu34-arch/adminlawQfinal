@@ -73,9 +73,16 @@ exports.createLibraryDocument = createLibraryDocument;
 exports.deleteLibraryDocument = deleteLibraryDocument;
 exports.onLibraryPdfUploaded = onLibraryPdfUploaded;
 
-const { preparePortOnePayment, completePortOnePayment } = require("./portonePayments");
+const {
+  preparePortOnePayment,
+  completePortOnePayment,
+  cancelPortOneRecurring,
+  runPortOneRecurringBilling
+} = require("./portonePayments");
 exports.preparePortOnePayment = preparePortOnePayment;
 exports.completePortOnePayment = completePortOnePayment;
+exports.cancelPortOneRecurring = cancelPortOneRecurring;
+exports.runPortOneRecurringBilling = runPortOneRecurringBilling;
 
 const {
   revealLawyerQaAnswer,

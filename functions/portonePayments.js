@@ -17,6 +17,7 @@
 
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { addCalendarMonthsKst } = require("./kstCalendar");
 
 let _db;
@@ -26,6 +27,10 @@ function db() {
 }
 
 const REGION = "asia-northeast3";
+
+function nowTs() {
+  return Date.now();
+}
 
 function expectedKrwForEllyPack(pack) {
   if (pack === 10) {
@@ -162,6 +167,69 @@ async function fetchPortOnePayment(secret, paymentId) {
   return json;
 }
 
+function pickBillingKey(payment) {
+  if (!payment || typeof payment !== "object") return "";
+  var candidates = [
+    payment.billingKey,
+    payment.billingKeyId,
+    payment.billing_key,
+    payment.method && payment.method.billingKey,
+    payment.method && payment.method.billingKeyId,
+    payment.method && payment.method.card && payment.method.card.billingKey,
+    payment.method && payment.method.card && payment.method.card.billingKeyId,
+    payment.card && payment.card.billingKey,
+    payment.card && payment.card.billingKeyId
+  ];
+  for (var i = 0; i < candidates.length; i++) {
+    var v = String(candidates[i] || "").trim();
+    if (v) return v;
+  }
+  return "";
+}
+
+function paymentTotalAmount(payment) {
+  var total =
+    payment && payment.amount && typeof payment.amount.total === "number"
+      ? payment.amount.total
+      : payment && typeof payment.totalAmount === "number"
+        ? payment.totalAmount
+        : NaN;
+  return total;
+}
+
+function buildRecurringPaymentId(uid) {
+  const ts = Date.now().toString(36);
+  const suffix = Math.random()
+    .toString(36)
+    .replace(/[^A-Za-z0-9]/g, "")
+    .slice(2, 8);
+  return `hlr${String(uid || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 6)}${ts}${suffix}`;
+}
+
+async function requestPortOneRecurringPayment(secret, body, paymentId) {
+  const url = `https://api.portone.io/payments/${encodeURIComponent(paymentId)}/billing-key`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `PortOne ${secret}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch (_) {
+    json = null;
+  }
+  if (!res.ok) {
+    const msg = json && (json.message || json.error) ? String(json.message || json.error) : text.slice(0, 300);
+    throw new Error(msg || "billing-key 결제 요청 실패");
+  }
+  return json;
+}
+
 const preparePortOnePayment = onCall({ region: REGION }, async (request) => {
   if (!request.auth || !request.auth.uid) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -174,8 +242,13 @@ const preparePortOnePayment = onCall({ region: REGION }, async (request) => {
   }
   const { storeId, channelKey } = assertPortoneEnv();
 
-  const suffix = Math.random().toString(36).slice(2, 10);
-  const paymentId = `hanlaw_${uid.slice(0, 8)}_${Date.now()}_${suffix}`;
+  // KPN 채널에서 주문번호 필드 길이 제한(바이트)에 걸리지 않도록 paymentId를 짧게 유지
+  const ts = Date.now().toString(36);
+  const suffix = Math.random()
+    .toString(36)
+    .replace(/[^A-Za-z0-9]/g, "")
+    .slice(2, 8);
+  const paymentId = `hl${ts}${suffix}`;
 
   const prepRef = db().collection("hanlaw_portone_prepare").doc(paymentId);
   await prepRef.set({
@@ -230,12 +303,7 @@ const completePortOnePayment = onCall({ region: REGION }, async (request) => {
     throw new HttpsError("internal", "결제 정보 형식이 올바르지 않습니다.");
   }
   const status = String(payment.status || "");
-  const total =
-    payment.amount && typeof payment.amount.total === "number"
-      ? payment.amount.total
-      : typeof payment.totalAmount === "number"
-        ? payment.totalAmount
-        : NaN;
+  const total = paymentTotalAmount(payment);
   if (status !== "PAID") {
     throw new HttpsError("failed-precondition", "결제가 완료되지 않았습니다. 상태: " + (status || "(없음)"));
   }
@@ -289,6 +357,7 @@ const completePortOnePayment = onCall({ region: REGION }, async (request) => {
     const ellyDailyTier = tier === "super" || tier === "ultra" ? tier : "basic";
     const memRef = db().collection("hanlaw_members").doc(uid);
     const planLabel = prep.kind === "sub_recurring_month" ? "portone_recurring_1m" : "portone_1m";
+    const billingKey = prep.kind === "sub_recurring_month" ? pickBillingKey(payment) : "";
 
     await db().runTransaction(async (t) => {
       const dup = await t.get(dedupRef);
@@ -313,17 +382,25 @@ const completePortOnePayment = onCall({ region: REGION }, async (request) => {
         paymentId,
         payState: "PAID"
       });
-      t.set(
-        memRef,
-        {
-          membershipTier: "paid",
-          paidUntil: newUntil,
-          ellyDailyTier,
-          updatedAt: FieldValue.serverTimestamp(),
-          lastPortonePlanKey: planLabel
-        },
-        { merge: true }
-      );
+      const memPatch = {
+        membershipTier: "paid",
+        paidUntil: newUntil,
+        ellyDailyTier,
+        updatedAt: FieldValue.serverTimestamp(),
+        lastPortonePlanKey: planLabel
+      };
+      if (prep.kind === "sub_recurring_month") {
+        memPatch.portoneAutoRenewEnabled = !!billingKey;
+        memPatch.portoneRecurringTier = ellyDailyTier;
+        memPatch.portoneRecurringProduct = String(prep.product || "");
+        memPatch.portoneRecurringAmount = prep.amount;
+        memPatch.portoneNextBillingAt = newUntil;
+        memPatch.portoneRecurringStatus = billingKey ? "active" : "billing_key_missing";
+        memPatch.portoneRecurringLastPaidAt = FieldValue.serverTimestamp();
+        memPatch.portoneRecurringFailCount = 0;
+        if (billingKey) memPatch.portoneBillingKey = billingKey;
+      }
+      t.set(memRef, memPatch, { merge: true });
       t.set(prepRef, { consumed: true, consumedAt: FieldValue.serverTimestamp() }, { merge: true });
     });
   } else {
@@ -333,7 +410,109 @@ const completePortOnePayment = onCall({ region: REGION }, async (request) => {
   return { ok: true };
 });
 
+const cancelPortOneRecurring = onCall({ region: REGION }, async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const uid = request.auth.uid;
+  const memRef = db().collection("hanlaw_members").doc(uid);
+  await memRef.set(
+    {
+      portoneAutoRenewEnabled: false,
+      portoneRecurringStatus: "cancelled",
+      portoneRecurringCancelledAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    },
+    { merge: true }
+  );
+  return { ok: true };
+});
+
+const runPortOneRecurringBilling = onSchedule(
+  {
+    region: REGION,
+    schedule: "every 60 minutes",
+    timeZone: "Asia/Seoul"
+  },
+  async () => {
+    const { secret, storeId, channelKey } = assertPortoneEnv();
+    const now = nowTs();
+    const snap = await db()
+      .collection("hanlaw_members")
+      .where("portoneAutoRenewEnabled", "==", true)
+      .limit(200)
+      .get();
+    if (snap.empty) return;
+
+    for (const doc of snap.docs) {
+      const uid = doc.id;
+      const m = doc.data() || {};
+      const billingKey = String(m.portoneBillingKey || "").trim();
+      const amount = parseInt(String(m.portoneRecurringAmount || "0"), 10) || 0;
+      const tier = String(m.portoneRecurringTier || "basic").toLowerCase();
+      const nextTs =
+        m.portoneNextBillingAt && typeof m.portoneNextBillingAt.toMillis === "function"
+          ? m.portoneNextBillingAt.toMillis()
+          : 0;
+      if (!billingKey || !amount || !nextTs || nextTs > now) continue;
+
+      const paymentId = buildRecurringPaymentId(uid);
+      const body = {
+        storeId: storeId,
+        channelKey: channelKey,
+        billingKey: billingKey,
+        orderName: "행정법Q 월 정기구독 자동결제",
+        totalAmount: amount,
+        currency: "CURRENCY_KRW",
+        customer: {
+          customerId: uid
+        }
+      };
+
+      const memRef = db().collection("hanlaw_members").doc(uid);
+      try {
+        const paid = await requestPortOneRecurringPayment(secret, body, paymentId);
+        const payment = paid && paid.payment ? paid.payment : paid;
+        const status = String((payment && payment.status) || "");
+        const total = paymentTotalAmount(payment);
+        if (status !== "PAID" || !Number.isFinite(total) || total !== amount) {
+          throw new Error("자동결제 승인/금액 검증 실패");
+        }
+        const base = now;
+        const newUntil = Timestamp.fromMillis(addCalendarMonthsKst(base, 1));
+        await memRef.set(
+          {
+            membershipTier: "paid",
+            paidUntil: newUntil,
+            ellyDailyTier: tier === "super" || tier === "ultra" ? tier : "basic",
+            portoneNextBillingAt: newUntil,
+            portoneRecurringStatus: "active",
+            portoneRecurringLastPaidAt: FieldValue.serverTimestamp(),
+            portoneRecurringLastPaymentId: paymentId,
+            portoneRecurringFailCount: 0,
+            updatedAt: FieldValue.serverTimestamp()
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        const failCount = (parseInt(String(m.portoneRecurringFailCount || "0"), 10) || 0) + 1;
+        const patch = {
+          portoneRecurringStatus: "failed",
+          portoneRecurringLastError: String((e && e.message) || "자동결제 실패").slice(0, 400),
+          portoneRecurringFailCount: failCount,
+          portoneRecurringLastTriedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        };
+        if (failCount >= 3) patch.portoneAutoRenewEnabled = false;
+        await memRef.set(patch, { merge: true });
+      }
+    }
+  }
+);
+
 module.exports = {
   preparePortOnePayment,
-  completePortOnePayment
+  completePortOnePayment,
+  cancelPortOneRecurring,
+  runPortOneRecurringBilling
 };
