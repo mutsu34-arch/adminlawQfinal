@@ -1,17 +1,18 @@
 /**
- * PortOne(아임포트) 전환 설정.
- * 실제 키/PG 값은 전환 시점에 채우세요.
+ * PortOne(포트원) V2 브라우저 결제 설정
+ *
+ * enabled: true 이면 data-portone-product 버튼이 포트원 결제창으로 연결됩니다.
+ * 스토어 ID·채널 키·API 시크릿은 클라이언트에 두지 말고 Firebase Functions 환경변수에만 설정하세요:
+ *   PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN, PORTONE_API_SECRET
+ *
+ * KPN 채널 추가: 포트원 관리자콘솔 결제 연동 채널관리
+ * @see https://help.portone.io/content/kpn
  */
 (function () {
   window.PORTONE_CONFIG = Object.assign(
     {
-      enabled: false,
-      storeLabel: "행정법Q",
-      channelKey: "",
-      pg: "",
-      payMethod: "CARD",
-      notice:
-        "결제 서비스 전환 작업 중입니다. 현재는 결제를 이용할 수 없습니다. 준비가 완료되면 포트원 결제가 자동으로 열립니다."
+      enabled: true,
+      sdkUrl: "https://cdn.portone.io/v2/browser-sdk.js"
     },
     window.PORTONE_CONFIG || {}
   );

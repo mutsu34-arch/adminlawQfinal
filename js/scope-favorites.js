@@ -148,8 +148,8 @@
     var ft2 = document.getElementById("filter-topic-l2");
     var fts = document.getElementById("filter-topic-search");
     var qc = document.getElementById("question-count");
+    var qcCustom = document.getElementById("question-count-custom");
     var seq = document.querySelector('input[name="opt-sequence"]:checked');
-    var metric = document.querySelector('input[name="opt-metric"]:checked');
     var nw = document.getElementById("scope-note-wrong");
     var nf = document.getElementById("scope-note-fav");
     var nm = document.getElementById("scope-note-master");
@@ -161,13 +161,13 @@
       filterTopic: ft ? String(ft.value || ALL_TOPIC) : ALL_TOPIC,
       filterTopicSearch: fts ? String(fts.value || "") : "",
       questionCount: qc ? String(qc.value || "0") : "0",
+      questionCountCustom: qcCustom ? String(qcCustom.value || "").trim() : "",
       sequenceMode: seq && seq.value ? String(seq.value) : "random",
       notebookScope: {
         wrong: !!(nw && nw.checked),
         fav: !!(nf && nf.checked),
         master: !!(nm && nm.checked)
-      },
-      metricMode: metric && metric.value ? String(metric.value) : "importance"
+      }
     };
   }
 
@@ -220,6 +220,11 @@
       }
       if (hasC) qc.value = c;
     }
+    var qcCustom = document.getElementById("question-count-custom");
+    if (qcCustom) {
+      qcCustom.value =
+        preset.questionCountCustom != null ? String(preset.questionCountCustom).trim() : "";
+    }
     var seqMode = String(
       preset.sequenceMode != null
         ? preset.sequenceMode
@@ -232,19 +237,6 @@
     else {
       var seqFallback = document.querySelector('input[name="opt-sequence"][value="random"]');
       if (seqFallback) seqFallback.checked = true;
-    }
-    var metricMode = String(
-      preset.metricMode != null
-        ? preset.metricMode
-        : String(preset.orderMode || "").indexOf("difficulty") === 0
-          ? "difficulty"
-          : "importance"
-    );
-    var metricRadio = document.querySelector('input[name="opt-metric"][value="' + metricMode + '"]');
-    if (metricRadio) metricRadio.checked = true;
-    else {
-      var metricFallback = document.querySelector('input[name="opt-metric"][value="importance"]');
-      if (metricFallback) metricFallback.checked = true;
     }
     var nw = document.getElementById("scope-note-wrong");
     var nf = document.getElementById("scope-note-fav");
@@ -313,9 +305,9 @@
       filterTopic: cur.filterTopic,
       filterTopicSearch: cur.filterTopicSearch,
       questionCount: cur.questionCount,
+      questionCountCustom: cur.questionCountCustom,
       sequenceMode: cur.sequenceMode,
-      notebookScope: cur.notebookScope,
-      metricMode: cur.metricMode
+      notebookScope: cur.notebookScope
     });
     saveStore(st);
     renderList();

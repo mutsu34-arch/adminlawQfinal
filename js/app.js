@@ -71,6 +71,7 @@
     filterTopic: document.getElementById("filter-topic"),
     filterTopicSearch: document.getElementById("filter-topic-search"),
     questionCount: document.getElementById("question-count"),
+    questionCountCustom: document.getElementById("question-count-custom"),
     btnStart: document.getElementById("btn-start"),
     btnStartFull: document.getElementById("btn-start-full"),
     btnStartFullBottom: document.getElementById("btn-start-full-bottom"),
@@ -322,8 +323,8 @@
     lastFilterTopicSearch: "",
     lastSequenceMode: "random",
     lastNotebookScope: { wrong: false, fav: false, master: false },
-    lastMetricMode: "importance",
     lastCount: "0",
+    lastQuestionCountCustom: "",
     /** index → { userTrue } — 뒤로 가기 시 해설 복원용 */
     sessionAnswers: {},
     suppressQuizUrlSync: false
@@ -1025,10 +1026,18 @@
     return "random";
   }
 
-  function getMetricMode() {
-    var r = document.querySelector('input[name="opt-metric"]:checked');
-    var v = r && r.value;
-    return v === "difficulty" ? "difficulty" : "importance";
+  /** 직접 입력이 유효하면 그 값, 아니면 셀렉트(0이면 전체). */
+  function getEffectiveQuestionCountCap() {
+    if (el.questionCountCustom && el.questionCount) {
+      var raw = String(el.questionCountCustom.value || "").trim();
+      if (raw !== "") {
+        var n = parseInt(raw, 10);
+        if (n >= 1 && n <= 9999) return n;
+      }
+    }
+    if (!el.questionCount) return 0;
+    var sel = parseInt(String(el.questionCount.value || "0"), 10);
+    return isNaN(sel) ? 0 : sel;
   }
 
   /** 같은 단원(주제) 안에서 연도 → 시험 → 문항 ID */
@@ -1057,25 +1066,8 @@
     return compareProgressOrder(q1, q2);
   }
 
-  /** 중요도 높은 순: 유효 1~5, 없음 0(뒤로) */
-  function importanceKeyDesc(q) {
-    var n = q.importance;
-    return typeof n === "number" && n >= 1 && n <= 5 ? n : 0;
-  }
-
-  /** 난이도 어려운 순: 유효 1~5, 없음 0(뒤로) */
-  function difficultyKeyDesc(q) {
-    var n = q.difficulty;
-    return typeof n === "number" && n >= 1 && n <= 5 ? n : 0;
-  }
-
-  function metricKeyDesc(q, metricMode) {
-    return metricMode === "difficulty" ? difficultyKeyDesc(q) : importanceKeyDesc(q);
-  }
-
-  function applyQuestionOrder(filtered, sequenceMode, metricMode) {
+  function applyQuestionOrder(filtered, sequenceMode) {
     sequenceMode = sequenceMode === "progress" ? "progress" : "random";
-    metricMode = metricMode === "difficulty" ? "difficulty" : "importance";
     var a = filtered.slice();
     if (sequenceMode === "progress") {
       a.sort(function (q1, q2) {
@@ -1087,20 +1079,11 @@
         var t1 = String(q1.topic || "");
         var t2 = String(q2.topic || "");
         if (t1 !== t2) return t1.localeCompare(t2, "ko");
-        var m1 = metricKeyDesc(q1, metricMode);
-        var m2 = metricKeyDesc(q2, metricMode);
-        if (m2 !== m1) return m2 - m1;
         return compareProgressOrder(q1, q2);
       });
       return a;
     }
-    a.sort(function (q1, q2) {
-      var m1 = metricKeyDesc(q1, metricMode);
-      var m2 = metricKeyDesc(q2, metricMode);
-      if (m2 !== m1) return m2 - m1;
-      return Math.random() < 0.5 ? -1 : 1;
-    });
-    return a;
+    return shuffle(a);
   }
 
   function showScreen(name) {
@@ -2071,10 +2054,13 @@
         : "";
     state.lastSequenceMode = getSequenceMode();
     state.lastNotebookScope = getNotebookScopeSelections();
-    state.lastMetricMode = getMetricMode();
-    state.lastCount = el.questionCount.value;
-    var list = applyQuestionOrder(filtered, state.lastSequenceMode, state.lastMetricMode);
-    var cap = parseInt(el.questionCount.value, 10);
+    state.lastCount = el.questionCount ? String(el.questionCount.value || "0") : "0";
+    state.lastQuestionCountCustom =
+      el.questionCountCustom && el.questionCountCustom.value != null
+        ? String(el.questionCountCustom.value).trim()
+        : "";
+    var list = applyQuestionOrder(filtered, state.lastSequenceMode);
+    var cap = getEffectiveQuestionCountCap();
     if (cap > 0 && list.length > cap) {
       list = list.slice(0, cap);
     }
@@ -2123,10 +2109,9 @@
     if (el.filterTopicL2) el.filterTopicL2.value = ALL;
     if (el.filterTopicSearch) el.filterTopicSearch.value = "";
     if (el.questionCount) el.questionCount.value = "0";
+    if (el.questionCountCustom) el.questionCountCustom.value = "";
     var ordRandom = document.querySelector('input[name="opt-sequence"][value="random"]');
     if (ordRandom) ordRandom.checked = true;
-    var metricImportance = document.querySelector('input[name="opt-metric"][value="importance"]');
-    if (metricImportance) metricImportance.checked = true;
     var nw = document.getElementById("scope-note-wrong");
     var nf = document.getElementById("scope-note-fav");
     var nm = document.getElementById("scope-note-master");
@@ -2219,20 +2204,17 @@
       el.filterTopicSearch.value =
         state.lastFilterTopicSearch != null ? String(state.lastFilterTopicSearch) : "";
     }
-    el.questionCount.value = state.lastCount;
+    if (el.questionCount) el.questionCount.value = state.lastCount || "0";
+    if (el.questionCountCustom) {
+      el.questionCountCustom.value =
+        state.lastQuestionCountCustom != null ? String(state.lastQuestionCountCustom) : "";
+    }
     var sequence = state.lastSequenceMode || "random";
     var seqRadio = document.querySelector('input[name="opt-sequence"][value="' + sequence + '"]');
     if (seqRadio) seqRadio.checked = true;
     else {
       var seqFallback = document.querySelector('input[name="opt-sequence"][value="random"]');
       if (seqFallback) seqFallback.checked = true;
-    }
-    var metric = state.lastMetricMode || "importance";
-    var metricRadio = document.querySelector('input[name="opt-metric"][value="' + metric + '"]');
-    if (metricRadio) metricRadio.checked = true;
-    else {
-      var metricFallback = document.querySelector('input[name="opt-metric"][value="importance"]');
-      if (metricFallback) metricFallback.checked = true;
     }
     var ns = state.lastNotebookScope || { wrong: false, fav: false, master: false };
     var cw = document.getElementById("scope-note-wrong");

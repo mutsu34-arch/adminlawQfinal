@@ -17,9 +17,8 @@ if (_envProjectId) {
 /**
  * 환경 구성 (Firebase Functions 환경변수 / Secret)
  *
- * 페이앱(PayApp): PAYAPP_USERID, PAYAPP_LINK_KEY, PAYAPP_LINK_VALUE · 선택 PAYAPP_REBILL_CYCLE_DAY(기본 15), PAYAPP_REBILL_EXPIRE_YEARS(기본 10)
- * 질문권 PAYAPP_KRW_Q1, PAYAPP_KRW_Q10 · 구독 PAYAPP_KRW_SUB_MONTHLY/YEARLY/TWO_YEAR · 비갱신 PAYAPP_KRW_NONRENEW_1M/3M/6M
- * getPayAppQuestionPackCheckout, getPayAppSubscriptionCheckout, cancelPayAppRebill, payappQuestionFeedback
+ * PortOne V2 + KPN 등: PORTONE_API_SECRET, PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN
+ * preparePortOnePayment, completePortOnePayment — 엘리 팩·구독권(한국시간 달력 1개월 연장)
  *
  * 포인트→엘리 질문권: convertAttendancePointsToEllyCredit (대시보드). 변호사 질문권 전환·차감은 종료됨.
  * 개선의견 채택: adminApproveSuggestionTicket (관리자, 포인트 지급)
@@ -28,7 +27,7 @@ if (_envProjectId) {
  *
  * 사전·퀴즈 AI: GEMINI_API_KEY, 선택 GEMINI_MODEL (기본 gemini-2.0-flash, 구형 gemini-1.5-flash-latest 는 1.5-flash 로 치환)
  * 퀴즈 AI: quizAskGemini — 유료 구독 플랜별 일일 한도(hanlaw_quiz_ai_usage) + 엘리 질문권(hanlaw_quiz_ai_wallet); ellyUnlimitedUntil·구매 배치 유지
- * 페이앱 엘리: PAYAPP_KRW_EQ10/EQ20/EQ30 — getPayAppEllyQuestionPackCheckout (무제한 1개월 결제는 UI 제거, 웹훅·Callable은 유지 가능)
+ * 엘리 팩 금액 env: PORTONE_KRW_EQ10/20/30 (선택, 미설정 시 PAYAPP_KRW_EQ* 레거시명 호환)
  * 관리자 문의함 AI 초안: adminDraftTicketAi — GEMINI_API_KEY, 관리자만, 선택 자료실 RAG(PINECONE·quizAskGemini와 동일 retrieveLibraryContextForQuiz)
  * 자료실 RAG: GEMINI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME, 선택 PINECONE_HOST, PINECONE_NAMESPACE, GEMINI_EMBED_MODEL, GEMINI_EMBED_DIM
  * Storage 자료실 트리거 버킷: HANLAW_STORAGE_BUCKET — PDF·xlsx 업로드 시 청크·임베딩 (libraryPipeline)
@@ -45,6 +44,7 @@ const { appendPointLog, REASON } = require("./attendancePointLedger");
 
 initializeApp();
 const db = getFirestore();
+const { addCalendarMonthsKst } = require("./kstCalendar");
 
 const {
   generateOrGetDictionaryEntry,
@@ -73,20 +73,9 @@ exports.createLibraryDocument = createLibraryDocument;
 exports.deleteLibraryDocument = deleteLibraryDocument;
 exports.onLibraryPdfUploaded = onLibraryPdfUploaded;
 
-const {
-  getPayAppQuestionPackCheckout,
-  getPayAppEllyQuestionPackCheckout,
-  getPayAppEllyUnlimitedPassCheckout,
-  getPayAppSubscriptionCheckout,
-  cancelPayAppRebill,
-  payappQuestionFeedback
-} = require("./payappPayments");
-exports.getPayAppQuestionPackCheckout = getPayAppQuestionPackCheckout;
-exports.getPayAppEllyQuestionPackCheckout = getPayAppEllyQuestionPackCheckout;
-exports.getPayAppEllyUnlimitedPassCheckout = getPayAppEllyUnlimitedPassCheckout;
-exports.getPayAppSubscriptionCheckout = getPayAppSubscriptionCheckout;
-exports.cancelPayAppRebill = cancelPayAppRebill;
-exports.payappQuestionFeedback = payappQuestionFeedback;
+const { preparePortOnePayment, completePortOnePayment } = require("./portonePayments");
+exports.preparePortOnePayment = preparePortOnePayment;
+exports.completePortOnePayment = completePortOnePayment;
 
 const {
   revealLawyerQaAnswer,
@@ -109,9 +98,8 @@ exports.adminBackfillLawyerQaCommunityVisible = adminBackfillLawyerQaCommunityVi
 
 const MONTHLY_FREE_FOR_PAID = 4;
 const BATCH_VALID_MS = 365 * 24 * 60 * 60 * 1000;
-const ELLY_BATCH_VALID_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** 질문권 부족 시 안내(원화, 페이앱 기본과 맞출 것) */
+/** 질문권 부족 시 안내(원화, 요금제 표시와 맞출 것) */
 const QUESTION_PACK_PRICE_HINT_KO =
   process.env.QUESTION_PACK_PRICE_HINT_KO ||
   "요금제에서 추가 구매: 10건 ₩5,000 · 20건 ₩10,000 · 30건 ₩15,000(구매일로부터 1개월 유효).";
@@ -259,7 +247,7 @@ exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northea
 });
 
 /**
- * 포인트를 차감하고 엘리(AI) 질문권 1건(PayApp 엘리 팩과 동일한 배치, 1개월 유효)을 지급합니다.
+ * 포인트를 차감하고 엘리(AI) 질문권 1건(지갑 배치, 한국시간 달력 1개월 유효)을 지급합니다.
  */
 exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
@@ -268,7 +256,8 @@ exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3"
   const uid = request.auth.uid;
   const attRef = db.collection("hanlaw_attendance_rewards").doc(uid);
   const walletRef = db.collection("hanlaw_quiz_ai_wallet").doc(uid);
-  const exp = Timestamp.fromMillis(Date.now() + ELLY_BATCH_VALID_MS);
+  const purchaseMs = Date.now();
+  const exp = Timestamp.fromMillis(addCalendarMonthsKst(purchaseMs, 1));
 
   return db.runTransaction(async (t) => {
     const attSnap = await t.get(attRef);

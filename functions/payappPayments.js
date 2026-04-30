@@ -1,6 +1,8 @@
 "use strict";
 
 /**
+ * @deprecated Firebase index.js에서 더 이상 require 하지 않습니다(PortOne 전환). 참고용 보관.
+ *
  * PayApp (페이앱) — 질문권 + 구독
  *
  * 환경변수 (functions/.env):

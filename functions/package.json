@@ -1,6 +1,6 @@
 {
   "name": "hanlaw-functions",
-  "description": "질문권 차감·PayApp 결제 피드백",
+  "description": "질문권 차감·PortOne 결제·기타 Cloud Functions",
   "engines": {
     "node": "22"
   },

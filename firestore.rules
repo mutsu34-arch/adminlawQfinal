@@ -87,6 +87,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // PortOne 결제 준비(금액·상품 검증용). 읽기·쓰기는 Cloud Functions(Admin SDK)만.
+    match /hanlaw_portone_prepare/{paymentId} {
+      allow read, write: if false;
+    }
+
     // 용어·판례 사전(정적 JS + Firestore 확장). 읽기는 로그인 사용자, 쓰기는 관리자(앱 내 편집) 또는 Functions.
     match /hanlaw_dict_terms/{docId} {
       allow read: if request.auth != null;
