@@ -207,6 +207,12 @@
     CURRENT_ENTRY = null;
   }
 
+  function syncAdminActionsVisibility() {
+    var actions = $("tag-dict-modal-actions");
+    if (!actions) return;
+    actions.hidden = !isAdminViewer();
+  }
+
   window.closeTagDictModal = closeModal;
 
   window.resolveTagDictionaryEntry = function (tag) {
@@ -353,6 +359,7 @@
   });
 
   document.addEventListener("DOMContentLoaded", function () {
+    syncAdminActionsVisibility();
     var m = $("tag-dict-modal");
     var c1 = $("tag-dict-modal-close");
     if (c1) c1.addEventListener("click", closeModal);
@@ -409,5 +416,7 @@
           });
       });
     }
+    window.addEventListener("app-auth", syncAdminActionsVisibility);
+    window.addEventListener("membership-updated", syncAdminActionsVisibility);
   });
 })();

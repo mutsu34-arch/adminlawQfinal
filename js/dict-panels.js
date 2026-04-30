@@ -959,6 +959,7 @@
   }
 
   function openDictTermEditModal(term) {
+    if (!isAdminUser()) return;
     var m = $("dict-term-edit-modal");
     if (!m || !term) return;
     var termIn = $("dict-term-edit-term");
@@ -1009,6 +1010,7 @@
   }
 
   function openDictCaseEditModal(c) {
+    if (!isAdminUser()) return;
     var m = $("dict-case-edit-modal");
     if (!m || !c) return;
     var setVal = function (id, v) {
@@ -1071,6 +1073,10 @@
     if (dex) dex.addEventListener("click", closeDictCaseEditModal);
     if (del) {
       del.addEventListener("click", function () {
+        if (!isAdminUser()) {
+          setDictCaseEditMsg("관리자만 삭제할 수 있습니다.", true);
+          return;
+        }
         if (dictCaseEditSaving) return;
         if (typeof window.deleteCaseEntryFromFirestore !== "function") {
           setDictCaseEditMsg("삭제 함수를 찾지 못했습니다.", true);
@@ -1188,6 +1194,10 @@
     if (form) {
       form.addEventListener("submit", function (e) {
         e.preventDefault();
+        if (!isAdminUser()) {
+          setDictCaseEditMsg("관리자만 저장할 수 있습니다.", true);
+          return;
+        }
         if (dictCaseEditSaving) return;
         if (typeof window.saveCaseEntryToFirestore !== "function") {
           setDictCaseEditMsg("저장 함수를 찾지 못했습니다.", true);
@@ -2046,6 +2056,10 @@
     if (form) {
       form.addEventListener("submit", function (e) {
         e.preventDefault();
+        if (!isAdminUser()) {
+          setDictTermEditMsg("관리자만 저장할 수 있습니다.", true);
+          return;
+        }
         if (dictTermEditSaving) return;
         if (typeof window.saveTermEntryToFirestore !== "function") {
           setDictTermEditMsg("저장 함수를 찾지 못했습니다.", true);
@@ -2247,6 +2261,7 @@
   }
 
   function openDictStatuteEditModal(s) {
+    if (!isAdminUser()) return;
     var m = $("dict-statute-edit-modal");
     if (!m || !s) return;
     var keyEl = $("dict-statute-edit-key");
@@ -2289,6 +2304,10 @@
     if (form) {
       form.addEventListener("submit", function (e) {
         e.preventDefault();
+        if (!isAdminUser()) {
+          setDictStatuteEditMsg("관리자만 저장할 수 있습니다.", true);
+          return;
+        }
         if (dictStatuteEditSaving) return;
         if (typeof window.saveStatuteEntryToFirestore !== "function") {
           setDictStatuteEditMsg("저장 함수를 찾지 못했습니다.", true);
