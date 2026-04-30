@@ -2160,6 +2160,19 @@ body {
   font-size: 0.75rem;
 }
 
+#admin-quiz-create-admin .admin-quiz-create-section {
+  margin-top: 1rem;
+  padding: 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+}
+
+#admin-quiz-create-admin .admin-quiz-create-section__title {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+
 .admin-json-help {
   margin: 0 0 1rem;
   font-size: 0.82rem;
@@ -2886,28 +2899,30 @@ body {
 }
 
 .field--question-count .field__question-count-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.65rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.65rem;
+  width: 100%;
 }
 
-.field--question-count .field__question-count-row .select {
-  flex: 1 1 10rem;
+.field--question-count .field__question-count-row .select,
+.field--question-count .field__question-count-row .input {
+  width: 100%;
   min-width: 0;
-  width: auto;
+  box-sizing: border-box;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  border-radius: 8px;
 }
 
 .field__question-count-sep {
   font-size: 0.78rem;
   color: var(--muted);
   white-space: nowrap;
-}
-
-.input--narrow {
-  width: 5.25rem;
-  flex-shrink: 0;
-  padding: 0.55rem 0.65rem;
+  align-self: center;
+  justify-self: center;
 }
 
 .field--question-count .field__hint {

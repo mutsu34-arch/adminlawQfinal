@@ -263,7 +263,10 @@
       ).trim(),
       examId: String(($("admin-quiz-create-exam-id") && $("admin-quiz-create-exam-id").value) || "").trim(),
       year: String(($("admin-quiz-create-year") && $("admin-quiz-create-year").value) || "").trim(),
-      fastMode: !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked),
+      fastModePast: !!($("admin-quiz-create-fast-mode-past") && $("admin-quiz-create-fast-mode-past").checked),
+      fastModeExpected: !!(
+        $("admin-quiz-create-fast-mode-expected") && $("admin-quiz-create-fast-mode-expected").checked
+      ),
       expectedCount: String(($("admin-quiz-create-expected-count") && $("admin-quiz-create-expected-count").value) || "").trim()
     };
   }
@@ -274,7 +277,8 @@
     var promptExpectedEl = $("admin-quiz-create-prompt-expected");
     var examEl = $("admin-quiz-create-exam-id");
     var yearEl = $("admin-quiz-create-year");
-    var fastEl = $("admin-quiz-create-fast-mode");
+    var fastPastEl = $("admin-quiz-create-fast-mode-past");
+    var fastExpectedEl = $("admin-quiz-create-fast-mode-expected");
     var expectedCountEl = $("admin-quiz-create-expected-count");
     var legacyPrompt = String(p.prompt || "").trim();
     if (promptPastEl && !String(promptPastEl.value || "").trim()) {
@@ -285,7 +289,13 @@
     }
     if (examEl && p.examId != null && String(p.examId).trim()) examEl.value = String(p.examId).trim();
     if (yearEl && p.year != null && !String(yearEl.value || "").trim()) yearEl.value = String(p.year);
-    if (fastEl && p.fastMode != null) fastEl.checked = !!p.fastMode;
+    var legacyFastMode = p.fastMode != null ? !!p.fastMode : false;
+    if (fastPastEl && (p.fastModePast != null || p.fastMode != null)) {
+      fastPastEl.checked = p.fastModePast != null ? !!p.fastModePast : legacyFastMode;
+    }
+    if (fastExpectedEl && (p.fastModeExpected != null || p.fastMode != null)) {
+      fastExpectedEl.checked = p.fastModeExpected != null ? !!p.fastModeExpected : legacyFastMode;
+    }
     if (expectedCountEl && p.expectedCount != null && !String(expectedCountEl.value || "").trim()) {
       expectedCountEl.value = String(p.expectedCount);
     }
@@ -297,7 +307,8 @@
       "admin-quiz-create-prompt-expected",
       "admin-quiz-create-exam-id",
       "admin-quiz-create-year",
-      "admin-quiz-create-fast-mode",
+      "admin-quiz-create-fast-mode-past",
+      "admin-quiz-create-fast-mode-expected",
       "admin-quiz-create-expected-count"
     ];
     for (var i = 0; i < ids.length; i++) {
@@ -900,7 +911,9 @@
     var prompt = String(($("admin-quiz-create-prompt-past") && $("admin-quiz-create-prompt-past").value) || "").trim();
     var examId = String(($("admin-quiz-create-exam-id") && $("admin-quiz-create-exam-id").value) || "").trim();
     var year = parseInt(($("admin-quiz-create-year") && $("admin-quiz-create-year").value) || "", 10);
-    var fastMode = !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked);
+    var fastMode = !!(
+      $("admin-quiz-create-fast-mode-past") && $("admin-quiz-create-fast-mode-past").checked
+    );
     var startNo = parseInt(($("admin-quiz-create-start-no") && $("admin-quiz-create-start-no").value) || "", 10);
     var endNo = parseInt(($("admin-quiz-create-end-no") && $("admin-quiz-create-end-no").value) || "", 10);
     if (!isFinite(startNo)) startNo = null;
@@ -1042,7 +1055,9 @@
     var prompt = String(
       ($("admin-quiz-create-prompt-expected") && $("admin-quiz-create-prompt-expected").value) || ""
     ).trim();
-    var fastMode = !!($("admin-quiz-create-fast-mode") && $("admin-quiz-create-fast-mode").checked);
+    var fastMode = !!(
+      $("admin-quiz-create-fast-mode-expected") && $("admin-quiz-create-fast-mode-expected").checked
+    );
     var expectedCount = parseInt(($("admin-quiz-create-expected-count") && $("admin-quiz-create-expected-count").value) || "", 10);
     if (!isFinite(expectedCount)) expectedCount = 30;
     if (expectedCount < 1 || expectedCount > 200) {

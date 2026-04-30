@@ -452,7 +452,7 @@
                       <input
                         type="number"
                         id="question-count-custom"
-                        class="input input--narrow"
+                        class="input"
                         min="1"
                         max="9999"
                         step="1"
@@ -2162,7 +2162,7 @@
               </div>
               <section id="admin-panel-quiz-create" hidden>
                 <section id="admin-quiz-create-admin" class="dict-case-create-admin" hidden>
-                  <h3 class="dict-term-index__title">기출/교재 기반 퀴즈 생성 (관리자)</h3>
+                  <h3 class="dict-term-index__title">퀴즈 생성 (관리자)</h3>
                   <p class="admin-json-help">
                     기출 PDF/Excel을 업로드하면 자료실 파이프라인(벡터화, PDF OCR 포함)으로 처리됩니다.
                     처리 완료 후 AI가 자료를 바탕으로 퀴즈를 생성해 검수 대기에 등록합니다.
@@ -2198,114 +2198,135 @@
                     <div id="admin-quiz-create-existing-list" class="admin-quiz-existing__list"></div>
                     <p id="admin-quiz-create-existing-msg" class="admin-json-help" hidden></p>
                   </div>
-                  <label class="field">
-                    <span class="field__label">기출 퀴즈 생성 지시</span>
-                    <textarea
-                      id="admin-quiz-create-prompt-past"
-                      class="input textarea"
-                      rows="4"
-                      placeholder="예: 최근 업로드한 기출자료 기준으로 처분성·원고적격 중심 OX 문항을 만들어줘."
-                    ></textarea>
-                  </label>
-                  <div class="dict-case-create-admin__actions" style="margin-top:-0.4rem">
-                    <input
-                      type="text"
-                      id="admin-quiz-prompt-past-name"
-                      class="input"
-                      placeholder="기출 지침 템플릿 이름"
-                      style="max-width:240px"
-                    />
-                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-save">
-                      기출 지침 저장
-                    </button>
-                    <select id="admin-quiz-prompt-past-list" class="select" style="max-width:320px"></select>
-                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-load">
-                      불러오기
-                    </button>
-                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-delete">
-                      삭제
-                    </button>
-                  </div>
-                  <label class="field">
-                    <span class="field__label">예상문제 생성 지시</span>
-                    <textarea
-                      id="admin-quiz-create-prompt-expected"
-                      class="input textarea"
-                      rows="4"
-                      placeholder="예: 업로드한 교재를 바탕으로 핵심 개념을 응용한 예상 OX 문제를 만들어줘."
-                    ></textarea>
-                  </label>
-                  <div class="dict-case-create-admin__actions" style="margin-top:-0.4rem">
-                    <input
-                      type="text"
-                      id="admin-quiz-prompt-expected-name"
-                      class="input"
-                      placeholder="예상문제 지침 템플릿 이름"
-                      style="max-width:240px"
-                    />
-                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-save">
-                      예상문제 지침 저장
-                    </button>
-                    <select id="admin-quiz-prompt-expected-list" class="select" style="max-width:320px"></select>
-                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-load">
-                      불러오기
-                    </button>
-                    <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-delete">
-                      삭제
-                    </button>
-                  </div>
-                  <label class="field" style="margin-top: -0.25rem">
-                    <span class="check" style="justify-content: flex-start">
-                      <input type="checkbox" id="admin-quiz-create-fast-mode" />
-                      <span>빠른 모드 (상세해설 보강 생략, 속도 우선)</span>
-                    </span>
-                  </label>
-                  <label class="field">
-                    <span class="field__label">예상문제 생성 개수 (1~200)</span>
-                    <input type="number" id="admin-quiz-create-expected-count" class="input" min="1" max="200" value="30" />
-                  </label>
-                  <div class="admin-row-2">
+                  <div class="admin-quiz-create-section">
+                    <h4 class="admin-quiz-create-section__title">기출문제 퀴즈 생성</h4>
                     <label class="field">
-                      <span class="field__label">시작 문제번호 (선택)</span>
+                      <span class="field__label">기출 퀴즈 생성 지시</span>
+                      <textarea
+                        id="admin-quiz-create-prompt-past"
+                        class="input textarea"
+                        rows="4"
+                        placeholder="예: 최근 업로드한 기출자료 기준으로 처분성·원고적격 중심 OX 문항을 만들어줘."
+                      ></textarea>
+                    </label>
+                    <div class="dict-case-create-admin__actions" style="margin-top:-0.4rem">
                       <input
-                        type="number"
-                        id="admin-quiz-create-start-no"
+                        type="text"
+                        id="admin-quiz-prompt-past-name"
                         class="input"
-                        min="1"
-                        max="500"
-                        placeholder="예: 1"
+                        placeholder="기출 지침 템플릿 이름"
+                        style="max-width:240px"
                       />
+                      <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-save">
+                        기출 지침 저장
+                      </button>
+                      <select id="admin-quiz-prompt-past-list" class="select" style="max-width:320px"></select>
+                      <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-load">
+                        불러오기
+                      </button>
+                      <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-past-delete">
+                        삭제
+                      </button>
+                    </div>
+                    <label class="field" style="margin-top: -0.25rem">
+                      <span class="check" style="justify-content: flex-start">
+                        <input type="checkbox" id="admin-quiz-create-fast-mode-past" />
+                        <span>빠른 모드 (상세해설 보강 생략, 속도 우선)</span>
+                      </span>
                     </label>
+                    <div class="admin-row-2">
+                      <label class="field">
+                        <span class="field__label">시작 문제번호 (선택)</span>
+                        <input
+                          type="number"
+                          id="admin-quiz-create-start-no"
+                          class="input"
+                          min="1"
+                          max="500"
+                          placeholder="예: 1"
+                        />
+                      </label>
+                      <label class="field">
+                        <span class="field__label">끝 문제번호 (선택)</span>
+                        <input
+                          type="number"
+                          id="admin-quiz-create-end-no"
+                          class="input"
+                          min="1"
+                          max="500"
+                          placeholder="예: 40"
+                        />
+                      </label>
+                    </div>
+                    <div class="admin-row-2">
+                      <label class="field">
+                        <span class="field__label">시험 종류(examId, 파일 자동 인식)</span>
+                        <select id="admin-quiz-create-exam-id" class="select"></select>
+                      </label>
+                      <label class="field">
+                        <span class="field__label">연도(year, 파일 자동 인식)</span>
+                        <input type="number" id="admin-quiz-create-year" class="input" min="1990" max="2100" />
+                      </label>
+                    </div>
+                    <p class="admin-json-help">
+                      시작/끝 번호를 비우면 업로드한 기출문제·해설 파일 기준으로 자동 범위를 추정해 순차 생성합니다.
+                    </p>
+                    <div class="dict-case-create-admin__actions admin-quiz-create-main-actions">
+                      <button type="button" class="btn btn--primary" id="admin-quiz-create-run">AI 기출 퀴즈 생성·검수 대기 등록</button>
+                    </div>
+                  </div>
+
+                  <div class="admin-quiz-create-section">
+                    <h4 class="admin-quiz-create-section__title">교재 기반 예상문제 생성</h4>
                     <label class="field">
-                      <span class="field__label">끝 문제번호 (선택)</span>
+                      <span class="field__label">예상문제 생성 지시</span>
+                      <textarea
+                        id="admin-quiz-create-prompt-expected"
+                        class="input textarea"
+                        rows="4"
+                        placeholder="예: 업로드한 교재를 바탕으로 핵심 개념을 응용한 예상 OX 문제를 만들어줘."
+                      ></textarea>
+                    </label>
+                    <div class="dict-case-create-admin__actions" style="margin-top:-0.4rem">
                       <input
-                        type="number"
-                        id="admin-quiz-create-end-no"
+                        type="text"
+                        id="admin-quiz-prompt-expected-name"
                         class="input"
-                        min="1"
-                        max="500"
-                        placeholder="예: 40"
+                        placeholder="예상문제 지침 템플릿 이름"
+                        style="max-width:240px"
                       />
+                      <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-save">
+                        예상문제 지침 저장
+                      </button>
+                      <select id="admin-quiz-prompt-expected-list" class="select" style="max-width:320px"></select>
+                      <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-load">
+                        불러오기
+                      </button>
+                      <button type="button" class="btn btn--outline btn--small" id="admin-quiz-prompt-expected-delete">
+                        삭제
+                      </button>
+                    </div>
+                    <label class="field" style="margin-top: -0.25rem">
+                      <span class="check" style="justify-content: flex-start">
+                        <input type="checkbox" id="admin-quiz-create-fast-mode-expected" />
+                        <span>빠른 모드 (상세해설 보강 생략, 속도 우선)</span>
+                      </span>
                     </label>
-                  </div>
-                  <div class="admin-row-2">
                     <label class="field">
-                      <span class="field__label">시험 종류(examId, 파일 자동 인식)</span>
-                      <select id="admin-quiz-create-exam-id" class="select"></select>
+                      <span class="field__label">예상문제 생성 개수 (1~200)</span>
+                      <input type="number" id="admin-quiz-create-expected-count" class="input" min="1" max="200" value="30" />
                     </label>
-                    <label class="field">
-                      <span class="field__label">연도(year, 파일 자동 인식)</span>
-                      <input type="number" id="admin-quiz-create-year" class="input" min="1990" max="2100" />
-                    </label>
+                    <p class="admin-json-help">
+                      예상문제 생성은 문제번호·시험 종류·연도 입력 없이, 선택한 자료(교재/해설) 기반으로 생성합니다.
+                    </p>
+                    <div class="dict-case-create-admin__actions admin-quiz-create-main-actions">
+                      <button type="button" class="btn btn--primary" id="admin-quiz-create-expected-run">
+                        AI 예상문제 생성·검수 대기 등록
+                      </button>
+                    </div>
                   </div>
-                  <p class="admin-json-help">
-                    주제/생성개수는 수동 입력하지 않습니다. 시작/끝 번호를 비우면 업로드한 기출문제·해설 파일 기준으로 자동 범위를 추정해 순차 생성합니다.
-                  </p>
+
                   <div class="dict-case-create-admin__actions admin-quiz-create-main-actions">
-                    <button type="button" class="btn btn--primary" id="admin-quiz-create-run">AI 퀴즈 생성·검수 대기 등록</button>
-                    <button type="button" class="btn btn--primary" id="admin-quiz-create-expected-run">
-                      AI 예상문제 생성·검수 대기 등록
-                    </button>
                     <button type="button" class="btn btn--outline btn--small" id="admin-quiz-create-stop">퀴즈 생성 중단</button>
                     <button type="button" class="btn btn--outline btn--small" id="admin-quiz-hide-bundled">
                       기본 퀴즈 숨김 처리
