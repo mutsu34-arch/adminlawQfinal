@@ -173,6 +173,9 @@
             currency: d.currency || "CURRENCY_KRW",
             payMethod: d.payMethod || "CARD"
           };
+          if (payload.payMethod === "EASY_PAY" && d.easyPayProvider) {
+            payload.easyPay = { easyPayProvider: String(d.easyPayProvider) };
+          }
           if (cfg().preferRedirect === true) {
             payload.redirectUrl = buildReturnUrl();
             payload.forceRedirect = true;
