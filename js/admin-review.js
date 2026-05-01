@@ -107,6 +107,135 @@
     return normalizeText(d.body || p.explanation || "");
   }
 
+  function copyText(text) {
+    var t = String(text || "");
+    if (!t.trim()) return Promise.reject(new Error("복사할 내용이 없습니다."));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(t);
+    }
+    var ta = document.createElement("textarea");
+    ta.value = t;
+    ta.setAttribute("readonly", "readonly");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (_) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok ? Promise.resolve() : Promise.reject(new Error("복사 실패"));
+  }
+
+  function toOneLine(value) {
+    return String(value || "").replace(/\r\n/g, "\n").replace(/\n+/g, " ").trim();
+  }
+
+  function formatOxForCopy(list) {
+    var rows = Array.isArray(list) ? list : [];
+    if (!rows.length) return "";
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i] || {};
+      out.push(
+        "문항 " +
+          (i + 1) +
+          "\n- 지문: " +
+          toOneLine(r.statement || "") +
+          "\n- 정답: " +
+          (r.answer === true ? "O(참)" : "X(거짓)") +
+          "\n- 해설: " +
+          String(r.explanation || "").trim()
+      );
+    }
+    return out.join("\n\n");
+  }
+
+  function buildReviewCopyText() {
+    if (!selected) return "";
+    var p = null;
+    try {
+      p = collectPayload();
+    } catch (_) {
+      p = selected.payload || {};
+    }
+    p = p || {};
+    if (mode === "quiz") {
+      var detQ = p.detail || {};
+      var linesQ = [
+        "[유형] 퀴즈",
+        "[문제] " + String(p.statement || ""),
+        "[정답] " + (p.answer === false ? "X(거짓)" : "O(참)"),
+        "[기본 해설] " + String(p.explanationBasic || ""),
+        "[상세 해설] " + String(p.explanation || pickDetailMainText(p) || ""),
+        "[법리 근거] " + String(detQ.legal || ""),
+        "[함정 포인트] " + String(detQ.trap || ""),
+        "[판례 요지] " + String(detQ.precedent || ""),
+        "[주제] " + String(p.topic || ""),
+        "[태그] " + (Array.isArray(p.tags) ? p.tags.join(", ") : ""),
+        "[중요도] " + (p.importance != null ? String(p.importance) : ""),
+        "[난이도] " + (p.difficulty != null ? String(p.difficulty) : "")
+      ];
+      return linesQ.join("\n");
+    }
+    if (mode === "term") {
+      return [
+        "[유형] 용어사전",
+        "[용어] " + String(p.term || ""),
+        "[관련어] " + (Array.isArray(p.aliases) ? p.aliases.join(", ") : ""),
+        "[정의/설명]\n" + String(p.definition || ""),
+        "[OX 퀴즈]\n" + formatOxForCopy(p.oxQuizzes)
+      ].join("\n");
+    }
+    if (mode === "case") {
+      return [
+        "[유형] 판례사전",
+        "[사건 표기] " + String(p.citation || ""),
+        "[제목] " + String(p.title || ""),
+        "[사실관계]\n" + String(p.facts || ""),
+        "[쟁점]\n" + String(p.issues || ""),
+        "[법적 판단]\n" + String(p.judgment || ""),
+        "[검색키] " + (Array.isArray(p.searchKeys) ? p.searchKeys.join(", ") : ""),
+        "[주제 키워드] " + (Array.isArray(p.topicKeywords) ? p.topicKeywords.join(", ") : ""),
+        "[OX 퀴즈]\n" + formatOxForCopy(p.oxQuizzes)
+      ].join("\n");
+    }
+    return [
+      "[유형] 조문사전",
+      "[조문 키] " + String(p.statuteKey || ""),
+      "[표제] " + String(p.heading || ""),
+      "[조문 본문]\n" + String(p.body || ""),
+      "[준용 규정]\n" + String(p.appliedRules || ""),
+      "[하위법령]\n" + String(p.subordinateRules || ""),
+      "[수험 포인트]\n" + String(p.examPoint || ""),
+      "[출처 메모] " + String(p.sourceNote || ""),
+      "[OX 퀴즈]\n" + formatOxForCopy(p.oxQuizzes)
+    ].join("\n");
+  }
+
+  function appendPerFieldCopyButtons() {
+    var panel = $("admin-review-detail");
+    if (!panel) return;
+    var labels = panel.querySelectorAll(".field");
+    labels.forEach(function (label) {
+      if (label.querySelector("[data-admin-copy-target]")) return;
+      var target = label.querySelector("textarea, input, select");
+      if (!target || !target.id || String(target.id).indexOf("admin-review-") !== 0) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn--ghost btn--small";
+      btn.setAttribute("data-admin-copy-target", target.id);
+      btn.textContent = "복사";
+      var holder = document.createElement("div");
+      holder.className = "dict-card-nav";
+      holder.appendChild(btn);
+      label.appendChild(holder);
+    });
+  }
+
   function setMode(next) {
     mode = next === "term" || next === "case" || next === "statute" ? next : "quiz";
     var bq = $("admin-review-type-quiz");
@@ -733,6 +862,20 @@
       });
     }
 
+    var btnCopyAll = $("admin-review-copy-all");
+    if (btnCopyAll) {
+      btnCopyAll.addEventListener("click", function () {
+        var text = buildReviewCopyText();
+        copyText(text)
+          .then(function () {
+            setMsg("현재 검수 콘텐츠 전체를 복사했습니다.", false);
+          })
+          .catch(function (e) {
+            setMsg((e && e.message) || "전체 복사에 실패했습니다.", true);
+          });
+      });
+    }
+
     var tab = $("admin-tab-review");
     if (tab) {
       tab.addEventListener("click", function () {
@@ -749,6 +892,29 @@
     if (bs) bs.addEventListener("click", function () { setMode("statute"); loadList(); });
 
     var panel = $("admin-panel-review");
+    var detailPanel = $("admin-review-detail");
+    if (detailPanel) {
+      detailPanel.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest("[data-admin-copy-target]") : null;
+        if (!btn) return;
+        var id = btn.getAttribute("data-admin-copy-target");
+        var el = id ? $(id) : null;
+        if (!el) return;
+        var value = "";
+        if (el.tagName === "SELECT") {
+          value = el.options && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text : el.value;
+        } else {
+          value = el.value != null ? String(el.value) : "";
+        }
+        copyText(value)
+          .then(function () {
+            setMsg("선택한 항목을 복사했습니다.", false);
+          })
+          .catch(function (err) {
+            setMsg((err && err.message) || "항목 복사에 실패했습니다.", true);
+          });
+      });
+    }
     [
       "admin-review-statement",
       "admin-review-explanation-basic",
@@ -778,6 +944,7 @@
     ].forEach(function (id) {
       enableMarkdownBoldShortcut($(id));
     });
+    appendPerFieldCopyButtons();
     setMode(mode);
     if (panel && !panel.hidden) loadList();
   }

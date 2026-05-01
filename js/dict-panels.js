@@ -307,6 +307,12 @@
         body.textContent = s.body || "";
       }
       article.appendChild(body);
+      appendCopyButtonRow(article, {
+        label: "본문 복사",
+        getText: function () {
+          return String(s.body || "");
+        }
+      });
       appendDictionaryOxQuizSection(article, s.oxQuizzes, "조문 OX 퀴즈", 3);
       if (s.sourceNote && isAdminUser()) {
         var foot = document.createElement("p");
@@ -342,6 +348,21 @@
           searchText: String(s.key || "").trim()
         });
       }
+      appendCopyButtonRow(article, {
+        label: "전체 복사",
+        getText: function () {
+          return (
+            "[조문] " +
+            String(titleStr || "") +
+            "\n[본문]\n" +
+            String(s.body || "") +
+            "\n[출처 메모]\n" +
+            String(s.sourceNote || "") +
+            "\n[OX 퀴즈]\n" +
+            formatOxQuizzesForCopy(s.oxQuizzes)
+          );
+        }
+      });
       if (!opts.skipNavBack) appendDictNavBack(article, "statute");
       container.appendChild(article);
     }
@@ -2531,6 +2552,74 @@
     article.appendChild(nav);
   }
 
+  function copyTextToClipboard(text) {
+    var t = String(text || "");
+    if (!t.trim()) return Promise.reject(new Error("복사할 내용이 없습니다."));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(t);
+    }
+    var ta = document.createElement("textarea");
+    ta.value = t;
+    ta.setAttribute("readonly", "readonly");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (_) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok ? Promise.resolve() : Promise.reject(new Error("복사 실패"));
+  }
+
+  function formatOxQuizzesForCopy(oxQuizzes) {
+    var rows = Array.isArray(oxQuizzes) ? oxQuizzes : [];
+    if (!rows.length) return "";
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i] || {};
+      out.push(
+        "문항 " +
+          (i + 1) +
+          "\n- 지문: " +
+          String(r.statement || "").trim() +
+          "\n- 정답: " +
+          (r.answer === true ? "O(참)" : "X(거짓)") +
+          "\n- 해설: " +
+          String(r.explanation || "").trim()
+      );
+    }
+    return out.join("\n\n");
+  }
+
+  function appendCopyButtonRow(article, options) {
+    if (!article || !options || !options.getText) return;
+    var nav = document.createElement("div");
+    nav.className = "dict-card-nav";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn--ghost btn--small";
+    btn.textContent = options.label || "복사";
+    btn.addEventListener("click", function () {
+      copyTextToClipboard(options.getText())
+        .then(function () {
+          var old = btn.textContent;
+          btn.textContent = "복사됨";
+          window.setTimeout(function () {
+            btn.textContent = old;
+          }, 1200);
+        })
+        .catch(function () {
+          window.alert("복사에 실패했습니다.");
+        });
+    });
+    nav.appendChild(btn);
+    article.appendChild(nav);
+  }
+
   function renderTermResults(container, items, opts) {
     opts = opts || {};
     container.innerHTML = "";
@@ -2561,7 +2650,28 @@
       var body = document.createElement("div");
       applyDefinitionHtml(body, t.definition || "");
       article.appendChild(body);
+      appendCopyButtonRow(article, {
+        label: "정의 복사",
+        getText: function () {
+          return String(t.definition || "");
+        }
+      });
       appendDictionaryOxQuizSection(article, t.oxQuizzes, "용어 OX 퀴즈", 3);
+      appendCopyButtonRow(article, {
+        label: "전체 복사",
+        getText: function () {
+          return (
+            "[용어] " +
+            String(t.term || "") +
+            "\n[관련어] " +
+            (Array.isArray(t.aliases) ? t.aliases.join(", ") : "") +
+            "\n[정의]\n" +
+            String(t.definition || "") +
+            "\n[OX 퀴즈]\n" +
+            formatOxQuizzesForCopy(t.oxQuizzes)
+          );
+        }
+      });
       if (t._displaySource === "generated" || t._displaySource === "generated-pending-review") {
         var foot = document.createElement("p");
         foot.className = "dict-result-card__foot";
@@ -2888,10 +2998,30 @@
         if (!text) return;
         var sec = document.createElement("section");
         sec.className = "case-result-card__section";
+        var head = document.createElement("div");
+        head.className = "dict-card-nav";
         var h = document.createElement("h4");
         h.className = "case-result-card__label";
         h.textContent = label;
-        sec.appendChild(h);
+        head.appendChild(h);
+        var btnCopy = document.createElement("button");
+        btnCopy.type = "button";
+        btnCopy.className = "btn btn--ghost btn--small";
+        btnCopy.textContent = "복사";
+        btnCopy.addEventListener("click", function () {
+          copyTextToClipboard(String(text || ""))
+            .then(function () {
+              btnCopy.textContent = "복사됨";
+              window.setTimeout(function () {
+                btnCopy.textContent = "복사";
+              }, 1200);
+            })
+            .catch(function () {
+              window.alert("복사에 실패했습니다.");
+            });
+        });
+        head.appendChild(btnCopy);
+        sec.appendChild(head);
         var div = document.createElement("div");
         div.className = "case-result-card__text quiz-ai-answer";
         if (typeof window.formatHanlawAiAnswerHtml === "function") {
@@ -2908,6 +3038,25 @@
       addSection("법적 판단", normalizeCasePoliteStyle(c.judgment));
       appendDictionaryOxQuizSection(article, c.oxQuizzes, "판례 OX 퀴즈", 5);
       appendCaseFullTextToggle(article, c);
+      appendCopyButtonRow(article, {
+        label: "전체 복사",
+        getText: function () {
+          return (
+            "[사건 표기] " +
+            String(c.citation || "") +
+            "\n[제목] " +
+            String(c.title || "") +
+            "\n[사실관계]\n" +
+            String(normalizeCasePoliteStyle(c.facts) || "") +
+            "\n[쟁점]\n" +
+            String(normalizeCaseIssuesTextForUi(normalizeCasePoliteStyle(c.issues)) || "") +
+            "\n[법적 판단]\n" +
+            String(normalizeCasePoliteStyle(c.judgment) || "") +
+            "\n[OX 퀴즈]\n" +
+            formatOxQuizzesForCopy(c.oxQuizzes)
+          );
+        }
+      });
       if (isAdminUser()) {
         var btnCaseEdit = document.createElement("button");
         btnCaseEdit.type = "button";
