@@ -173,22 +173,37 @@ function assertPortoneEnv() {
 
 async function fetchPortOnePayment(secret, paymentId) {
   const url = `https://api.portone.io/payments/${encodeURIComponent(paymentId)}`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { Authorization: `PortOne ${secret}` }
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch (_) {
-    json = null;
-  }
-  if (!res.ok) {
+  const maxAttempts = 5;
+  const retryableStatus = { 404: true, 408: true, 409: true, 425: true, 429: true, 500: true, 502: true, 503: true, 504: true };
+  let lastStatus = 0;
+  let lastMsg = "";
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `PortOne ${secret}` }
+    });
+    lastStatus = Number(res.status || 0);
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (_) {
+      json = null;
+    }
+    if (res.ok) return json;
     const msg = json && (json.message || json.error) ? String(json.message || json.error) : text.slice(0, 200);
-    throw new HttpsError("internal", "결제 조회에 실패했습니다: " + msg);
+    lastMsg = msg;
+    const canRetry = !!retryableStatus[lastStatus] && attempt < maxAttempts;
+    if (!canRetry) {
+      throw new HttpsError("internal", `결제 조회에 실패했습니다(${lastStatus || "unknown"}): ${msg}`);
+    }
+    const waitMs = attempt * 450;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
-  return json;
+  throw new HttpsError(
+    "internal",
+    `결제 조회에 실패했습니다(${lastStatus || "unknown"}): ${lastMsg || "알 수 없는 오류"}`
+  );
 }
 
 function pickBillingKey(payment) {

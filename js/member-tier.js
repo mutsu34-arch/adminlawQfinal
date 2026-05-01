@@ -14,7 +14,9 @@
     ellyDailyTier: "basic",
     loading: false,
     payappRebillActive: false,
-    portoneRecurringActive: false
+    portoneRecurringActive: false,
+    canCancelRecurring: false,
+    canRefundOneMonth: false
   };
 
   function getDb() {
@@ -56,6 +58,33 @@
   function goPricingPanel() {
     var navBtn = document.querySelector('.nav-main__btn[data-panel="pricing"]');
     if (navBtn) navBtn.click();
+  }
+
+  function openRefundRequest() {
+    var m = window.APP_MEMBERSHIP || {};
+    if (!m || m.tier !== "paid" || !m.canRefundOneMonth) {
+      goPricingPanel();
+      return;
+    }
+    if (typeof window.openHanlawTicketModal === "function") {
+      window.openHanlawTicketModal("report");
+      window.setTimeout(function () {
+        var body = $("ticket-modal-body");
+        if (body && !String(body.value || "").trim()) {
+          body.value =
+            "[환불 요청]\n" +
+            "상품: 1개월 이용권\n" +
+            "결제일: \n" +
+            "요청 사유: \n" +
+            "연락 가능한 이메일: ";
+          try {
+            body.dispatchEvent(new Event("input", { bubbles: true }));
+          } catch (_) {}
+        }
+      }, 0);
+      return;
+    }
+    window.open("/legal/refund-policy.html", "_blank", "noopener,noreferrer");
   }
 
   function updateDom() {
@@ -101,8 +130,22 @@
     }
 
     var rebillWrap = $("dashboard-portone-recurring-cancel-wrap");
+    var rebillBtn = $("dashboard-portone-recurring-cancel-btn");
+    var refundWrap = $("dashboard-one-month-refund-wrap");
+    var refundBtn = $("dashboard-one-month-refund-btn");
+    var showCancel = tier === "paid" && !!m.canCancelRecurring;
+    var showRefund = tier === "paid" && !showCancel && !!m.canRefundOneMonth;
     if (rebillWrap) {
-      rebillWrap.hidden = !(m.portoneRecurringActive && tier === "paid");
+      rebillWrap.hidden = !showCancel;
+    }
+    if (rebillBtn) {
+      rebillBtn.disabled = !showCancel;
+    }
+    if (refundWrap) {
+      refundWrap.hidden = !showRefund;
+    }
+    if (refundBtn) {
+      refundBtn.disabled = !showRefund;
     }
   }
 
@@ -121,6 +164,13 @@
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var rebillActive = !!(d && d.payappRebillNo);
     var portoneRecurringActive = !!(d && d.portoneAutoRenewEnabled === true && d.portoneBillingKey);
+    var canCancelRecurring = tier === "paid" && portoneRecurringActive;
+    var product = String((d && d.portoneProduct) || "").trim();
+    var planLabel = String((d && d.portonePlanLabel) || "").trim();
+    var canRefundOneMonth =
+      tier === "paid" &&
+      !canCancelRecurring &&
+      (product.indexOf("one_month_") === 0 || planLabel === "portone_1m");
     var ellyTier = "basic";
     if (d && tier === "paid") {
       ellyTier = normalizeEllyDailyTier(d.ellyDailyTier);
@@ -130,6 +180,8 @@
       paidUntil = null;
       rebillActive = false;
       portoneRecurringActive = false;
+      canCancelRecurring = false;
+      canRefundOneMonth = false;
       ellyTier = "ultra";
     }
     window.APP_MEMBERSHIP = {
@@ -138,7 +190,9 @@
       ellyDailyTier: ellyTier,
       loading: false,
       payappRebillActive: rebillActive,
-      portoneRecurringActive: portoneRecurringActive
+      portoneRecurringActive: portoneRecurringActive,
+      canCancelRecurring: canCancelRecurring,
+      canRefundOneMonth: canRefundOneMonth
     };
     updateDom();
     window.dispatchEvent(
@@ -153,7 +207,9 @@
       ellyDailyTier: "basic",
       loading: false,
       payappRebillActive: false,
-      portoneRecurringActive: false
+      portoneRecurringActive: false,
+      canCancelRecurring: false,
+      canRefundOneMonth: false
     };
     var badge = $("user-membership");
     if (badge) {
@@ -174,6 +230,12 @@
     }
     var rebillWrapReset = $("dashboard-portone-recurring-cancel-wrap");
     if (rebillWrapReset) rebillWrapReset.hidden = true;
+    var rebillBtnReset = $("dashboard-portone-recurring-cancel-btn");
+    if (rebillBtnReset) rebillBtnReset.disabled = true;
+    var refundWrapReset = $("dashboard-one-month-refund-wrap");
+    if (refundWrapReset) refundWrapReset.hidden = true;
+    var refundBtnReset = $("dashboard-one-month-refund-btn");
+    if (refundBtnReset) refundBtnReset.disabled = true;
     window.dispatchEvent(
       new CustomEvent("membership-updated", { detail: window.APP_MEMBERSHIP })
     );
@@ -201,7 +263,9 @@
         ellyDailyTier: "ultra",
         loading: false,
         payappRebillActive: false,
-        portoneRecurringActive: false
+        portoneRecurringActive: false,
+        canCancelRecurring: false,
+        canRefundOneMonth: false
       };
       updateDom();
       window.dispatchEvent(
@@ -218,7 +282,9 @@
         ellyDailyTier: "basic",
         loading: false,
         payappRebillActive: false,
-        portoneRecurringActive: false
+        portoneRecurringActive: false,
+        canCancelRecurring: false,
+        canRefundOneMonth: false
       };
       updateDom();
       return;
@@ -230,7 +296,9 @@
       ellyDailyTier: "basic",
       loading: true,
       payappRebillActive: false,
-      portoneRecurringActive: false
+      portoneRecurringActive: false,
+      canCancelRecurring: false,
+      canRefundOneMonth: false
     };
     updateDom();
 
@@ -245,7 +313,9 @@
           ellyDailyTier: "basic",
           loading: false,
           payappRebillActive: false,
-          portoneRecurringActive: false
+          portoneRecurringActive: false,
+          canCancelRecurring: false,
+          canRefundOneMonth: false
         };
         updateDom();
       });
@@ -268,5 +338,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     var b = $("dashboard-goto-pricing");
     if (b) b.addEventListener("click", goPricingPanel);
+    var refundBtn = $("dashboard-one-month-refund-btn");
+    if (refundBtn) refundBtn.addEventListener("click", openRefundRequest);
   });
 })();

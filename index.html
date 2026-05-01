@@ -1732,40 +1732,40 @@
             </div>
 
             <div id="pricing-elly-extra" class="card card--pricing-intro pricing-elly-intro">
-              <h2 class="card__title">엘리(AI) 질문권 (추가)</h2>
+              <h2 class="card__title">엘리(AI) 질문권</h2>
               <p class="pricing-lead">
-                구독의 <strong>일일 한도</strong>를 모두 쓴 뒤에는 엘리(AI) 질문권이 추가로 차감됩니다(구매 시점 기준 한국시간 달력 1개월 유효, 1건당 500원).
-                퀴즈 포인트로도 전환할 수 있습니다(엘리 질문권 1건당 <strong>500점</strong>).
+                구독의 <strong>일일 한도</strong>를 모두 쓴 뒤에는 엘리(AI) 질문권이 추가로 차감됩니다.
               </p>
               <div class="pricing-grid" role="list" aria-label="엘리(AI) 질문권 팩">
                 <article class="pricing-card pricing-card--mini" role="listitem">
-                  <h3 class="pricing-card__title">엘리 10건</h3>
-                  <p class="pricing-card__price"><strong>₩5,000</strong></p>
+                  <h3 class="pricing-card__name">엘리 10건</h3>
+                  <p class="pricing-card__price pricing-card__price--krw-main">₩5,000</p>
                   <p class="pricing-card__desc">1건당 500원 · 유효기간 1개월</p>
                   <div class="pricing-card__pay-actions">
                     <button type="button" class="btn btn--primary" data-portone-product="elly_10">결제하기</button>
                   </div>
                 </article>
                 <article class="pricing-card pricing-card--mini" role="listitem">
-                  <h3 class="pricing-card__title">엘리 20건</h3>
-                  <p class="pricing-card__price"><strong>₩10,000</strong></p>
+                  <h3 class="pricing-card__name">엘리 20건</h3>
+                  <p class="pricing-card__price pricing-card__price--krw-main">₩10,000</p>
                   <p class="pricing-card__desc">1건당 500원 · 유효기간 1개월</p>
                   <div class="pricing-card__pay-actions">
                     <button type="button" class="btn btn--primary" data-portone-product="elly_20">결제하기</button>
                   </div>
                 </article>
                 <article class="pricing-card pricing-card--mini" role="listitem">
-                  <h3 class="pricing-card__title">엘리 30건</h3>
-                  <p class="pricing-card__price"><strong>₩15,000</strong></p>
+                  <h3 class="pricing-card__name">엘리 30건</h3>
+                  <p class="pricing-card__price pricing-card__price--krw-main">₩15,000</p>
                   <p class="pricing-card__desc">1건당 500원 · 유효기간 1개월</p>
                   <div class="pricing-card__pay-actions">
                     <button type="button" class="btn btn--primary" data-portone-product="elly_30">결제하기</button>
                   </div>
                 </article>
               </div>
-              <p class="pricing-lead">
-                <button type="button" class="btn btn--outline btn--small" data-go-dashboard-point-convert>대시보드의 포인트 전환</button>
-              </p>
+              <div class="pricing-elly-convert">
+                <p class="pricing-elly-convert__text">엘리(AI) 질문권은 포인트로 전환할 수 있습니다.</p>
+                <button type="button" class="btn btn--primary" data-go-dashboard-point-convert>포인트로 질문권 전환하기</button>
+              </div>
             </div>
 
             <section class="pricing-refund-policy" aria-label="환불정책 요약">
@@ -1798,6 +1798,9 @@
               <p id="dashboard-membership-until" class="dashboard-membership-until" hidden></p>
               <div id="dashboard-portone-recurring-cancel-wrap" class="pricing-card__pay-actions" hidden>
                 <button type="button" class="btn btn--outline btn--small" id="dashboard-portone-recurring-cancel-btn">정기결제 해지</button>
+              </div>
+              <div id="dashboard-one-month-refund-wrap" class="pricing-card__pay-actions" hidden>
+                <button type="button" class="btn btn--outline btn--small" id="dashboard-one-month-refund-btn">환불 요청</button>
               </div>
               <p id="dashboard-membership-hint" class="dashboard-lead dashboard-membership-hint" hidden>
                 상세 해설(법리·함정·판례)은 유료 구독 또는 광고 확인 후 일정 시간 열람이 가능합니다.
@@ -3350,7 +3353,7 @@
   <script src="/js/dict-remote.js?v=5"></script>
   <script src="/js/statute-tag.js"></script>
   <script src="/js/tag-dict-modal.js?v=8"></script>
-  <script src="/js/member-tier.js?v=3"></script>
+  <script src="/js/member-tier.js?v=4"></script>
   <script>
     window.HANLAW_ADSENSE_DETAIL = window.HANLAW_ADSENSE_DETAIL || {
       // 애드센스 승인 전에는 false 유지 (광고 관련 안내/오류 문구 숨김)

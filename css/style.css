@@ -1759,6 +1759,28 @@ body {
   margin-top: 1.5rem;
 }
 
+.pricing-card--mini .pricing-card__desc {
+  margin: 0.2rem 0 0.3rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.pricing-elly-convert {
+  margin-top: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.pricing-elly-convert__text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
 .card--pricing-intro .card__title {
   margin-top: 0;
 }
