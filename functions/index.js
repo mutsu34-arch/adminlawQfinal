@@ -828,6 +828,92 @@ function normalizeStatementForDedupe(text) {
     .trim();
 }
 
+function makeBiGramSet(text) {
+  const s = String(text || "").replace(/\s+/g, "");
+  const set = new Set();
+  if (!s) return set;
+  if (s.length < 2) {
+    set.add(s);
+    return set;
+  }
+  for (let i = 0; i < s.length - 1; i++) {
+    set.add(s.slice(i, i + 2));
+  }
+  return set;
+}
+
+function jaccardSimilarity(setA, setB) {
+  if (!setA.size || !setB.size) return 0;
+  let inter = 0;
+  setA.forEach((v) => {
+    if (setB.has(v)) inter += 1;
+  });
+  const union = setA.size + setB.size - inter;
+  return union > 0 ? inter / union : 0;
+}
+
+function isNearDuplicateStatement(a, b) {
+  const aa = normalizeStatementForDedupe(a);
+  const bb = normalizeStatementForDedupe(b);
+  if (!aa || !bb) return false;
+  if (aa === bb) return true;
+  const la = aa.length;
+  const lb = bb.length;
+  const shorter = Math.min(la, lb);
+  const longer = Math.max(la, lb);
+  if (shorter >= 16 && longer > 0 && shorter / longer >= 0.88) {
+    if (aa.includes(bb) || bb.includes(aa)) return true;
+  }
+  const ja = makeBiGramSet(aa);
+  const jb = makeBiGramSet(bb);
+  return jaccardSimilarity(ja, jb) >= 0.86;
+}
+
+async function collectExistingExpectedStatements() {
+  const normalized = [];
+  let cursor = null;
+  for (let round = 0; round < 6; round++) {
+    let q = db.collection(QUIZ_COLLECTION).where("examId", "==", "expected").orderBy("__name__").limit(500);
+    if (cursor) q = q.startAfter(cursor);
+    const snap = await q.get();
+    if (snap.empty) break;
+    snap.docs.forEach((d) => {
+      const s = normalizeStatementForDedupe((d.data() || {}).statement);
+      if (s) normalized.push(s);
+    });
+    cursor = snap.docs[snap.docs.length - 1];
+    if (snap.size < 500) break;
+  }
+  const stSnap = await db
+    .collection(STAGING_QUIZ_COLLECTION)
+    .where("source", "==", "ai-library-expected")
+    .limit(1200)
+    .get();
+  stSnap.docs.forEach((d) => {
+    const p = (d.data() || {}).payload || {};
+    const s = normalizeStatementForDedupe(p.statement);
+    if (s) normalized.push(s);
+  });
+  return normalized;
+}
+
+function normalizeTextForGrounding(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/[“”"'`]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function isEvidenceGroundedInRag(ragContext, evidenceText) {
+  const ev = normalizeTextForGrounding(evidenceText);
+  if (!ev || ev.length < 12) return false;
+  const rag = normalizeTextForGrounding(String(ragContext || ""));
+  if (!rag) return false;
+  const probe = ev.length > 160 ? ev.slice(0, 160) : ev;
+  return rag.includes(probe);
+}
+
 async function generateLibraryQuizRows(apiKey, modelId, prompt) {
   const gen = new GoogleGenerativeAI(apiKey);
   const candidates = uniqueGeminiModelCandidates();
@@ -1582,6 +1668,7 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
     }
 
     const modelId = effectiveGeminiModelId();
+    const existingExpectedNormals = await collectExistingExpectedStatements();
     const generationPrompt = [
       "당신은 행정법 교과서 기반 예상문제 출제 편집자입니다.",
       "아래 자료 발췌를 바탕으로 수험용 OX 예상문제를 JSON 배열만 출력하세요.",
@@ -1596,9 +1683,11 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
       '    "answer": true 또는 false,',
       '    "explanation": "2~5문장 해설",',
       '    "explanationBasic": "1문장 핵심",',
+      '    "evidenceQuote": "자료실 발췌에서 그대로 옮긴 근거 문장 1개(필수, 12자 이상)",',
+      '    "evidenceHint": "근거 위치 힌트(예: 파일명/쪽수/청크 번호)",',
       '    "legal": "법령 포인트(선택)",',
       '    "trap": "함정 포인트(선택)",',
-      '    "precedent": "판례 포인트(선택)",',
+      '    "precedent": "반드시 빈 문자열로 출력",',
       '    "tags": ["태그1","태그2"],',
       '    "importance": 1~5,',
       '    "difficulty": 1~5',
@@ -1609,9 +1698,12 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
       "- 총 " + count + "개를 생성하세요.",
       "- 같은 문장을 반복하지 마세요.",
       "- statement는 근거설명(~이므로, 따라서)을 붙이지 말고 OX 판단문으로만 작성.",
-      "- 자료에 없는 내용 추측 금지.",
+      "- 자료에 없는 내용 추측 금지. 확실하지 않으면 해당 문항을 만들지 마세요.",
+      "- evidenceQuote는 반드시 [자료실 발췌(RAG)]의 문장을 거의 그대로 복사해 넣으세요.",
+      "- evidenceQuote가 없는 문항은 무효입니다.",
+      "- 보수 모드: precedent는 반드시 빈 문자열로 두고, 판례 번호/사건번호를 새로 쓰지 마세요.",
       "- 수험생이 헷갈리는 개념을 고르게 포함.",
-      "- 법령/판례/개념 문제를 균형 있게 섞으세요.",
+      "- 법령/개념 중심으로만 구성하세요.",
       "",
       "[사용자 생성 지시]",
       userPrompt,
@@ -1637,6 +1729,7 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
     const failRows = [];
     const stagedRows = [];
     const normalizedSet = new Set();
+    const nearDupPool = existingExpectedNormals.slice(0, 3000);
     const outYear = new Date().getFullYear();
     for (let i = 0; i < rows.length; i++) {
       try {
@@ -1653,7 +1746,36 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
           failRows.push({ index: i + 1, reason: "중복 statement 감지" });
           continue;
         }
+        let nearDup = false;
+        for (let ni = 0; ni < nearDupPool.length; ni++) {
+          if (isNearDuplicateStatement(norm, nearDupPool[ni])) {
+            nearDup = true;
+            break;
+          }
+        }
+        if (nearDup) {
+          failRows.push({ index: i + 1, reason: "기존 문항과 유사도가 높아 제외됨" });
+          continue;
+        }
+        const evidenceQuote = String(
+          r.evidenceQuote || r.evidence || r.sourceEvidence || r.sourceQuote || ""
+        ).trim();
+        const evidenceHint = String(r.evidenceHint || r.source || "").trim();
+        if (!evidenceQuote) {
+          failRows.push({ index: i + 1, reason: "근거 문장(evidenceQuote) 누락" });
+          continue;
+        }
+        if (!isEvidenceGroundedInRag(ragContext, evidenceQuote)) {
+          failRows.push({ index: i + 1, reason: "근거 문장이 자료실 발췌와 불일치" });
+          continue;
+        }
+        const precedentText = String(r.precedent || "").trim();
+        if (precedentText) {
+          failRows.push({ index: i + 1, reason: "보수 모드에서 판례 포인트는 자동 제외" });
+          continue;
+        }
         normalizedSet.add(norm);
+        nearDupPool.push(norm);
         const fallback = defaultExplainFromStatement(statement, ans, r.topic || "행정법 예상문제");
         const payload = {
           id: String(r.id || "").trim() || `ai-expected-${Date.now().toString(36)}-${i + 1}`,
@@ -1668,7 +1790,10 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
           detail: {
             legal: String(r.legal || "").trim(),
             trap: String(r.trap || "").trim(),
-            precedent: String(r.precedent || "").trim()
+            precedent: "",
+            body: evidenceHint
+              ? "[근거] " + evidenceQuote + "\n\n[근거 위치] " + evidenceHint
+              : "[근거] " + evidenceQuote
           },
           tags: Array.isArray(r.tags) ? r.tags.map((x) => String(x || "").trim()).filter(Boolean) : [],
           importance: parseIntInRange(r.importance, 1, 5) || 3,
@@ -2150,6 +2275,14 @@ function dictPublishedCollectionByType(entityType) {
   return TERM_COLLECTION;
 }
 
+function normTagKeyForLinking(v) {
+  return String(v || "")
+    .normalize("NFC")
+    .trim()
+    .replace(/[\s.\-·]/g, "")
+    .toLowerCase();
+}
+
 function dictKeyByType(entityType, payload) {
   if (entityType === "case") return String(payload.citation || "").trim();
   if (entityType === "statute") return String(payload.statuteKey || payload.key || "").trim();
@@ -2380,9 +2513,22 @@ exports.adminApproveDictStaging = onCall({ region: "asia-northeast3" }, async (r
     const key = dictKeyByType(entityType, payload);
     const pubId = entityType === "statute" ? normalizeStatuteDocId(key, "statute") : key;
     const pubRef = db.collection(pubCol).doc(pubId);
+    const sourceTag = String(cur.tagInput || key || "").trim();
+    const normSourceTag = normTagKeyForLinking(cur.normKey || sourceTag);
+    const tagAliasesSet = {};
+    if (sourceTag) tagAliasesSet[sourceTag] = true;
+    if (normSourceTag) tagAliasesSet[normSourceTag] = true;
+    if (key) {
+      tagAliasesSet[key] = true;
+      tagAliasesSet[normTagKeyForLinking(key)] = true;
+    }
+    const tagAliases = Object.keys(tagAliasesSet).filter(Boolean).slice(0, 20);
     t.set(
       pubRef,
       Object.assign({}, payload, {
+        sourceTag,
+        normSourceTag,
+        tagAliases,
         updatedAt: FieldValue.serverTimestamp()
       }),
       { merge: true }

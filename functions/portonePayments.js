@@ -70,8 +70,7 @@ function productSpec(product) {
       pack: 10,
       orderName: "행정법Q 엘리(AI) 질문권 10건",
       amount: expectedKrwForEllyPack(10),
-      payMethod: "EASY_PAY",
-      easyPayProvider: "KAKAOPAY"
+      payMethod: "CARD"
     };
   }
   if (p === "elly_20") {
@@ -80,8 +79,7 @@ function productSpec(product) {
       pack: 20,
       orderName: "행정법Q 엘리(AI) 질문권 20건",
       amount: expectedKrwForEllyPack(20),
-      payMethod: "EASY_PAY",
-      easyPayProvider: "KAKAOPAY"
+      payMethod: "CARD"
     };
   }
   if (p === "elly_30") {
@@ -90,8 +88,7 @@ function productSpec(product) {
       pack: 30,
       orderName: "행정법Q 엘리(AI) 질문권 30건",
       amount: expectedKrwForEllyPack(30),
-      payMethod: "EASY_PAY",
-      easyPayProvider: "KAKAOPAY"
+      payMethod: "CARD"
     };
   }
   const oneMonth = {

@@ -2046,13 +2046,39 @@
     for (var i = 0; i < tags.length; i++) {
       var label = String(tags[i] || "").trim();
       if (!label) continue;
+      var state =
+        typeof window.getTagDictionaryState === "function"
+          ? window.getTagDictionaryState(label)
+          : { active: true, kind: "unknown" };
+      var linked = !!(state && state.active);
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "feedback-tag feedback-tag--link";
+      btn.classList.add(linked ? "feedback-tag--active" : "feedback-tag--inactive");
       btn.setAttribute("data-tag", label);
-      btn.setAttribute("aria-label", label + " 사전에서 보기");
+      btn.setAttribute("data-tag-linked", linked ? "1" : "0");
+      btn.setAttribute("aria-label", label + " 사전에서 보기 (" + (linked ? "연결됨" : "미연결") + ")");
       btn.textContent = "#" + label;
       container.appendChild(btn);
+    }
+  }
+
+  function refreshRenderedTagStates() {
+    if (!el.feedbackTags) return;
+    var nodes = el.feedbackTags.querySelectorAll(".feedback-tag--link[data-tag]");
+    for (var i = 0; i < nodes.length; i++) {
+      var btn = nodes[i];
+      var label = String(btn.getAttribute("data-tag") || "").trim();
+      if (!label) continue;
+      var state =
+        typeof window.getTagDictionaryState === "function"
+          ? window.getTagDictionaryState(label)
+          : { active: true, kind: "unknown" };
+      var linked = !!(state && state.active);
+      btn.classList.remove("feedback-tag--active", "feedback-tag--inactive");
+      btn.classList.add(linked ? "feedback-tag--active" : "feedback-tag--inactive");
+      btn.setAttribute("data-tag-linked", linked ? "1" : "0");
+      btn.setAttribute("aria-label", label + " 사전에서 보기 (" + (linked ? "연결됨" : "미연결") + ")");
     }
   }
 
@@ -2296,6 +2322,7 @@
   window.addEventListener("app-auth", function () {
     syncQuizAdminEditVisibility();
     syncQuizMemoAfterAuthChange();
+    refreshRenderedTagStates();
   });
   try {
     if (typeof firebase !== "undefined" && firebase.auth) {
@@ -2354,6 +2381,7 @@
   }
   window.addEventListener("hanlaw-detail-unlocked", refreshFeedbackDetailIfOpen);
   window.addEventListener("membership-updated", refreshFeedbackDetailIfOpen);
+  window.addEventListener("dict-remote-updated", refreshRenderedTagStates);
 
   function bindMemoryContrastAnimation() {
     var root = document.querySelector(".memory-contrast");

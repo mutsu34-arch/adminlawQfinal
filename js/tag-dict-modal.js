@@ -25,6 +25,78 @@
       .toLowerCase();
   }
 
+  function hasTagAlias(rec, normKey) {
+    if (!rec || !normKey) return false;
+    if (normTagKey(rec.sourceTag || "") === normKey) return true;
+    if (normTagKey(rec.normSourceTag || "") === normKey) return true;
+    var aliases = Array.isArray(rec.tagAliases) ? rec.tagAliases : [];
+    for (var i = 0; i < aliases.length; i++) {
+      if (normTagKey(aliases[i]) === normKey) return true;
+    }
+    return false;
+  }
+
+  function findLinkedStatuteByTag(tag) {
+    var parsed =
+      typeof window.parseStatuteArticleTag === "function"
+        ? window.parseStatuteArticleTag(tag)
+        : null;
+    if (!parsed) return null;
+    var staticBlock =
+      typeof window.lookupStaticStatuteArticle === "function"
+        ? window.lookupStaticStatuteArticle(parsed)
+        : null;
+    if (staticBlock) {
+      return { source: "static", record: staticBlock, parsed: parsed };
+    }
+    var normKey = normTagKey(tag);
+    var remoteList = Array.isArray(window.LEGAL_STATUTES_REMOTE) ? window.LEGAL_STATUTES_REMOTE : [];
+    for (var i = 0; i < remoteList.length; i++) {
+      var rec = remoteList[i] || {};
+      if (hasTagAlias(rec, normKey)) return { source: "remote", record: rec, parsed: parsed };
+    }
+    if (window.DictionaryUI && typeof window.DictionaryUI.searchStatutes === "function") {
+      var q1 = window.DictionaryUI.searchStatutes(parsed.displayTitle || "");
+      if (q1 && q1.length) return { source: "remote", record: q1[0], parsed: parsed };
+      var q2 = window.DictionaryUI.searchStatutes(parsed.lawName || "");
+      if (q2 && q2.length) return { source: "remote", record: q2[0], parsed: parsed };
+    }
+    return null;
+  }
+
+  function getTagDictionaryState(rawTag) {
+    var tag = String(rawTag || "")
+      .replace(/^#/, "")
+      .trim();
+    if (!tag) return { active: false, kind: "unknown" };
+    var normKey = normTagKey(tag);
+    var statuteHit = findLinkedStatuteByTag(tag);
+    if (statuteHit) return { active: true, kind: "statute", source: statuteHit.source };
+    var UI = window.DictionaryUI;
+    if (UI) {
+      var isCase = typeof UI.isLikelyCaseTag === "function" ? UI.isLikelyCaseTag(tag) : false;
+      if (isCase) {
+        if (typeof UI.findCaseForTag === "function" && UI.findCaseForTag(tag)) {
+          return { active: true, kind: "case", source: "dictionary" };
+        }
+        var cases = Array.isArray(window.LEGAL_CASES_REMOTE) ? window.LEGAL_CASES_REMOTE : [];
+        for (var ci = 0; ci < cases.length; ci++) {
+          if (hasTagAlias(cases[ci], normKey)) return { active: true, kind: "case", source: "remote-tag" };
+        }
+        return { active: false, kind: "case" };
+      }
+      if (typeof UI.findTermForTag === "function" && UI.findTermForTag(tag)) {
+        return { active: true, kind: "term", source: "dictionary" };
+      }
+      var terms = Array.isArray(window.LEGAL_TERMS_REMOTE) ? window.LEGAL_TERMS_REMOTE : [];
+      for (var ti = 0; ti < terms.length; ti++) {
+        if (hasTagAlias(terms[ti], normKey)) return { active: true, kind: "term", source: "remote-tag" };
+      }
+      return { active: false, kind: "term" };
+    }
+    return { active: false, kind: "unknown" };
+  }
+
   function cacheGet(tag) {
     return TAG_DICT_CACHE[normTagKey(tag)] || null;
   }
@@ -213,6 +285,31 @@
     actions.hidden = !isAdminViewer();
   }
 
+  function stripAdminOnlyButtons(container) {
+    if (!container) return;
+    var selectors = [
+      "[data-admin-edit-term]",
+      "[data-admin-edit-case]",
+      "[data-admin-edit-statute]"
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var nodes = container.querySelectorAll(selectors[i]);
+      for (var j = 0; j < nodes.length; j++) {
+        if (nodes[j] && nodes[j].parentNode) nodes[j].parentNode.removeChild(nodes[j]);
+      }
+    }
+  }
+
+  function enforceTagModalPermissionUi(body, actions, entryKind) {
+    var admin = isAdminViewer();
+    if (!admin) {
+      if (actions) actions.hidden = true;
+      stripAdminOnlyButtons(body);
+      return;
+    }
+    if (actions) actions.hidden = entryKind === "term" ? false : true;
+  }
+
   window.closeTagDictModal = closeModal;
 
   window.resolveTagDictionaryEntry = function (tag) {
@@ -232,6 +329,7 @@
       return { kind: d.kind, record: d.record, source: d.source };
     });
   };
+  window.getTagDictionaryState = getTagDictionaryState;
 
   window.openTagDictionaryLookup = function (rawTag) {
     var tag = String(rawTag || "")
@@ -249,7 +347,7 @@
       err.textContent = "";
       err.hidden = true;
     }
-    if (actions) actions.hidden = true;
+    enforceTagModalPermissionUi(body, actions, null);
     CURRENT_ENTRY = null;
 
     if (!tag) return;
@@ -271,6 +369,7 @@
           : null;
       if (block) renderStatuteStatic(body, parsedStatute, block);
       else renderStatuteFallback(body, parsedStatute);
+      enforceTagModalPermissionUi(body, actions, "statute");
       openModal();
       return;
     }
@@ -292,7 +391,7 @@
       if (cached.kind === "case") UI.renderCaseResults(body, [cached.record]);
       else UI.renderTermResults(body, [cached.record]);
       CURRENT_ENTRY = { tag: tag, kind: cached.kind, record: cached.record };
-      if (actions && isAdminViewer() && cached.kind === "term") actions.hidden = false;
+      enforceTagModalPermissionUi(body, actions, cached.kind);
       openModal();
       return;
     }
@@ -305,25 +404,35 @@
       else UI.renderTermResults(body, [local]);
       cacheSet(tag, { kind: asCase ? "case" : "term", record: local, source: "local" });
       CURRENT_ENTRY = { tag: tag, kind: asCase ? "case" : "term", record: local };
-      if (actions && isAdminViewer() && !asCase) actions.hidden = false;
+      enforceTagModalPermissionUi(body, actions, asCase ? "case" : "term");
       openModal();
       return;
     }
-
-    renderAiLoading(body, asCase ? "판례 해설 생성 중…" : "용어 해설 생성 중…");
-    openModal();
 
     var user =
       typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     if (!user) {
       body.innerHTML = "";
       if (err) {
-        err.textContent =
-          "로컬·동기화된 사전에 없는 항목입니다. AI로 새로 만들려면 로그인하고, 서버에 GEMINI_API_KEY가 설정되어 있어야 합니다.";
+        err.textContent = "로그인하면 검수 완료된 사전 항목을 열람할 수 있습니다.";
         err.hidden = false;
       }
+      openModal();
       return;
     }
+    if (!isAdminViewer()) {
+      body.innerHTML = "";
+      if (err) {
+        err.textContent =
+          "아직 사전과 연결되지 않은 태그입니다. 신규 생성은 관리자만 가능하며, 검수·승인 후 일반 계정에서도 열람할 수 있습니다.";
+        err.hidden = false;
+      }
+      openModal();
+      return;
+    }
+
+    renderAiLoading(body, asCase ? "판례 해설 생성 중…" : "용어 해설 생성 중…");
+    openModal();
 
     window
       .resolveTagDictionaryEntry(tag)
@@ -333,7 +442,7 @@
         if (res.kind === "case") UI.renderCaseResults(body, [res.record]);
         else UI.renderTermResults(body, [res.record]);
         CURRENT_ENTRY = { tag: tag, kind: res.kind, record: res.record };
-        if (actions && isAdminViewer() && res.kind === "term") actions.hidden = false;
+        enforceTagModalPermissionUi(body, actions, res.kind);
       })
       .catch(function (e) {
         body.innerHTML = "";

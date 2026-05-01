@@ -84,6 +84,107 @@
     return complete({ paymentId: paymentId });
   }
 
+  function isPaidMembershipNow() {
+    var m = window.APP_MEMBERSHIP || {};
+    return m.tier === "paid";
+  }
+
+  function navigatePanel(panelId) {
+    if (typeof window.hanlawNavigateToPanel === "function") {
+      window.hanlawNavigateToPanel(panelId, { syncUrl: true });
+      return;
+    }
+    var navBtn = document.querySelector('.nav-main__btn[data-panel="' + panelId + '"]');
+    if (navBtn && !navBtn.hidden) navBtn.click();
+  }
+
+  function closePaymentSuccessModal() {
+    var modal = document.getElementById("payment-success-modal");
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  function openPaymentSuccessModal(detail) {
+    var modal = document.getElementById("payment-success-modal");
+    var msg = document.getElementById("payment-success-message");
+    var member = document.getElementById("payment-success-membership");
+    if (!modal || !msg) {
+      window.alert((detail && detail.message) || "결제가 완료되었습니다.");
+      return;
+    }
+    msg.textContent = (detail && detail.message) || "결제가 완료되었습니다.";
+    if (member) {
+      if (detail && detail.membershipText) {
+        member.textContent = detail.membershipText;
+        member.hidden = false;
+      } else {
+        member.textContent = "";
+        member.hidden = true;
+      }
+    }
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+  }
+
+  function waitForMembershipReflection(expectPaid, timeoutMs) {
+    if (!expectPaid) return Promise.resolve(false);
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = null;
+      function finish(v) {
+        if (done) return;
+        done = true;
+        if (timer) clearTimeout(timer);
+        window.removeEventListener("membership-updated", onUpdated);
+        resolve(!!v);
+      }
+      function onUpdated(e) {
+        var d = (e && e.detail) || window.APP_MEMBERSHIP || {};
+        if (d && d.tier === "paid") finish(true);
+      }
+      if (isPaidMembershipNow()) {
+        resolve(true);
+        return;
+      }
+      window.addEventListener("membership-updated", onUpdated);
+      try {
+        window.dispatchEvent(
+          new CustomEvent("app-auth", {
+            detail: { user: typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null }
+          })
+        );
+      } catch (e) {}
+      timer = setTimeout(function () {
+        finish(isPaidMembershipNow());
+      }, Math.max(1500, Number(timeoutMs) || 8000));
+    });
+  }
+
+  function isSubscriptionProduct(product) {
+    var p = String(product || "");
+    return p.indexOf("one_month_") === 0 || p.indexOf("recurring_") === 0;
+  }
+
+  function handlePaymentSuccess(product) {
+    var expectPaid = isSubscriptionProduct(product);
+    return waitForMembershipReflection(expectPaid, 9000).then(function (isPaid) {
+      var membershipText = "";
+      if (isPaid) {
+        membershipText = "회원 등급이 유료회원으로 반영되었습니다.";
+      } else if (expectPaid) {
+        membershipText = "결제는 성공했습니다. 회원 등급은 잠시 후 자동 반영됩니다.";
+      }
+      openPaymentSuccessModal({
+        message: "결제가 완료되었습니다. 아래 버튼에서 바로 학습을 이어가세요.",
+        membershipText: membershipText
+      });
+      try {
+        window.dispatchEvent(new CustomEvent("membership-updated"));
+      } catch (e) {}
+    });
+  }
+
   function cancelRecurring() {
     if (!requireLoginAndFirebase()) return;
     if (!window.confirm("정기결제를 해지하시겠습니까? 다음 결제일부터 자동청구가 중단됩니다.")) return;
@@ -139,10 +240,7 @@
     completePaymentById(paymentId)
       .then(function () {
         cleanupReturnParams();
-        window.alert("결제가 완료되었습니다. 잠시 후 요금제·대시보드에 반영됩니다.");
-        try {
-          window.dispatchEvent(new CustomEvent("membership-updated"));
-        } catch (e) {}
+        return handlePaymentSuccess("");
       })
       .catch(function (e) {
         cleanupReturnParams();
@@ -194,10 +292,7 @@
         });
       })
       .then(function () {
-        window.alert("결제가 완료되었습니다. 잠시 후 요금제·대시보드에 반영됩니다.");
-        try {
-          window.dispatchEvent(new CustomEvent("membership-updated"));
-        } catch (e) {}
+        return handlePaymentSuccess(product);
       })
       .catch(function (e) {
         try {
@@ -237,6 +332,28 @@
     tryHandleRedirectReturn();
     var cancelBtn = document.getElementById("dashboard-portone-recurring-cancel-btn");
     if (cancelBtn) cancelBtn.addEventListener("click", cancelRecurring);
+    var closeBtn = document.getElementById("payment-success-close");
+    if (closeBtn) closeBtn.addEventListener("click", closePaymentSuccessModal);
+    var goDashboardBtn = document.getElementById("payment-success-go-dashboard");
+    if (goDashboardBtn) {
+      goDashboardBtn.addEventListener("click", function () {
+        closePaymentSuccessModal();
+        navigatePanel("dashboard");
+      });
+    }
+    var goQuizBtn = document.getElementById("payment-success-go-quiz");
+    if (goQuizBtn) {
+      goQuizBtn.addEventListener("click", function () {
+        closePaymentSuccessModal();
+        navigatePanel("quiz");
+      });
+    }
+    var modal = document.getElementById("payment-success-modal");
+    if (modal) {
+      modal.addEventListener("click", function (e) {
+        if (e.target === modal) closePaymentSuccessModal();
+      });
+    }
   }
 
   if (document.readyState === "loading") {

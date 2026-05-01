@@ -47,6 +47,9 @@
       aliases: Array.isArray(d.aliases) ? d.aliases : [],
       definition: d.definition || "",
       source: d.source || "",
+      sourceTag: d.sourceTag || "",
+      normSourceTag: d.normSourceTag || "",
+      tagAliases: Array.isArray(d.tagAliases) ? d.tagAliases : [],
       oxQuizzes: mapOxQuizzesFromRaw(d.oxQuizzes, 3)
     };
   }
@@ -57,6 +60,9 @@
     return {
       _docId: doc.id,
       key: key,
+      sourceTag: d.sourceTag || "",
+      normSourceTag: d.normSourceTag || "",
+      tagAliases: Array.isArray(d.tagAliases) ? d.tagAliases : [],
       heading: d.heading != null ? d.heading : "",
       body: d.body != null ? d.body : "",
       appliedRules: d.appliedRules != null ? d.appliedRules : "",
@@ -108,6 +114,9 @@
       hidden: !!d.hidden,
       citation: d.citation || "",
       title: d.title || "",
+      sourceTag: d.sourceTag || "",
+      normSourceTag: d.normSourceTag || "",
+      tagAliases: Array.isArray(d.tagAliases) ? d.tagAliases : [],
       facts: d.facts || "",
       issues: d.issues || "",
       judgment: d.judgment || "",

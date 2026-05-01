@@ -11,6 +11,23 @@ function db() {
   return getFirestore();
 }
 
+function isAdminEmail(email) {
+  const mail = String(email || "").trim().toLowerCase();
+  if (!mail) return false;
+  const raw = process.env.ADMIN_EMAILS || "mutsu34@gmail.com";
+  const list = raw
+    .split(",")
+    .map((x) => String(x || "").trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(mail);
+}
+
+function isAdminFromAuth(auth) {
+  const email =
+    auth && auth.token && auth.token.email ? String(auth.token.email).trim().toLowerCase() : "";
+  return isAdminEmail(email);
+}
+
 const MAX_STR = 12000;
 const GEMINI_MODEL_FALLBACKS = [
   "gemini-2.0-flash",
@@ -899,6 +916,13 @@ const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async
       kind: asCase ? "case" : "term",
       record: asCase ? firestoreToCasePayload(d) : firestoreToTermPayload(d)
     };
+  }
+
+  if (!isAdminFromAuth(request.auth)) {
+    throw new HttpsError(
+      "permission-denied",
+      "태그 기반 사전 신규 생성은 관리자 전용입니다. 검수 완료된 항목만 열람할 수 있습니다."
+    );
   }
 
   if (!apiKey) {

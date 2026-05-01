@@ -3293,6 +3293,30 @@
     </div>
   </div>
 
+  <div
+    id="payment-success-modal"
+    class="modal"
+    hidden
+    aria-hidden="true"
+    role="dialog"
+    aria-labelledby="payment-success-title"
+  >
+    <div class="modal__panel card tag-dict-modal__panel">
+      <div class="modal__head">
+        <h2 class="modal__title" id="payment-success-title">결제가 완료되었습니다</h2>
+        <button type="button" class="modal__close" id="payment-success-close" aria-label="닫기">×</button>
+      </div>
+      <p id="payment-success-message" class="dashboard-lead">
+        결제 반영을 확인했습니다.
+      </p>
+      <p id="payment-success-membership" class="dashboard-membership-until" hidden></p>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="payment-success-go-dashboard">대시보드 보기</button>
+        <button type="button" class="btn btn--primary" id="payment-success-go-quiz">바로 퀴즈 풀기</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/header-quote.js?v=8"></script>
   <script src="/js/app-settings.js?v=20260422-adsense-open-mode"></script>
   <script src="/js/theme-toggle.js?v=2"></script>
@@ -3319,7 +3343,7 @@
   <script src="/js/tickets-service.js?v=14"></script>
   <script src="/js/pricing-display-config.js?v=1"></script>
   <script src="/js/portone-config.js?v=2"></script>
-  <script src="/js/portone-checkout.js?v=5"></script>
+  <script src="/js/portone-checkout.js?v=6"></script>
   <script src="/js/auth.js?v=5"></script>
   <script src="/js/user-profile.js?v=20260419"></script>
   <script src="/js/dict-remote.js?v=5"></script>
