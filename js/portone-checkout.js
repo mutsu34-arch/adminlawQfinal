@@ -3,6 +3,9 @@
  * @see https://help.portone.io/content/kpn
  */
 (function () {
+  var redirectReturnRetryTimer = null;
+  var redirectReturnInFlight = false;
+
   function cfg() {
     return window.PORTONE_CONFIG || {};
   }
@@ -200,9 +203,10 @@
       });
   }
 
-  function tryHandleRedirectReturn() {
+  function tryHandleRedirectReturn(attempt) {
+    var retryCount = Number(attempt) || 0;
+    var maxRetry = 20;
     if (typeof firebase === "undefined" || !firebase.functions || !firebase.apps || !firebase.apps.length) return;
-    if (typeof window.getHanlawUser !== "function" || !window.getHanlawUser()) return;
     var u;
     try {
       u = new URL(window.location.href);
@@ -227,11 +231,26 @@
       return;
     }
 
+    // 리다이렉트 직후에는 auth 복원이 늦어질 수 있으므로 짧게 재시도합니다.
+    if (typeof window.getHanlawUser !== "function" || !window.getHanlawUser()) {
+      if (retryCount < maxRetry) {
+        if (redirectReturnRetryTimer) window.clearTimeout(redirectReturnRetryTimer);
+        redirectReturnRetryTimer = window.setTimeout(function () {
+          tryHandleRedirectReturn(retryCount + 1);
+        }, 500);
+      }
+      return;
+    }
+
+    if (redirectReturnInFlight) return;
+    redirectReturnInFlight = true;
+
     // 새로고침 등으로 중복 완료 호출을 막습니다.
     var dedupKey = "hanlaw_portone_return_done_" + paymentId;
     try {
       if (sessionStorage.getItem(dedupKey) === "1") {
         cleanupReturnParams();
+        redirectReturnInFlight = false;
         return;
       }
       sessionStorage.setItem(dedupKey, "1");
@@ -243,9 +262,15 @@
         return handlePaymentSuccess("");
       })
       .catch(function (e) {
+        try {
+          sessionStorage.removeItem(dedupKey);
+        } catch (_) {}
         cleanupReturnParams();
         var msg = e && e.message ? String(e.message) : "결제 완료 처리에 실패했습니다.";
         window.alert(msg);
+      })
+      .then(function () {
+        redirectReturnInFlight = false;
       });
   }
 
@@ -330,6 +355,9 @@
   function init() {
     bindPortOneProductClicks();
     tryHandleRedirectReturn();
+    window.addEventListener("app-auth", function () {
+      tryHandleRedirectReturn();
+    });
     var cancelBtn = document.getElementById("dashboard-portone-recurring-cancel-btn");
     if (cancelBtn) cancelBtn.addEventListener("click", cancelRecurring);
     var closeBtn = document.getElementById("payment-success-close");
