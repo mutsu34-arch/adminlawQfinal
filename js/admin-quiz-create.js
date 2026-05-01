@@ -6,6 +6,8 @@
   var QUIZ_CREATE_PRESET_KEY = "hanlaw_admin_quiz_create_preset_v1";
   var QUIZ_CREATE_PROGRESS_KEY = "hanlaw_admin_quiz_create_progress_v1";
   var QUIZ_PROMPT_TEMPLATES_KEY = "hanlaw_admin_quiz_prompt_templates_v1";
+  var promptTemplatesCache = { past: [], expected: [] };
+  var promptTemplatesCloudLoaded = false;
   var autoMeta = { examId: "", year: "" };
   var quizGenerationRunning = false;
   var quizGenerationCancelRequested = false;
@@ -71,25 +73,85 @@
     } catch (_) {}
   }
 
-  function readPromptTemplates() {
+  function normalizePromptTemplatesStore(parsed) {
+    if (!parsed || typeof parsed !== "object") return { past: [], expected: [] };
+    return {
+      past: Array.isArray(parsed.past) ? parsed.past : [],
+      expected: Array.isArray(parsed.expected) ? parsed.expected : []
+    };
+  }
+
+  function readPromptTemplatesFromLocal() {
     try {
       var raw = localStorage.getItem(QUIZ_PROMPT_TEMPLATES_KEY);
       if (!raw) return { past: [], expected: [] };
-      var parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") return { past: [], expected: [] };
-      return {
-        past: Array.isArray(parsed.past) ? parsed.past : [],
-        expected: Array.isArray(parsed.expected) ? parsed.expected : []
-      };
+      return normalizePromptTemplatesStore(JSON.parse(raw));
     } catch (_) {
       return { past: [], expected: [] };
     }
   }
 
-  function writePromptTemplates(v) {
+  function writePromptTemplatesToLocal(v) {
     try {
       localStorage.setItem(QUIZ_PROMPT_TEMPLATES_KEY, JSON.stringify(v || { past: [], expected: [] }));
     } catch (_) {}
+  }
+
+  function readPromptTemplates() {
+    return normalizePromptTemplatesStore(promptTemplatesCache);
+  }
+
+  function getPromptTemplateCallables() {
+    if (
+      typeof firebase === "undefined" ||
+      !firebase.apps ||
+      !firebase.apps.length ||
+      !firebase.functions
+    ) {
+      return null;
+    }
+    var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+    var fns = firebase.app().functions(region);
+    return {
+      get: fns.httpsCallable("adminGetQuizPromptTemplates"),
+      save: fns.httpsCallable("adminSaveQuizPromptTemplates")
+    };
+  }
+
+  function loadPromptTemplatesFromCloud() {
+    var callables = getPromptTemplateCallables();
+    if (!callables) return Promise.resolve(readPromptTemplates());
+    return callables
+      .get({})
+      .then(function (res) {
+        var d = (res && res.data) || {};
+        if (!d || !d.ok) return readPromptTemplates();
+        var normalized = normalizePromptTemplatesStore(d.templates);
+        promptTemplatesCache = normalized;
+        writePromptTemplatesToLocal(normalized);
+        promptTemplatesCloudLoaded = true;
+        return normalized;
+      })
+      .catch(function () {
+        return readPromptTemplates();
+      });
+  }
+
+  function writePromptTemplates(v) {
+    var normalized = normalizePromptTemplatesStore(v);
+    promptTemplatesCache = normalized;
+    writePromptTemplatesToLocal(normalized);
+    var callables = getPromptTemplateCallables();
+    if (!callables) return Promise.resolve(normalized);
+    return callables
+      .save({ templates: normalized })
+      .then(function () {
+        promptTemplatesCloudLoaded = true;
+        return normalized;
+      })
+      .catch(function () {
+        return normalized;
+      });
   }
 
   function isLikelyNetworkError(err) {
@@ -470,10 +532,11 @@
     });
     if (arr.length > 50) arr = arr.slice(0, 50);
     store[key] = arr;
-    writePromptTemplates(store);
-    renderPromptTemplateSelect(kind);
-    if (nameEl) nameEl.value = "";
-    setMsg(msgEl, "지침 템플릿을 저장했습니다.", false);
+    writePromptTemplates(store).then(function () {
+      renderPromptTemplateSelect(kind);
+      if (nameEl) nameEl.value = "";
+      setMsg(msgEl, "지침 템플릿을 저장했습니다.", false);
+    });
   }
 
   function loadPromptTemplate(kind) {
@@ -507,9 +570,10 @@
     });
     if (next.length === arr.length) return setMsg(msgEl, "삭제할 템플릿을 찾을 수 없습니다.", true);
     store[key] = next;
-    writePromptTemplates(store);
-    renderPromptTemplateSelect(kind);
-    setMsg(msgEl, "지침 템플릿을 삭제했습니다.", false);
+    writePromptTemplates(store).then(function () {
+      renderPromptTemplateSelect(kind);
+      setMsg(msgEl, "지침 템플릿을 삭제했습니다.", false);
+    });
   }
 
   function fillExamSelect(select) {
@@ -1348,6 +1412,7 @@
   }
 
   function bind() {
+    promptTemplatesCache = readPromptTemplatesFromLocal();
     fillExamSelect($("admin-quiz-create-exam-id"));
     applyPresetToForm(readPreset());
     var examEl = $("admin-quiz-create-exam-id");
@@ -1389,10 +1454,22 @@
     bindDropzone();
     renderPromptTemplateSelect("past");
     renderPromptTemplateSelect("expected");
+    loadPromptTemplatesFromCloud().then(function () {
+      renderPromptTemplateSelect("past");
+      renderPromptTemplateSelect("expected");
+    });
     loadExistingLibraryDocs();
     refreshVisibility();
     resumeQuizGenerationIfNeeded();
     window.addEventListener("app-auth", refreshVisibility);
+    window.addEventListener("app-auth", function () {
+      if (!promptTemplatesCloudLoaded) {
+        loadPromptTemplatesFromCloud().then(function () {
+          renderPromptTemplateSelect("past");
+          renderPromptTemplateSelect("expected");
+        });
+      }
+    });
     window.addEventListener("membership-updated", refreshVisibility);
     window.addEventListener("online", resumeQuizGenerationIfNeeded);
   }

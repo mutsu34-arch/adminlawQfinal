@@ -529,6 +529,61 @@ function assertAdminCallable(request) {
   }
 }
 
+const ADMIN_QUIZ_TEMPLATE_COLLECTION = "hanlaw_admin_settings";
+const ADMIN_QUIZ_TEMPLATE_DOC_PREFIX = "quiz_prompt_templates_";
+
+function normalizePromptTemplateRow(row) {
+  const src = row || {};
+  const id = String(src.id || "").trim().slice(0, 80);
+  const name = String(src.name || "").trim().slice(0, 80);
+  const text = String(src.text || "").trim().slice(0, 12000);
+  const updatedAtRaw = parseInt(src.updatedAt, 10);
+  const updatedAt = Number.isFinite(updatedAtRaw) ? updatedAtRaw : Date.now();
+  if (!id || !name || !text) return null;
+  return { id, name, text, updatedAt };
+}
+
+function normalizePromptTemplateStore(raw) {
+  const out = { past: [], expected: [] };
+  ["past", "expected"].forEach((k) => {
+    const list = raw && Array.isArray(raw[k]) ? raw[k] : [];
+    const acc = [];
+    for (let i = 0; i < list.length; i++) {
+      const item = normalizePromptTemplateRow(list[i]);
+      if (!item) continue;
+      acc.push(item);
+      if (acc.length >= 50) break;
+    }
+    out[k] = acc;
+  });
+  return out;
+}
+
+exports.adminGetQuizPromptTemplates = onCall({ region: "asia-northeast3" }, async (request) => {
+  assertAdminCallable(request);
+  const uid = String(request.auth.uid || "").trim();
+  const ref = db.collection(ADMIN_QUIZ_TEMPLATE_COLLECTION).doc(ADMIN_QUIZ_TEMPLATE_DOC_PREFIX + uid);
+  const snap = await ref.get();
+  const data = snap.exists ? snap.data() : {};
+  return { ok: true, templates: normalizePromptTemplateStore(data && data.templates) };
+});
+
+exports.adminSaveQuizPromptTemplates = onCall({ region: "asia-northeast3" }, async (request) => {
+  assertAdminCallable(request);
+  const uid = String(request.auth.uid || "").trim();
+  const templates = normalizePromptTemplateStore(request.data && request.data.templates);
+  const ref = db.collection(ADMIN_QUIZ_TEMPLATE_COLLECTION).doc(ADMIN_QUIZ_TEMPLATE_DOC_PREFIX + uid);
+  await ref.set(
+    {
+      templates,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: String(request.auth.token.email || "").toLowerCase()
+    },
+    { merge: true }
+  );
+  return { ok: true };
+});
+
 function sanitizeQuizPayload(raw) {
   const src = raw || {};
   const out = {
