@@ -36,6 +36,53 @@
     return false;
   }
 
+  function isExplicitTagLinkedRecord(rec, normKey, kind) {
+    if (!rec || !normKey) return false;
+    if (hasTagAlias(rec, normKey)) return true;
+    if (kind === "term") {
+      if (normTagKey(rec.term || "") === normKey) return true;
+      return false;
+    }
+    if (kind === "case") {
+      if (normTagKey(rec.citation || "") === normKey) return true;
+      if (normTagKey(rec.title || "") === normKey) return true;
+      return false;
+    }
+    if (kind === "statute") {
+      if (normTagKey(rec.key || "") === normKey) return true;
+      if (normTagKey(rec.title || "") === normKey) return true;
+      if (normTagKey(rec.heading || "") === normKey) return true;
+      return false;
+    }
+    return false;
+  }
+
+  function findLinkedRecordByTag(kind, normKey) {
+    var localList = [];
+    var remoteList = [];
+    if (kind === "term") {
+      localList = Array.isArray(window.LEGAL_TERMS_DATA) ? window.LEGAL_TERMS_DATA : [];
+      remoteList = Array.isArray(window.LEGAL_TERMS_REMOTE) ? window.LEGAL_TERMS_REMOTE : [];
+    } else if (kind === "case") {
+      localList = Array.isArray(window.LEGAL_CASES_DATA) ? window.LEGAL_CASES_DATA : [];
+      remoteList = Array.isArray(window.LEGAL_CASES_REMOTE) ? window.LEGAL_CASES_REMOTE : [];
+    } else if (kind === "statute") {
+      localList = Array.isArray(window.STATUTE_ARTICLE_ENTRIES) ? window.STATUTE_ARTICLE_ENTRIES : [];
+      remoteList = Array.isArray(window.LEGAL_STATUTES_REMOTE) ? window.LEGAL_STATUTES_REMOTE : [];
+    }
+    for (var i = 0; i < localList.length; i++) {
+      if (isExplicitTagLinkedRecord(localList[i], normKey, kind)) {
+        return { source: "dictionary", record: localList[i] };
+      }
+    }
+    for (var j = 0; j < remoteList.length; j++) {
+      if (isExplicitTagLinkedRecord(remoteList[j], normKey, kind)) {
+        return { source: "remote-tag", record: remoteList[j] };
+      }
+    }
+    return null;
+  }
+
   function findLinkedStatuteByTag(tag) {
     var parsed =
       typeof window.parseStatuteArticleTag === "function"
@@ -55,12 +102,6 @@
       var rec = remoteList[i] || {};
       if (hasTagAlias(rec, normKey)) return { source: "remote", record: rec, parsed: parsed };
     }
-    if (window.DictionaryUI && typeof window.DictionaryUI.searchStatutes === "function") {
-      var q1 = window.DictionaryUI.searchStatutes(parsed.displayTitle || "");
-      if (q1 && q1.length) return { source: "remote", record: q1[0], parsed: parsed };
-      var q2 = window.DictionaryUI.searchStatutes(parsed.lawName || "");
-      if (q2 && q2.length) return { source: "remote", record: q2[0], parsed: parsed };
-    }
     return null;
   }
 
@@ -76,22 +117,12 @@
     if (UI) {
       var isCase = typeof UI.isLikelyCaseTag === "function" ? UI.isLikelyCaseTag(tag) : false;
       if (isCase) {
-        if (typeof UI.findCaseForTag === "function" && UI.findCaseForTag(tag)) {
-          return { active: true, kind: "case", source: "dictionary" };
-        }
-        var cases = Array.isArray(window.LEGAL_CASES_REMOTE) ? window.LEGAL_CASES_REMOTE : [];
-        for (var ci = 0; ci < cases.length; ci++) {
-          if (hasTagAlias(cases[ci], normKey)) return { active: true, kind: "case", source: "remote-tag" };
-        }
+        var linkedCase = findLinkedRecordByTag("case", normKey);
+        if (linkedCase) return { active: true, kind: "case", source: linkedCase.source };
         return { active: false, kind: "case" };
       }
-      if (typeof UI.findTermForTag === "function" && UI.findTermForTag(tag)) {
-        return { active: true, kind: "term", source: "dictionary" };
-      }
-      var terms = Array.isArray(window.LEGAL_TERMS_REMOTE) ? window.LEGAL_TERMS_REMOTE : [];
-      for (var ti = 0; ti < terms.length; ti++) {
-        if (hasTagAlias(terms[ti], normKey)) return { active: true, kind: "term", source: "remote-tag" };
-      }
+      var linkedTerm = findLinkedRecordByTag("term", normKey);
+      if (linkedTerm) return { active: true, kind: "term", source: linkedTerm.source };
       return { active: false, kind: "term" };
     }
     return { active: false, kind: "unknown" };
@@ -282,7 +313,15 @@
   function syncAdminActionsVisibility() {
     var actions = $("tag-dict-modal-actions");
     if (!actions) return;
-    actions.hidden = !isAdminViewer();
+    actions.hidden = true;
+    actions.setAttribute("aria-hidden", "true");
+    actions.style.display = "none";
+    var delTerm = $("tag-dict-modal-delete-term");
+    if (delTerm) {
+      delTerm.hidden = true;
+      delTerm.setAttribute("aria-hidden", "true");
+      delTerm.style.display = "none";
+    }
   }
 
   function stripAdminOnlyButtons(container) {
@@ -302,12 +341,19 @@
 
   function enforceTagModalPermissionUi(body, actions, entryKind) {
     var admin = isAdminViewer();
-    if (!admin) {
-      if (actions) actions.hidden = true;
-      stripAdminOnlyButtons(body);
-      return;
+    var canDeleteTerm = !!(admin && entryKind === "term");
+    if (actions) {
+      actions.hidden = !canDeleteTerm;
+      actions.setAttribute("aria-hidden", canDeleteTerm ? "false" : "true");
+      actions.style.display = canDeleteTerm ? "" : "none";
     }
-    if (actions) actions.hidden = entryKind === "term" ? false : true;
+    var delTerm = $("tag-dict-modal-delete-term");
+    if (delTerm) {
+      delTerm.hidden = !canDeleteTerm;
+      delTerm.setAttribute("aria-hidden", canDeleteTerm ? "false" : "true");
+      delTerm.style.display = canDeleteTerm ? "" : "none";
+    }
+    if (!admin) stripAdminOnlyButtons(body);
   }
 
   window.closeTagDictModal = closeModal;
@@ -396,7 +442,8 @@
       return;
     }
 
-    var local = asCase ? UI.findCaseForTag(tag) : UI.findTermForTag(tag);
+    var linked = findLinkedRecordByTag(asCase ? "case" : "term", normTagKey(tag));
+    var local = linked ? linked.record : null;
 
     if (local) {
       body.innerHTML = "";
@@ -478,6 +525,11 @@
       });
     }
     var delTerm = $("tag-dict-modal-delete-term");
+    if (delTerm) {
+      delTerm.hidden = true;
+      delTerm.setAttribute("aria-hidden", "true");
+      delTerm.style.display = "none";
+    }
     if (delTerm) {
       delTerm.addEventListener("click", function () {
         if (!isAdminViewer()) return;
