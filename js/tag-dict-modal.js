@@ -193,29 +193,31 @@
       row.appendChild(w);
     }
 
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn btn--secondary statute-article-popup__copy";
-    btn.textContent = "검색어 복사";
-    btn.addEventListener("click", function () {
-      var t = searchText;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(t).then(
-          function () {
-            btn.textContent = "복사됨";
-            setTimeout(function () {
-              btn.textContent = "검색어 복사";
-            }, 1600);
-          },
-          function () {
-            window.prompt("검색어를 복사하세요:", t);
-          }
-        );
-      } else {
-        window.prompt("검색어를 복사하세요:", t);
-      }
-    });
-    row.appendChild(btn);
+    if (isAdminViewer()) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn--secondary statute-article-popup__copy";
+      btn.textContent = "검색어 복사";
+      btn.addEventListener("click", function () {
+        var t = searchText;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(t).then(
+            function () {
+              btn.textContent = "복사됨";
+              setTimeout(function () {
+                btn.textContent = "검색어 복사";
+              }, 1600);
+            },
+            function () {
+              window.prompt("검색어를 복사하세요:", t);
+            }
+          );
+        } else {
+          window.prompt("검색어를 복사하세요:", t);
+        }
+      });
+      row.appendChild(btn);
+    }
 
     container.appendChild(row);
 

@@ -2597,6 +2597,7 @@
 
   function appendCopyButtonRow(article, options) {
     if (!article || !options || !options.getText) return;
+    if (!isAdminUser()) return;
     var nav = document.createElement("div");
     nav.className = "dict-card-nav";
     var btn = document.createElement("button");
@@ -3004,23 +3005,25 @@
         h.className = "case-result-card__label";
         h.textContent = label;
         head.appendChild(h);
-        var btnCopy = document.createElement("button");
-        btnCopy.type = "button";
-        btnCopy.className = "btn btn--ghost btn--small";
-        btnCopy.textContent = "복사";
-        btnCopy.addEventListener("click", function () {
-          copyTextToClipboard(String(text || ""))
-            .then(function () {
-              btnCopy.textContent = "복사됨";
-              window.setTimeout(function () {
-                btnCopy.textContent = "복사";
-              }, 1200);
-            })
-            .catch(function () {
-              window.alert("복사에 실패했습니다.");
-            });
-        });
-        head.appendChild(btnCopy);
+        if (isAdminUser()) {
+          var btnCopy = document.createElement("button");
+          btnCopy.type = "button";
+          btnCopy.className = "btn btn--ghost btn--small";
+          btnCopy.textContent = "복사";
+          btnCopy.addEventListener("click", function () {
+            copyTextToClipboard(String(text || ""))
+              .then(function () {
+                btnCopy.textContent = "복사됨";
+                window.setTimeout(function () {
+                  btnCopy.textContent = "복사";
+                }, 1200);
+              })
+              .catch(function () {
+                window.alert("복사에 실패했습니다.");
+              });
+          });
+          head.appendChild(btnCopy);
+        }
         sec.appendChild(head);
         var div = document.createElement("div");
         div.className = "case-result-card__text quiz-ai-answer";
