@@ -3,6 +3,7 @@
  * - <키워드> 또는 [키워드] → 굵은 강조(quiz-ai-answer__accent)
  * - 전각 ＜키워드＞ · ［키워드］ (한글 입력기) 동일 처리
  * - **굵게** / __굵게__
+ * - ^^텍스트^^ → 소제목·라벨 색(quiz-ai-answer__lead, 판례:/함정 포인트: 등과 동일 톤)
  * - formatHanlawAiAnswerHtml: 불릿·단락
  * - formatHanlawRichParagraphsHtml: 줄바꿈만(문항 지문 등, 불릿 해석 없음)
  */
@@ -43,6 +44,21 @@
       .replace(/"/g, "&quot;");
   }
 
+  function formatBoldOnly(s) {
+    var str = String(s || "");
+    var out = [];
+    var re = /(\*\*|__)(.+?)\1/g;
+    var last = 0;
+    var m;
+    while ((m = re.exec(str)) !== null) {
+      out.push(escHtml(str.slice(last, m.index)));
+      out.push('<strong class="quiz-ai-answer__accent">' + escHtml(m[2]) + "</strong>");
+      last = re.lastIndex;
+    }
+    out.push(escHtml(str.slice(last)));
+    return out.join("");
+  }
+
   function formatInline(md) {
     var s = String(md || "");
     // 전각 괄호 (IME·복붙 시 반각과 섞일 수 있음)
@@ -67,17 +83,20 @@
     // 흔한 오타 보정: "***강조**", "****강조****" 등을 "**강조**"로 정규화
     s = s.replace(/\*{2,}\s*([^*]+?)\s*\*{2,}/g, "**$1**");
     s = s.replace(/_{2,}\s*([^_]+?)\s*_{2,}/g, "__$1__");
-    var out = [];
-    var re = /(\*\*|__)(.+?)\1/g;
+    // ^^소제목^^ → 법리/판례 라벨과 동일 파란 톤(줄 안에서만, 한 줄에 여러 개 가능)
+    var reLead = /\^\^([^^\n]{1,400})\^\^/g;
+    var chunks = [];
     var last = 0;
-    var m;
-    while ((m = re.exec(s)) !== null) {
-      out.push(escHtml(s.slice(last, m.index)));
-      out.push('<strong class="quiz-ai-answer__accent">' + escHtml(m[2]) + "</strong>");
-      last = re.lastIndex;
+    var lm;
+    while ((lm = reLead.exec(s)) !== null) {
+      chunks.push(formatBoldOnly(s.slice(last, lm.index)));
+      chunks.push(
+        '<span class="quiz-ai-answer__lead">' + escHtml(String(lm[1] || "").trim()) + "</span>"
+      );
+      last = reLead.lastIndex;
     }
-    out.push(escHtml(s.slice(last)));
-    return out.join("");
+    chunks.push(formatBoldOnly(s.slice(last)));
+    return chunks.join("");
   }
 
   function bulletLineToHtml(content, itemExtraClass) {

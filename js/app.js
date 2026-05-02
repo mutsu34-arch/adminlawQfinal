@@ -191,7 +191,7 @@
     });
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 7;
+  var QUIZ_ADMIN_EDITOR_VER = 8;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -243,7 +243,7 @@
     el.quizAdminEditor = editor;
     editor.setAttribute(
       "title",
-      "문제·해설란에서 **텍스트** 형식이 퀴즈 화면에 굵게 표시됩니다. Ctrl+B(맥: ⌘B)로 선택 영역을 **로 감쌀 수 있습니다."
+        "표시: **굵게**(녹색 톤), ^^파란 라벨^^(판례:/함정 포인트:와 같은 색). 문제·해설란에서 Ctrl+B(⌘B)로 **를 넣을 수 있습니다. 줄 맨 앞에 「판례:」「함정 포인트:」처럼 쓰면 자동으로 파란 라벨이 됩니다."
     );
     window.__hanlawQuizAdminEditInited = true;
     window.__hanlawQuizAdminEditorVer = QUIZ_ADMIN_EDITOR_VER;
