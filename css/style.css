@@ -4766,10 +4766,10 @@ p.hanlaw-para-gap {
   font-size: inherit;
 }
 
-/* 기본 해설: 단락 간격 (한 겹 박스는 .quiz-ai-answer 유지) */
+/* AI·사전 본문: 단락(<p>)과 목록 항목(__item)의 줄간격·단락 간격을 동일 계열로 맞춤 */
 #feedback-explain.quiz-ai-answer p {
-  margin: 0.75em 0;
-  line-height: 1.72;
+  margin: 0.4em 0;
+  line-height: 1.55;
 }
 
 #feedback-explain.quiz-ai-answer p:first-child {
@@ -4781,8 +4781,8 @@ p.hanlaw-para-gap {
 }
 
 .quiz-ai-answer p {
-  margin: 0.72em 0;
-  line-height: 1.8;
+  margin: 0.4em 0;
+  line-height: 1.55;
 }
 
 .quiz-ai-answer p:first-child {
@@ -4830,7 +4830,7 @@ html[data-theme="light"] .quiz-ai-answer__accent {
 }
 
 .quiz-ai-answer__section {
-  margin: 0.85em 0 0.4em;
+  margin: 0.55em 0 0.35em;
   padding-bottom: 0.25em;
   font-size: 0.98rem;
   font-weight: 700;
