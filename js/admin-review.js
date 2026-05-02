@@ -165,15 +165,26 @@
     p = p || {};
     if (mode === "quiz") {
       var detQ = p.detail || {};
+      var basicEl = $("admin-review-explanation-basic");
+      var detailEl = $("admin-review-explanation");
+      var legalEl = $("admin-review-detail-legal");
+      var trapEl = $("admin-review-detail-trap");
+      var precEl = $("admin-review-detail-precedent");
+      var basicCopy = basicEl ? String(basicEl.value || "").trim() : String(p.explanationBasic || "");
+      var detailCopy = detailEl ? String(detailEl.value || "").trim() : "";
+      if (!detailCopy) detailCopy = String(pickDetailMainText(p) || "");
+      var legalCopy = legalEl ? String(legalEl.value || "").trim() : String(detQ.legal || "");
+      var trapCopy = trapEl ? String(trapEl.value || "").trim() : String(detQ.trap || "");
+      var precCopy = precEl ? String(precEl.value || "").trim() : String(detQ.precedent || "");
       var linesQ = [
         "[유형] 퀴즈",
         "[문제] " + String(p.statement || ""),
         "[정답] " + (p.answer === false ? "X(거짓)" : "O(참)"),
-        "[기본 해설] " + String(p.explanationBasic || ""),
-        "[상세 해설] " + String(p.explanation || pickDetailMainText(p) || ""),
-        "[법리 근거] " + String(detQ.legal || ""),
-        "[함정 포인트] " + String(detQ.trap || ""),
-        "[판례 요지] " + String(detQ.precedent || ""),
+        "[기본 해설] " + basicCopy,
+        "[상세 해설] " + detailCopy,
+        "[법리 근거] " + legalCopy,
+        "[함정 포인트] " + trapCopy,
+        "[판례 요지] " + precCopy,
         "[주제] " + String(p.topic || ""),
         "[태그] " + (Array.isArray(p.tags) ? p.tags.join(", ") : ""),
         "[중요도] " + (p.importance != null ? String(p.importance) : ""),
@@ -566,7 +577,14 @@
       } else {
         delete p.detail;
       }
-      p.explanation = basic || detailMain || legal || trap || precedent || "";
+      // explanation = 상세 본문(및 법리·함정·판례 병합). 기본 해설(basic)은 explanationBasic 전용 — basic 을 먼저 넣으면 상세가 전부 기본으로 덮임(전체 복사 버그).
+      if (mergedDetailBody || detailMain || legal || trap || precedent) {
+        p.explanation = mergedDetailBody || detailMain || "";
+      } else if (basic) {
+        p.explanation = basic;
+      } else {
+        p.explanation = "";
+      }
       p.topic = $("admin-review-topic").value.trim();
       var tagsRaw = $("admin-review-tags").value.trim();
       if (tagsRaw) {
