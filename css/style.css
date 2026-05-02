@@ -1561,6 +1561,27 @@ body {
   max-height: none;
 }
 
+/* 조문·용어 카드: 퀴즈·판례와 동일 — ^^라벨^^·줄머리 라벨=파랑, **굵게**=녹색(라이트는 accent-dim) */
+.dict-result-card__body.quiz-ai-answer .quiz-ai-answer__lead {
+  color: #58a6ff;
+  font-weight: 700;
+  font-family: "Malgun Gothic", "Noto Sans KR", "IBM Plex Sans KR", "Pretendard", system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+html[data-theme="light"] .dict-result-card__body.quiz-ai-answer .quiz-ai-answer__lead {
+  color: #1f6feb;
+}
+
+.dict-result-card__body.quiz-ai-answer .quiz-ai-answer__accent {
+  color: var(--success);
+  font-weight: 800;
+}
+
+html[data-theme="light"] .dict-result-card__body.quiz-ai-answer .quiz-ai-answer__accent {
+  color: var(--accent-dim);
+}
+
 .dict-result-card__foot {
   margin: 0.65rem 0 0;
   font-size: 0.78rem;
@@ -1652,9 +1673,25 @@ body {
   color: var(--text);
 }
 
-.case-result-card__text.quiz-ai-answer .quiz-ai-answer__lead,
+/* 판례 본문: 관리자 **·^^·라벨 마크업은 전역과 동일(파랑/녹색). 예전 본문색 덮어쓰기 제거. */
+.case-result-card__text.quiz-ai-answer .quiz-ai-answer__lead {
+  color: #58a6ff;
+  font-weight: 700;
+  font-family: "Malgun Gothic", "Noto Sans KR", "IBM Plex Sans KR", "Pretendard", system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+html[data-theme="light"] .case-result-card__text.quiz-ai-answer .quiz-ai-answer__lead {
+  color: #1f6feb;
+}
+
 .case-result-card__text.quiz-ai-answer .quiz-ai-answer__accent {
-  color: var(--text);
+  color: var(--success);
+  font-weight: 800;
+}
+
+html[data-theme="light"] .case-result-card__text.quiz-ai-answer .quiz-ai-answer__accent {
+  color: var(--accent-dim);
 }
 
 .case-result-card__ox-list {
@@ -1717,6 +1754,26 @@ body {
 
 .case-result-card__ox-explain.quiz-ai-answer {
   color: var(--text);
+}
+
+.case-result-card__ox-explain.quiz-ai-answer .quiz-ai-answer__lead {
+  color: #58a6ff;
+  font-weight: 700;
+  font-family: "Malgun Gothic", "Noto Sans KR", "IBM Plex Sans KR", "Pretendard", system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+html[data-theme="light"] .case-result-card__ox-explain.quiz-ai-answer .quiz-ai-answer__lead {
+  color: #1f6feb;
+}
+
+.case-result-card__ox-explain.quiz-ai-answer .quiz-ai-answer__accent {
+  color: var(--success);
+  font-weight: 800;
+}
+
+html[data-theme="light"] .case-result-card__ox-explain.quiz-ai-answer .quiz-ai-answer__accent {
+  color: var(--accent-dim);
 }
 
 .dict-ox-section {
@@ -3542,6 +3599,27 @@ body {
   white-space: pre-wrap;
 }
 
+/* 퀴즈 지문(리치 HTML): 해설·사전과 동일 — 라벨·^^ 파랑, ** 녹색 */
+#q-text .quiz-ai-answer__lead {
+  color: #58a6ff;
+  font-weight: 700;
+  font-family: "Malgun Gothic", "Noto Sans KR", "IBM Plex Sans KR", "Pretendard", system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+html[data-theme="light"] #q-text .quiz-ai-answer__lead {
+  color: #1f6feb;
+}
+
+#q-text .quiz-ai-answer__accent {
+  color: var(--success);
+  font-weight: 800;
+}
+
+html[data-theme="light"] #q-text .quiz-ai-answer__accent {
+  color: var(--accent-dim);
+}
+
 .q-actions {
   display: flex;
   gap: 0.75rem;
@@ -3557,9 +3635,17 @@ body {
   display: flex;
   flex-direction: column;
   /* 퀴즈 카드 안에서도 편집 영역을 넓게: 상·하 여백만 남기고 뷰포트 높이 활용 */
-  max-height: min(calc(100dvh - 3.5rem), 58rem);
+  max-height: min(calc(100dvh - 2rem), 62rem);
   min-height: 0;
   box-sizing: border-box;
+}
+
+/* max-height만 있으면 flex 세로 높이가 불명확해 하단(저장)이 패널 밖으로 나가 뒤쪽 O/X와 겹칠 수 있음 */
+.quiz-admin-editor:not([hidden]) {
+  height: min(calc(100dvh - 2rem), 62rem);
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 /* 관리자 수정: 긴 해설 입력 시 세로 스크롤 최소화 */
@@ -3576,7 +3662,7 @@ body {
 }
 
 #quiz-admin-detail-body {
-  min-height: min(42dvh, 28rem);
+  min-height: min(48dvh, 32rem);
   resize: vertical;
   max-height: none;
 }
@@ -3586,10 +3672,10 @@ body {
   display: none !important;
 }
 
-/* 스크롤되는 편집 구역(빨간 박스 취지): 뷰포트의 큰 비율을 최소로 확보 */
+/* 스크롤되는 편집 구역: 부모 max-height 안에서 남는 높이를 모두 사용 */
 .quiz-admin-editor__fields {
   flex: 1 1 auto;
-  min-height: min(72dvh, 46rem);
+  min-height: 0;
   min-width: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -3644,6 +3730,19 @@ body {
   text-align: center;
 }
 
+.quiz-memo__draw-section-toggle {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+  text-align: center;
+  margin-bottom: 0.35rem;
+}
+
+.quiz-memo__draw-detail:not([hidden]) {
+  display: block;
+}
+
 .quiz-memo__body {
   margin-top: 0.65rem;
 }
@@ -3665,6 +3764,10 @@ body {
 
 .quiz-memo__subhead--draw {
   margin: 0.55rem 0 0.4rem;
+}
+
+.quiz-memo__draw-detail > .quiz-memo__subhead--draw:first-child {
+  margin-top: 0;
 }
 
 .quiz-memo__split-actions {
@@ -4051,6 +4154,26 @@ body {
 
 .feedback-detail__rich-html .quiz-ai-answer__section {
   margin: 1em 0 0.5em;
+}
+
+.feedback-detail__rich-html .quiz-ai-answer__lead {
+  color: #58a6ff;
+  font-weight: 700;
+  font-family: "Malgun Gothic", "Noto Sans KR", "IBM Plex Sans KR", "Pretendard", system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+html[data-theme="light"] .feedback-detail__rich-html .quiz-ai-answer__lead {
+  color: #1f6feb;
+}
+
+.feedback-detail__rich-html .quiz-ai-answer__accent {
+  color: var(--success);
+  font-weight: 800;
+}
+
+html[data-theme="light"] .feedback-detail__rich-html .quiz-ai-answer__accent {
+  color: var(--accent-dim);
 }
 
 .feedback-detail__empty {
@@ -4833,6 +4956,26 @@ p.hanlaw-para-gap {
 /* 기본 해설: 블록 기본(.feedback__block-body)은 muted — 상세(.feedback-detail__rich-html)와 동일 본문색으로 맞춤 */
 #feedback-explain.quiz-ai-answer {
   color: var(--text);
+}
+
+#feedback-explain.quiz-ai-answer .quiz-ai-answer__lead {
+  color: #58a6ff;
+  font-weight: 700;
+  font-family: "Malgun Gothic", "Noto Sans KR", "IBM Plex Sans KR", "Pretendard", system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+html[data-theme="light"] #feedback-explain.quiz-ai-answer .quiz-ai-answer__lead {
+  color: #1f6feb;
+}
+
+#feedback-explain.quiz-ai-answer .quiz-ai-answer__accent {
+  color: var(--success);
+  font-weight: 800;
+}
+
+html[data-theme="light"] #feedback-explain.quiz-ai-answer .quiz-ai-answer__accent {
+  color: var(--accent-dim);
 }
 
 /* AI·사전 본문: 단락(<p>)과 목록 항목(__item)의 줄간격·단락 간격을 동일 계열로 맞춤 */

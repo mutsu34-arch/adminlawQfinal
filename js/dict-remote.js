@@ -73,6 +73,40 @@
     };
   }
 
+  function normTermKeyForMerge(s) {
+    return String(s || "")
+      .trim()
+      .replace(/[\s.\-·]/g, "")
+      .toLowerCase();
+  }
+
+  /** 용어 저장 직후 onSnapshot보다 먼저 클라이언트 목록을 맞출 때 사용 */
+  window.upsertLegalTermRemote = function (mapped) {
+    if (!mapped || !mapped.term) return;
+    if (!Array.isArray(window.LEGAL_TERMS_REMOTE)) window.LEGAL_TERMS_REMOTE = [];
+    var id = String(mapped._docId || "").trim();
+    var k = normTermKeyForMerge(mapped.term);
+    var arr = window.LEGAL_TERMS_REMOTE;
+    var replaced = false;
+    var i;
+    for (i = 0; i < arr.length; i++) {
+      var x = arr[i];
+      if (!x) continue;
+      if (id && String(x._docId || "") === id) {
+        arr[i] = mapped;
+        replaced = true;
+        break;
+      }
+      if (k && normTermKeyForMerge(x.term) === k) {
+        arr[i] = mapped;
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) arr.push(mapped);
+    window.dispatchEvent(new CustomEvent("dict-remote-updated"));
+  };
+
   /**
    * 조문 저장 직후 onSnapshot보다 먼저 목록을 갱신할 때 사용.
    * 정적 키(statuteKey) 또는 문서 ID로 기존 항목을 덮어쓴다.

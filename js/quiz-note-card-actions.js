@@ -92,6 +92,16 @@
     window.__HANLAW_QUIZ_AI_CONTEXT = buildQuizAiContext(q, userTrue);
   }
 
+  function setNoteMemoDrawSectionOpen(wrap, open) {
+    if (!wrap) return;
+    var det = wrap.querySelector("[data-note-memo-draw-detail]");
+    var tbtn = wrap.querySelector("[data-note-memo-draw-section-toggle]");
+    if (!det || !tbtn) return;
+    det.hidden = !open;
+    tbtn.setAttribute("aria-expanded", open ? "true" : "false");
+    tbtn.textContent = open ? "손글씨 숨기기" : "손글씨 쓰기";
+  }
+
   function refreshFavMasterOnCard(article, q) {
     if (!article || !q) return;
     var fav = article.querySelector(".note-quiz-chrome__fav");
@@ -155,6 +165,7 @@
       msg.textContent = "";
       msg.hidden = true;
     }
+    setNoteMemoDrawSectionOpen(wrap, false);
     syncMemoLoginClass(article);
   }
 
@@ -294,9 +305,28 @@
         body.hidden = !nextOpen;
         toggle.setAttribute("aria-expanded", nextOpen ? "true" : "false");
         toggle.textContent = nextOpen ? "나의 메모 (암기·팁) 접기" : "나의 메모 (암기·팁) 펼치기";
+        if (!nextOpen) setNoteMemoDrawSectionOpen(wrap, false);
         if (nextOpen && ta) {
           try {
             ta.focus();
+          } catch (e) {}
+        }
+      });
+    }
+
+    var drawSectionToggle = wrap.querySelector("[data-note-memo-draw-section-toggle]");
+    var drawSectionDetail = wrap.querySelector("[data-note-memo-draw-detail]");
+    if (drawSectionToggle && drawSectionDetail) {
+      drawSectionToggle.addEventListener("click", function () {
+        var o = !!drawSectionDetail.hidden;
+        setNoteMemoDrawSectionOpen(wrap, o);
+        if (o) {
+          try {
+            window.requestAnimationFrame(function () {
+              try {
+                window.dispatchEvent(new Event("resize"));
+              } catch (e2) {}
+            });
           } catch (e) {}
         }
       });
@@ -479,6 +509,12 @@
       '<textarea class="input textarea quiz-memo__textarea" rows="3" maxlength="8000" placeholder="암기 팁, 함정, 직접 정리한 요점 등을 적어 보세요." aria-label="텍스트 메모"></textarea>' +
       "</div>" +
       '<div class="quiz-memo__panel quiz-memo__panel--draw">' +
+      '<button type="button" class="btn btn--outline btn--small quiz-memo__draw-section-toggle" data-note-memo-draw-section-toggle="1" aria-expanded="false" aria-controls="' +
+      suid +
+      '-draw-detail">손글씨 쓰기</button>' +
+      '<div class="quiz-memo__draw-detail" data-note-memo-draw-detail="1" id="' +
+      suid +
+      '-draw-detail" hidden>' +
       '<p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>' +
       '<div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">' +
       '<button type="button" class="btn btn--outline btn--small quiz-memo__split-actions-btn" data-note-memo-draw-settings-toggle="1" aria-expanded="false" aria-controls="' +
@@ -505,7 +541,7 @@
       '<option value="7">굵게</option><option value="12">아주 굵게</option></select></label></div></div>' +
       '<p class="quiz-memo__draw-hint">마우스나 손가락으로 그려 보세요. 넓은 판은 가로·세로로 스크롤하여 이용할 수 있습니다. 저장한 뒤에는 덧그리지 않도록 잠기며, 바꾸려면 「손글씨 수정」을 누르세요.</p>' +
       '<div class="quiz-memo__canvas-scroll" tabindex="0" aria-label="손글씨 그리기 영역 (스크롤하여 이동)">' +
-      '<canvas class="quiz-memo__canvas" width="1800" height="1350"></canvas></div></div>' +
+      '<canvas class="quiz-memo__canvas" width="1800" height="1350"></canvas></div></div></div>' +
       '<div class="quiz-memo__save-row">' +
       '<button type="button" class="btn btn--secondary btn--small" data-note-memo-save="1">메모 저장</button>' +
       '<span class="quiz-memo__msg" data-note-memo-msg="1" hidden role="status"></span></div></div>';

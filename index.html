@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css?v=20260502-quiz-admin-fields-tall" />
+  <link rel="stylesheet" href="/css/style.css?v=20260502-memo-draw-toggle" />
 </head>
 <body>
   <div class="app">
@@ -642,6 +642,16 @@
                       ></textarea>
                     </div>
                     <div id="quiz-memo-draw-wrap" class="quiz-memo__panel quiz-memo__panel--draw">
+                      <button
+                        type="button"
+                        class="btn btn--outline btn--small quiz-memo__draw-section-toggle"
+                        id="quiz-memo-draw-toggle"
+                        aria-expanded="false"
+                        aria-controls="quiz-memo-draw-detail"
+                      >
+                        손글씨 쓰기
+                      </button>
+                      <div id="quiz-memo-draw-detail" class="quiz-memo__draw-detail" hidden>
                       <p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>
                       <div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">
                         <button
@@ -716,6 +726,7 @@
                         aria-label="손글씨 그리기 영역 (스크롤하여 이동)"
                       >
                         <canvas id="quiz-memo-canvas" class="quiz-memo__canvas" width="1800" height="1350"></canvas>
+                      </div>
                       </div>
                     </div>
                     <div class="quiz-memo__save-row">
@@ -997,6 +1008,16 @@
                     ></textarea>
                   </label>
                   <div class="dict-memo-draw">
+                    <button
+                      type="button"
+                      class="btn btn--outline btn--small quiz-memo__draw-section-toggle"
+                      id="dict-term-memo-draw-toggle"
+                      aria-expanded="false"
+                      aria-controls="dict-term-memo-draw-detail"
+                    >
+                      손글씨 쓰기
+                    </button>
+                    <div id="dict-term-memo-draw-detail" class="quiz-memo__draw-detail" hidden>
                     <p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>
                     <div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">
                       <button
@@ -1066,6 +1087,7 @@
                     </p>
                     <div class="quiz-memo__canvas-scroll" tabindex="0" aria-label="손글씨 그리기 영역 (스크롤하여 이동)">
                       <canvas id="dict-term-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="1800" height="1350"></canvas>
+                    </div>
                     </div>
                   </div>
                   <div class="dict-memo-panel__actions">
@@ -1160,6 +1182,16 @@
                     ></textarea>
                   </label>
                   <div class="dict-memo-draw">
+                    <button
+                      type="button"
+                      class="btn btn--outline btn--small quiz-memo__draw-section-toggle"
+                      id="dict-statute-memo-draw-toggle"
+                      aria-expanded="false"
+                      aria-controls="dict-statute-memo-draw-detail"
+                    >
+                      손글씨 쓰기
+                    </button>
+                    <div id="dict-statute-memo-draw-detail" class="quiz-memo__draw-detail" hidden>
                     <p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>
                     <div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">
                       <button
@@ -1229,6 +1261,7 @@
                     </p>
                     <div class="quiz-memo__canvas-scroll" tabindex="0" aria-label="손글씨 그리기 영역 (스크롤하여 이동)">
                       <canvas id="dict-statute-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="1800" height="1350"></canvas>
+                    </div>
                     </div>
                   </div>
                   <div class="dict-memo-panel__actions">
@@ -1313,6 +1346,16 @@
                     ></textarea>
                   </label>
                   <div class="dict-memo-draw">
+                    <button
+                      type="button"
+                      class="btn btn--outline btn--small quiz-memo__draw-section-toggle"
+                      id="dict-case-memo-draw-toggle"
+                      aria-expanded="false"
+                      aria-controls="dict-case-memo-draw-detail"
+                    >
+                      손글씨 쓰기
+                    </button>
+                    <div id="dict-case-memo-draw-detail" class="quiz-memo__draw-detail" hidden>
                     <p class="quiz-memo__subhead quiz-memo__subhead--draw">손글씨</p>
                     <div class="quiz-memo__split-actions" role="group" aria-label="손글씨 도구">
                       <button
@@ -1382,6 +1425,7 @@
                     </p>
                     <div class="quiz-memo__canvas-scroll" tabindex="0" aria-label="손글씨 그리기 영역 (스크롤하여 이동)">
                       <canvas id="dict-case-memo-canvas" class="quiz-memo__canvas dict-memo-canvas" width="1800" height="1350"></canvas>
+                    </div>
                     </div>
                   </div>
                   <div class="dict-memo-panel__actions">
@@ -3334,7 +3378,7 @@
   <script src="/js/statute-articles-static.js"></script>
   <script src="/js/case-ox-form.js?v=3"></script>
   <script src="/js/dict-favorites.js?v=1"></script>
-  <script src="/js/dict-panels.js?v=68"></script>
+  <script src="/js/dict-panels.js?v=69"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -3342,7 +3386,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="/js/firebase-config.js?v=20260414"></script>
   <script src="/js/auth-bridge.js"></script>
-  <script src="/js/firestore-db.js?v=21"></script>
+  <script src="/js/firestore-db.js?v=22"></script>
   <script src="/js/ai-config.js"></script>
   <script src="/js/tickets-service.js?v=14"></script>
   <script src="/js/pricing-display-config.js?v=1"></script>
@@ -3350,9 +3394,9 @@
   <script src="/js/portone-checkout.js?v=7"></script>
   <script src="/js/auth.js?v=5"></script>
   <script src="/js/user-profile.js?v=20260419"></script>
-  <script src="/js/dict-remote.js?v=5"></script>
+  <script src="/js/dict-remote.js?v=6"></script>
   <script src="/js/statute-tag.js"></script>
-  <script src="/js/tag-dict-modal.js?v=8"></script>
+  <script src="/js/tag-dict-modal.js?v=9"></script>
   <script src="/js/member-tier.js?v=4"></script>
   <script>
     window.HANLAW_ADSENSE_DETAIL = window.HANLAW_ADSENSE_DETAIL || {
@@ -3383,11 +3427,11 @@
   <script src="/js/quiz-wrong-note.js?v=5"></script>
   <script src="/js/quiz-master.js?v=2"></script>
   <script src="/js/quiz-favorites.js?v=6"></script>
-  <script src="/js/app.js?v=65"></script>
+  <script src="/js/app.js?v=67"></script>
   <script src="/js/scope-favorites.js?v=9"></script>
   <script src="/js/ticket-modal.js?v=15"></script>
-  <script src="/js/dict-panel-actions.js?v=10"></script>
-  <script src="/js/quiz-note-card-actions.js?v=7"></script>
+  <script src="/js/dict-panel-actions.js?v=11"></script>
+  <script src="/js/quiz-note-card-actions.js?v=8"></script>
   <script src="/js/notifications-ui.js?v=4"></script>
   <script src="/js/admin-panel.js?v=2"></script>
   <script src="/js/admin-quiz-create.js?v=19"></script>

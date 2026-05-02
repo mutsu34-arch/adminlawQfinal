@@ -52,6 +52,7 @@
     if (el.quizAdminEditor && !adminOn) {
       el.quizAdminEditor.hidden = true;
       el.quizAdminEditor.style.display = "none";
+      if (el.qActions) el.qActions.hidden = false;
     }
   }
 
@@ -195,7 +196,7 @@
     });
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 12;
+  var QUIZ_ADMIN_EDITOR_VER = 13;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -311,6 +312,7 @@
       var q = state.list[state.index];
       if (!q || !isAdminUser()) return;
       fillEditorFromQuestion(q);
+      if (el.qActions) el.qActions.hidden = true;
       editor.style.display = "";
       editor.hidden = false;
       requestAnimationFrame(function () {
@@ -375,6 +377,7 @@
     function closeQuizAdminEditor() {
       editor.hidden = true;
       editor.style.display = "none";
+      if (el.qActions) el.qActions.hidden = false;
     }
     function runQuizAdminSave() {
       var q = state.list[state.index];
@@ -1628,6 +1631,15 @@
     applyQuizMemoDrawingLock(false);
   }
 
+  function setQuizMemoDrawSectionOpen(open) {
+    var det = document.getElementById("quiz-memo-draw-detail");
+    var tbtn = document.getElementById("quiz-memo-draw-toggle");
+    if (!det || !tbtn) return;
+    det.hidden = !open;
+    tbtn.setAttribute("aria-expanded", open ? "true" : "false");
+    tbtn.textContent = open ? "손글씨 숨기기" : "손글씨 쓰기";
+  }
+
   function setQuizMemoPanelOpen(open) {
     if (!el.quizMemoBody || !el.quizMemoPanelToggle) return;
     el.quizMemoBody.hidden = !open;
@@ -1635,6 +1647,7 @@
     el.quizMemoPanelToggle.textContent = open
       ? "나의 메모 (암기·팁) 접기"
       : "나의 메모 (암기·팁) 펼치기";
+    setQuizMemoDrawSectionOpen(false);
   }
 
   function syncQuizMemoForQuestion(q) {
@@ -1717,6 +1730,23 @@
         if (nextOpen && el.quizMemoText) {
           try {
             el.quizMemoText.focus();
+          } catch (e) {}
+        }
+      });
+    }
+    var drawSectionToggle = document.getElementById("quiz-memo-draw-toggle");
+    var drawSectionDetail = document.getElementById("quiz-memo-draw-detail");
+    if (drawSectionToggle && drawSectionDetail) {
+      drawSectionToggle.addEventListener("click", function () {
+        var next = !!drawSectionDetail.hidden;
+        setQuizMemoDrawSectionOpen(next);
+        if (next) {
+          try {
+            window.requestAnimationFrame(function () {
+              try {
+                window.dispatchEvent(new Event("resize"));
+              } catch (e2) {}
+            });
           } catch (e) {}
         }
       });
@@ -2127,6 +2157,7 @@
     if (el.quizAdminEditor) {
       el.quizAdminEditor.hidden = true;
       el.quizAdminEditor.style.display = "none";
+      if (el.qActions) el.qActions.hidden = false;
     }
     window.__QUIZ_QUESTION_CONTEXT = {
       questionId: q.id,

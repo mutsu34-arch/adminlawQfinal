@@ -14,10 +14,39 @@
     return sa.localeCompare(sb, "ko-KR");
   }
 
+  /**
+   * 번들(LEGAL_TERMS_DATA)과 Firestore(LEGAL_TERMS_REMOTE)에 같은 표제어가 있으면
+   * 관리자가 수정한 원격 항목(_docId 있음)을 검색·표시에 사용한다.
+   */
+  function dedupeTermsPreferRemote(list) {
+    var byKey = {};
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (!t || !t.term) continue;
+      var k = norm(t.term);
+      if (!k) continue;
+      var existing = byKey[k];
+      if (!existing) {
+        byKey[k] = t;
+        continue;
+      }
+      var tRemote = !!t._docId;
+      var eRemote = !!existing._docId;
+      if (tRemote && !eRemote) {
+        byKey[k] = t;
+      } else if (tRemote && eRemote) {
+        byKey[k] = t;
+      }
+    }
+    return Object.keys(byKey).map(function (key) {
+      return byKey[key];
+    });
+  }
+
   function getTerms() {
     var a = window.LEGAL_TERMS_DATA || [];
     var b = window.LEGAL_TERMS_REMOTE || [];
-    return a.concat(b);
+    return dedupeTermsPreferRemote(a.concat(b));
   }
 
   function getCases() {
@@ -2125,6 +2154,23 @@
             docId
           )
           .then(function () {
+            var resolvedDocId = String(docId || "").trim();
+            if (!resolvedDocId && typeof window.normalizeHanlawTermDocId === "function") {
+              resolvedDocId = window.normalizeHanlawTermDocId(nextTerm);
+            }
+            if (typeof window.upsertLegalTermRemote === "function") {
+              window.upsertLegalTermRemote({
+                _docId: resolvedDocId,
+                term: nextTerm,
+                aliases: nextAliases,
+                definition: nextDef,
+                source: "",
+                sourceTag: "",
+                normSourceTag: "",
+                tagAliases: [],
+                oxQuizzes: oxList
+              });
+            }
             closeDictTermEditModal();
             runTermSearch();
           })

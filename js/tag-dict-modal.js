@@ -70,14 +70,14 @@
       localList = Array.isArray(window.STATUTE_ARTICLE_ENTRIES) ? window.STATUTE_ARTICLE_ENTRIES : [];
       remoteList = Array.isArray(window.LEGAL_STATUTES_REMOTE) ? window.LEGAL_STATUTES_REMOTE : [];
     }
-    for (var i = 0; i < localList.length; i++) {
-      if (isExplicitTagLinkedRecord(localList[i], normKey, kind)) {
-        return { source: "dictionary", record: localList[i] };
-      }
-    }
     for (var j = 0; j < remoteList.length; j++) {
       if (isExplicitTagLinkedRecord(remoteList[j], normKey, kind)) {
         return { source: "remote-tag", record: remoteList[j] };
+      }
+    }
+    for (var i = 0; i < localList.length; i++) {
+      if (isExplicitTagLinkedRecord(localList[i], normKey, kind)) {
+        return { source: "dictionary", record: localList[i] };
       }
     }
     return null;

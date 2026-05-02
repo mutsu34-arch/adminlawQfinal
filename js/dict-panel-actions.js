@@ -54,6 +54,16 @@
   /** 전부 지우기로 캔버스를 비운 뒤에는 저장 시 기존 손글씨를 되살리지 않음 */
   var dictMemoDrawingUserCleared = { term: false, statute: false, case: false };
 
+  function setDictMemoDrawSectionOpen(kind, open) {
+    var pre = "dict-" + kind + "-memo";
+    var det = $(pre + "-draw-detail");
+    var tbtn = $(pre + "-draw-toggle");
+    if (!det || !tbtn) return;
+    det.hidden = !open;
+    tbtn.setAttribute("aria-expanded", open ? "true" : "false");
+    tbtn.textContent = open ? "손글씨 숨기기" : "손글씨 쓰기";
+  }
+
   function ensureMemoCanvasApi(kind) {
     if (dictMemoCanvasApi[kind]) return dictMemoCanvasApi[kind];
     if (!window.QuizQuestionMemo || typeof window.QuizQuestionMemo.attachDrawingCanvas !== "function") {
@@ -340,6 +350,7 @@
         updateDictMemoToolUi(kind);
       }
       applyDictMemoDrawingLock(kind, false);
+      setDictMemoDrawSectionOpen(kind, false);
       return;
     }
     var m = loadMemoEntry(key);
@@ -357,6 +368,7 @@
     }
     var hasDrawingSaved = !!(m.drawing && String(m.drawing).indexOf("data:image") === 0);
     applyDictMemoDrawingLock(kind, hasDrawingSaved);
+    setDictMemoDrawSectionOpen(kind, false);
   }
 
   function setMemoMsg(kind, text, isError) {
@@ -452,6 +464,9 @@
         }
         panelMemo.hidden = !wasHidden;
         toggleMemo.setAttribute("aria-expanded", wasHidden ? "true" : "false");
+        if (!wasHidden) {
+          setDictMemoDrawSectionOpen(kind, false);
+        }
         if (wasHidden) {
           refreshMemoFieldsForKind(kind);
         }
@@ -524,6 +539,23 @@
     window.__hanlawDictMemoDrawingToolsBound = true;
     ["term", "statute", "case"].forEach(function (kind) {
       var pre = "dict-" + kind + "-memo";
+      var sectionToggle = $(pre + "-draw-toggle");
+      var sectionDetail = $(pre + "-draw-detail");
+      if (sectionToggle && sectionDetail) {
+        sectionToggle.addEventListener("click", function () {
+          var o = !!sectionDetail.hidden;
+          setDictMemoDrawSectionOpen(kind, o);
+          if (o) {
+            try {
+              window.requestAnimationFrame(function () {
+                try {
+                  window.dispatchEvent(new Event("resize"));
+                } catch (e) {}
+              });
+            } catch (e2) {}
+          }
+        });
+      }
       var settingsToggle = $(pre + "-draw-settings-toggle");
       var settingsPanel = $(pre + "-draw-settings");
       if (settingsToggle && settingsPanel) {

@@ -113,6 +113,11 @@
     return normalizeDocId(statuteKey, "statute");
   };
 
+  /** 용어 표제어 → hanlaw_dict_terms 문서 ID(saveTermEntryToFirestore와 동일) */
+  window.normalizeHanlawTermDocId = function (raw) {
+    return normalizeDocId(raw, "term");
+  };
+
   window.loadRemoteQuestions = function () {
     var db = getDb();
     if (!db) {
