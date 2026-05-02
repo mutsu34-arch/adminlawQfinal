@@ -1900,6 +1900,327 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
   }
 );
 
+const EXPECTED_STATEMENTS_MAX = 80;
+const EXPECTED_STATEMENTS_CHUNK = 12;
+
+/**
+ * 관리자가 입력한 OX 판단문(여러 개)마다 자료실 RAG를 근거로 정답·해설 등을 생성해 검수대기에 등록한다.
+ */
+exports.adminGenerateExpectedQuizFromStatements = onCall(
+  { region: "asia-northeast3", timeoutSeconds: 540, memory: "1GiB" },
+  async (request) => {
+    assertAdminCallable(request);
+    const data = request.data || {};
+    const userPrompt = String(data.prompt || "").trim();
+    const fastMode = data.fastMode !== false;
+    const fileIds = Array.isArray(data.fileIds)
+      ? data.fileIds.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 30)
+      : [];
+    let statements = Array.isArray(data.statements)
+      ? data.statements.map((x) => String(x || "").trim()).filter(Boolean)
+      : [];
+    if (!statements.length) {
+      throw new HttpsError("invalid-argument", "문장 목록(statements)이 비어 있습니다.");
+    }
+    if (statements.length > EXPECTED_STATEMENTS_MAX) {
+      throw new HttpsError(
+        "invalid-argument",
+        "한 번에 처리할 문장은 최대 " + EXPECTED_STATEMENTS_MAX + "개입니다."
+      );
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    if (!apiKey) {
+      throw new HttpsError("failed-precondition", "서버에 GEMINI_API_KEY가 설정되지 않았습니다.");
+    }
+
+    const deduped = [];
+    const seenNorm = new Set();
+    for (let si = 0; si < statements.length; si++) {
+      const raw = String(statements[si] || "").trim();
+      if (!raw) continue;
+      const norm = normalizeStatementForDedupe(raw);
+      if (!norm) continue;
+      if (seenNorm.has(norm)) continue;
+      seenNorm.add(norm);
+      deduped.push(raw);
+    }
+    if (!deduped.length) {
+      throw new HttpsError("invalid-argument", "유효한 문장이 없습니다.");
+    }
+
+    const t0 = Date.now();
+    const queryHint =
+      (userPrompt || "행정법 OX 문항, 자료 근거로 정답·해설 작성") +
+      "\n\n" +
+      deduped
+        .slice(0, 12)
+        .map((s, i) => i + 1 + ". " + s)
+        .join("\n");
+    let ragContext = "";
+    try {
+      ragContext = await retrieveLibraryContextForQuiz(
+        queryHint,
+        { topic: "행정법 교과서 예상문제", statement: String(deduped[0] || "").slice(0, 800) },
+        fileIds.length ? { fileIds } : undefined
+      );
+    } catch (e) {
+      console.warn("adminGenerateExpectedQuizFromStatements RAG", e && e.message);
+    }
+    if (!String(ragContext || "").trim()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "자료실 컨텍스트를 찾지 못했습니다. 파일을 선택하고 학습이 '완료'된 뒤 다시 시도하세요."
+      );
+    }
+
+    const modelId = effectiveGeminiModelId();
+    const existingExpectedNormals = await collectExistingExpectedStatements();
+    const nearDupPool = existingExpectedNormals.slice(0, 3000);
+    const normalizedSet = new Set();
+    const mergedForReview = [];
+    const failRows = [];
+    const ragSlice = String(ragContext || "").slice(0, 16000);
+    const styleBlock = userPrompt
+      ? "[편집 지시]\n" + userPrompt.slice(0, 4000)
+      : "[편집 지시]\n자료실 발췌를 근거로 각 문장의 참·거짓을 판정하고, 수험용 해설을 작성하세요.";
+
+    let globalIndex = 0;
+    for (let c0 = 0; c0 < deduped.length; c0 += EXPECTED_STATEMENTS_CHUNK) {
+      const chunk = deduped.slice(c0, c0 + EXPECTED_STATEMENTS_CHUNK);
+      const n = chunk.length;
+      const listing = chunk.map((s, i) => "[" + (i + 1) + "] " + s).join("\n");
+      const generationPrompt = [
+        "당신은 행정법 교과서 기반 예상문제 해설 편집자입니다.",
+        "관리자가 지정한 OX 판단문 각각에 대해, 아래 [자료실 발췌]를 근거로 정답과 해설을 작성합니다.",
+        "JSON 배열만 출력. 마크다운/설명/코드블록 금지.",
+        "",
+        "[출력 배열 길이]",
+        "반드시 " + n + "개입니다. 출력 배열의 k번째 원소는 [입력 문장 목록]의 k번째와 1:1 대응합니다.",
+        "",
+        "[출력 각 원소 스키마]",
+        "[",
+        "  {",
+        '    "id": "ai-고유값",',
+        '    "topic": "주제",',
+        '    "statement": "입력과 동일한 판단문(수정 금지)",',
+        '    "answer": true 또는 false,',
+        '    "explanation": "2~5문장 해설",',
+        '    "explanationBasic": "1문장 핵심",',
+        '    "evidenceQuote": "자료실 발췌에서 그대로 옮긴 근거 문장 1개(필수, 12자 이상)",',
+        '    "evidenceHint": "근거 위치 힌트(예: 파일명/쪽수)",',
+        '    "legal": "법령 포인트(선택)",',
+        '    "trap": "함정 포인트(선택)",',
+        '    "precedent": "반드시 빈 문자열",',
+        '    "tags": ["태그1"],',
+        '    "importance": 1~5,',
+        '    "difficulty": 1~5',
+        "  }",
+        "]",
+        "",
+        "[규칙]",
+        "- 각 문장이 참이면 answer=true, 거짓이면 false.",
+        "- evidenceQuote는 반드시 [자료실 발췌(RAG)] 안의 문장을 거의 그대로 복사.",
+        "- 근거 없이 추측하지 마세요. 자료로 판단이 어려우면 보수적으로 answer를 정하고 근거를 명확히 하세요.",
+        "- 보수 모드: precedent는 빈 문자열, 판례 번호를 새로 쓰지 마세요.",
+        "",
+        styleBlock,
+        "",
+        "[입력 문장 목록]",
+        listing,
+        "",
+        "[자료실 발췌(RAG)]",
+        ragSlice
+      ].join("\n");
+
+      let rows = [];
+      try {
+        rows = await generateLibraryQuizRows(apiKey, modelId, generationPrompt);
+      } catch (e) {
+        const em = String((e && e.message) || "모델 호출 실패");
+        for (let j = 0; j < chunk.length; j++) {
+          globalIndex += 1;
+          failRows.push({ index: globalIndex, reason: "청크 생성 실패: " + em });
+        }
+        continue;
+      }
+      if (!Array.isArray(rows) || rows.length !== n) {
+        const reason =
+          !Array.isArray(rows) || !rows.length
+            ? "AI 출력이 비어 있음"
+            : "AI 출력 개수 불일치(기대 " + n + "개, 실제 " + rows.length + "개)";
+        for (let j = 0; j < chunk.length; j++) {
+          globalIndex += 1;
+          failRows.push({ index: globalIndex, reason });
+        }
+        continue;
+      }
+
+      for (let i = 0; i < n; i++) {
+        globalIndex += 1;
+        const userStatement = chunk[i];
+        const r = rows[i] || {};
+        const statement = String(userStatement || "").trim();
+        const norm = normalizeStatementForDedupe(statement);
+        if (!norm) {
+          failRows.push({ index: globalIndex, reason: "statement 비어 있음" });
+          continue;
+        }
+        if (normalizedSet.has(norm)) {
+          failRows.push({ index: globalIndex, reason: "요청 내 중복 문장" });
+          continue;
+        }
+        let nearDup = false;
+        for (let ni = 0; ni < nearDupPool.length; ni++) {
+          if (isNearDuplicateStatement(norm, nearDupPool[ni])) {
+            nearDup = true;
+            break;
+          }
+        }
+        if (nearDup) {
+          failRows.push({ index: globalIndex, reason: "기존 문항과 유사도가 높아 제외됨" });
+          continue;
+        }
+        const evidenceQuote = String(
+          r.evidenceQuote || r.evidence || r.sourceEvidence || r.sourceQuote || ""
+        ).trim();
+        const evidenceHint = String(r.evidenceHint || r.source || "").trim();
+        if (!evidenceQuote) {
+          failRows.push({ index: globalIndex, reason: "근거 문장(evidenceQuote) 누락" });
+          continue;
+        }
+        if (!isEvidenceGroundedInRag(ragContext, evidenceQuote)) {
+          failRows.push({ index: globalIndex, reason: "근거 문장이 자료실 발췌와 불일치" });
+          continue;
+        }
+        const precedentText = String(r.precedent || "").trim();
+        if (precedentText) {
+          failRows.push({ index: globalIndex, reason: "보수 모드에서 판례 포인트는 자동 제외" });
+          continue;
+        }
+        normalizedSet.add(norm);
+        nearDupPool.push(norm);
+        const baseId =
+          String(r.id || "").trim() || "ai-expected-" + Date.now().toString(36) + "-" + globalIndex;
+        const ansGuess = parseBoolLoose(r.answer);
+        mergedForReview.push({
+          id: baseId,
+          topic: String(r.topic || "행정법 예상문제").trim(),
+          statement,
+          answer: ansGuess == null ? false : ansGuess,
+          explanation: String(r.explanation || "").trim(),
+          explanationBasic: String(r.explanationBasic || "").trim(),
+          _raw: r,
+          _statement: statement,
+          _evidenceQuote: evidenceQuote,
+          _evidenceHint: evidenceHint,
+          _globalIndex: globalIndex
+        });
+      }
+    }
+
+    if (!mergedForReview.length) {
+      throw new HttpsError(
+        "failed-precondition",
+        "유효한 예상문제가 생성되지 않았습니다. 자료를 보강하거나 문장을 조정해 주세요."
+      );
+    }
+
+    let aiReviewById = {};
+    try {
+      const reviewPayload = mergedForReview.map((x) => ({
+        id: x.id,
+        topic: x.topic,
+        statement: x.statement,
+        answer: x.answer,
+        explanation: x.explanation,
+        explanationBasic: x.explanationBasic
+      }));
+      aiReviewById = await autoReviewQuizRows(apiKey, modelId, reviewPayload, userPrompt, ragContext);
+    } catch (_) {
+      aiReviewById = {};
+    }
+
+    const email = String(request.auth.token.email || "").toLowerCase();
+    const batch = db.batch();
+    const stagedRows = [];
+    const outYear = new Date().getFullYear();
+
+    for (let i = 0; i < mergedForReview.length; i++) {
+      const item = mergedForReview[i];
+      const r = item._raw || {};
+      const statement = item._statement;
+      const ansRaw = parseBoolLoose(r.answer);
+      const ans = ansRaw == null ? false : ansRaw;
+      const fallback = defaultExplainFromStatement(statement, ans, item.topic || "행정법 예상문제");
+      const evidenceQuote = String(item._evidenceQuote || "").trim();
+      const evidenceHint = String(item._evidenceHint || "").trim();
+      const payload = {
+        id: String(r.id || "").trim() || String(item.id || "").trim(),
+        examId: "expected",
+        year: outYear,
+        exam: "expected",
+        topic: String(item.topic || "행정법 예상문제").trim(),
+        statement,
+        answer: ans,
+        explanation: String(item.explanation || r.explanation || "").trim() || fallback.explanation,
+        explanationBasic:
+          String(item.explanationBasic || r.explanationBasic || "").trim() || fallback.explanationBasic,
+        detail: {
+          legal: String(r.legal || "").trim(),
+          trap: String(r.trap || "").trim(),
+          precedent: "",
+          body: evidenceHint
+            ? "[근거] " + evidenceQuote + "\n\n[근거 위치] " + evidenceHint
+            : "[근거] " + evidenceQuote
+        },
+        tags: Array.isArray(r.tags) ? r.tags.map((x) => String(x || "").trim()).filter(Boolean) : [],
+        importance: parseIntInRange(r.importance, 1, 5) || 3,
+        difficulty: parseIntInRange(r.difficulty, 1, 5) || (fastMode ? 3 : 4)
+      };
+      if (!payload.tags.length) delete payload.tags;
+      {
+        const d = payload.detail || {};
+        if (!d.legal && !d.trap && !d.precedent && !String(d.body || "").trim()) delete payload.detail;
+      }
+      const clean = sanitizeQuizPayload(payload);
+      const ref = db.collection(STAGING_QUIZ_COLLECTION).doc();
+      batch.set(ref, {
+        entityType: "quiz",
+        questionId: clean.id,
+        payload: clean,
+        status: "reviewing",
+        source: "ai-library-expected-statements",
+        changeType: "upsert",
+        createdBy: email,
+        updatedBy: email,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        approvedBy: null,
+        approvedAt: null,
+        rejectReason: "",
+        version: 1,
+        aiReview: aiReviewById[clean.id] || buildDefaultAiReview("quiz")
+      });
+      stagedRows.push(clean);
+    }
+
+    await batch.commit();
+    console.info("adminGenerateExpectedQuizFromStatements phase:done", {
+      staged: stagedRows.length,
+      failCount: failRows.length,
+      elapsedMs: Date.now() - t0
+    });
+    return {
+      ok: true,
+      okCount: stagedRows.length,
+      expectedCount: deduped.length,
+      failRows,
+      items: stagedRows.slice(0, 20)
+    };
+  }
+);
+
 exports.adminGenerateTermsFromLibrary = onCall({ region: "asia-northeast3" }, async (request) => {
   assertAdminCallable(request);
   const data = request.data || {};

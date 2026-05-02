@@ -2361,6 +2361,18 @@
                         placeholder="예: 업로드한 교재를 바탕으로 핵심 개념을 응용한 예상 OX 문제를 만들어줘. (문항/해설은 존댓말로 작성)"
                       ></textarea>
                     </label>
+                    <label class="field">
+                      <span class="field__label">문장 직접 입력 (선택, 쉼표·줄바꿈으로 여러 개)</span>
+                      <textarea
+                        id="admin-quiz-create-expected-statements"
+                        class="input textarea"
+                        rows="4"
+                        placeholder="OX 판단문을 입력하면 AI가 정답·해설·근거를 채웁니다. 여러 줄이면 줄마다 한 문장, 한 줄이면 쉼표로 구분합니다. (예: 처분은 행정청의 법률행위이다, 내부지침은 대외적 효력이 있다)"
+                      ></textarea>
+                    </label>
+                    <p class="admin-json-help" style="margin-top: -0.25rem">
+                      문장을 입력한 뒤 실행하면 문장별로 생성되며, 비우면 위 지시·개수대로 자동 출제됩니다. 문장이 여러 개일 때는 줄바꿈으로 나누는 편이 안전합니다(문장 안에 쉼표가 있을 수 있음).
+                    </p>
                     <div class="dict-case-create-admin__actions" style="margin-top:-0.4rem">
                       <input
                         type="text"

@@ -206,6 +206,20 @@
     return run();
   }
 
+  /** 줄이 2개 이상이면 줄 단위, 한 줄이면 쉼표로 분리(용어사전·판례 입력과 유사) */
+  function splitExpectedStatementsInput(raw) {
+    var s = String(raw || "").trim();
+    if (!s) return [];
+    var lines = s.split(/\r?\n/).map(function (x) {
+      return String(x || "").trim();
+    });
+    var nonEmpty = lines.filter(Boolean);
+    if (nonEmpty.length > 1) return nonEmpty;
+    return s.split(",").map(function (x) {
+      return String(x || "").trim();
+    }).filter(Boolean);
+  }
+
   function splitIntoChunks(arr, size) {
     var src = Array.isArray(arr) ? arr : [];
     var n = Math.max(1, parseInt(size, 10) || 1);
@@ -415,6 +429,9 @@
       promptExpected: String(
         ($("admin-quiz-create-prompt-expected") && $("admin-quiz-create-prompt-expected").value) || ""
       ).trim(),
+      expectedStatements: String(
+        ($("admin-quiz-create-expected-statements") && $("admin-quiz-create-expected-statements").value) || ""
+      ),
       examId: String(($("admin-quiz-create-exam-id") && $("admin-quiz-create-exam-id").value) || "").trim(),
       year: String(($("admin-quiz-create-year") && $("admin-quiz-create-year").value) || "").trim(),
       fastModePast: !!($("admin-quiz-create-fast-mode-past") && $("admin-quiz-create-fast-mode-past").checked),
@@ -429,6 +446,7 @@
     var p = preset || {};
     var promptPastEl = $("admin-quiz-create-prompt-past");
     var promptExpectedEl = $("admin-quiz-create-prompt-expected");
+    var expectedStatementsEl = $("admin-quiz-create-expected-statements");
     var examEl = $("admin-quiz-create-exam-id");
     var yearEl = $("admin-quiz-create-year");
     var fastPastEl = $("admin-quiz-create-fast-mode-past");
@@ -440,6 +458,9 @@
     }
     if (promptExpectedEl && !String(promptExpectedEl.value || "").trim()) {
       promptExpectedEl.value = String(p.promptExpected || legacyPrompt);
+    }
+    if (expectedStatementsEl && p.expectedStatements != null && !String(expectedStatementsEl.value || "").trim()) {
+      expectedStatementsEl.value = String(p.expectedStatements);
     }
     if (examEl && p.examId != null && String(p.examId).trim()) examEl.value = String(p.examId).trim();
     if (yearEl && p.year != null && !String(yearEl.value || "").trim()) yearEl.value = String(p.year);
@@ -459,6 +480,7 @@
     var ids = [
       "admin-quiz-create-prompt-past",
       "admin-quiz-create-prompt-expected",
+      "admin-quiz-create-expected-statements",
       "admin-quiz-create-exam-id",
       "admin-quiz-create-year",
       "admin-quiz-create-fast-mode-past",
@@ -1211,23 +1233,40 @@
     var prompt = String(
       ($("admin-quiz-create-prompt-expected") && $("admin-quiz-create-prompt-expected").value) || ""
     ).trim();
+    var statementList = splitExpectedStatementsInput(
+      ($("admin-quiz-create-expected-statements") && $("admin-quiz-create-expected-statements").value) || ""
+    );
     var toneRule =
       "문체 규칙: 모든 문제 문장, 선택지, 해설은 반드시 존댓말(하십시오체)로 작성합니다. 반말·구어체는 사용하지 않습니다.";
     var promptFinal = prompt;
-    if (prompt && prompt.indexOf("존댓말") < 0 && prompt.indexOf("하십시오체") < 0) {
-      promptFinal = prompt + "\n\n" + toneRule;
+    if (!prompt && statementList.length > 0) {
+      promptFinal =
+        "자료실 발췌를 근거로 각 문장이 참·거짓인지 판정하고, 수험생에게 도움이 되는 해설을 작성합니다.";
+    }
+    if (promptFinal && promptFinal.indexOf("존댓말") < 0 && promptFinal.indexOf("하십시오체") < 0) {
+      promptFinal = promptFinal + "\n\n" + toneRule;
     }
     var fastMode = !!(
       $("admin-quiz-create-fast-mode-expected") && $("admin-quiz-create-fast-mode-expected").checked
     );
     var expectedCount = parseInt(($("admin-quiz-create-expected-count") && $("admin-quiz-create-expected-count").value) || "", 10);
     if (!isFinite(expectedCount)) expectedCount = 30;
-    if (expectedCount < 1 || expectedCount > 200) {
-      return setMsg(msgEl, "예상문제 생성 개수는 1~200 범위로 입력해 주세요.", true);
+    if (!statementList.length) {
+      if (expectedCount < 1 || expectedCount > 200) {
+        return setMsg(msgEl, "예상문제 생성 개수는 1~200 범위로 입력해 주세요.", true);
+      }
+    } else if (statementList.length > 80) {
+      return setMsg(msgEl, "문장 직접 입력은 한 번에 최대 80개까지입니다.", true);
     }
     if (quizGenerationRunning) return setMsg(msgEl, "이미 퀴즈 생성 작업이 진행 중입니다. 잠시만 기다려 주세요.", true);
     if (!isAdminUser(user)) return setMsg(msgEl, "관리자만 사용할 수 있습니다.", true);
-    if (!prompt) return setMsg(msgEl, "생성 지시를 입력해 주세요.", true);
+    if (!statementList.length && !prompt) {
+      return setMsg(
+        msgEl,
+        "생성 지시를 입력하거나, 아래 ‘문장 직접 입력’에 OX 판단문을 넣어 주세요.",
+        true
+      );
+    }
     var selectedIds = dedupeIds(uploadedLibraryIds.concat(selectedExistingLibraryIds));
     if (!selectedIds.length) {
       return setMsg(msgEl, "교과서/자료실 파일을 1개 이상 선택하거나 새 파일을 업로드해 주세요.", true);
@@ -1254,6 +1293,30 @@
           }
         }
         var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+        if (statementList.length) {
+          setMsg(
+            msgEl,
+            "입력 문장 " + statementList.length + "개에 대해 AI가 정답·해설을 생성합니다…",
+            false
+          );
+          var callableSt = firebase
+            .app()
+            .functions(region)
+            .httpsCallable("adminGenerateExpectedQuizFromStatements");
+          return callWithRetry(
+            callableSt,
+            {
+              prompt: promptFinal,
+              statements: statementList,
+              fastMode: fastMode,
+              fileIds: selectedIds
+            },
+            msgEl,
+            function (suffix) {
+              return "문장별 예상문제 · " + suffix;
+            }
+          );
+        }
         var callable = firebase.app().functions(region).httpsCallable("adminGenerateExpectedQuizFromLibrary");
         var map = {};
         for (var di = 0; di < docs.length; di++) {
