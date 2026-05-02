@@ -136,7 +136,7 @@
   function formatLineWithHeadLabel(line) {
     var raw = String(line || "").replace(/\s+$/, "");
     var m = raw.match(
-      /^\s*(법리\s*근거|함정\s*포인트|판례(?:\s*요지)?|개념|법적\s*지위|적용\s*예시|판단\s*기준)\s*[:：]\s*(.*)$/
+      /^\s*(법리\s*근거|함정\s*포인트|판례(?:\s*요지)?|암기\s*팁|개념|법적\s*지위|적용\s*예시|판단\s*기준)\s*[:：]\s*(.*)$/
     );
     if (!m) return formatInline(raw);
     var head = String(m[1] || "").replace(/\s+/g, " ").trim();
@@ -194,7 +194,11 @@
       var onlyOnePhysicalLine = lines.length === 1;
       var one = onlyOnePhysicalLine ? String(lines[0] || "").trim() : "";
       // 긴 한 줄 문장은 문장 단위로 끊어 단락을 분리해 가독성을 높인다.
-      if (onlyOnePhysicalLine && one.length >= 110 && !/^\s*(법리\s*근거|함정\s*포인트|판례|개념|법적\s*지위)\s*[:：]/.test(one)) {
+      if (
+        onlyOnePhysicalLine &&
+        one.length >= 110 &&
+        !/^\s*(법리\s*근거|함정\s*포인트|판례|암기\s*팁|개념|법적\s*지위)\s*[:：]/.test(one)
+      ) {
         var sentenceLines = splitReadableSentences(one);
         if (sentenceLines.length >= 2) {
           sentenceLines.forEach(function (sline) {

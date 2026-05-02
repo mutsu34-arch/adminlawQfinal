@@ -134,19 +134,19 @@
 
   /**
    * @param {HTMLElement} container
-   * @param {{ detail: object }} q
-   * @param {function(HTMLElement, object): void} buildDetailBlocks — (container, detailObject)
+   * @param {{ detail?: object, explanation?: string, explanationBasic?: string }} q
+   * @param {function(HTMLElement, object|undefined, object): void} buildDetailBlocks — (container, detail, q)
    */
   function render(container, q, buildDetailBlocks) {
-    if (!container || !q || !q.detail) return;
+    if (!container || !q) return;
     if (typeof buildDetailBlocks !== "function") return;
 
     if (typeof window.isPaidMember === "function" && window.isPaidMember()) {
-      buildDetailBlocks(container, q.detail);
+      buildDetailBlocks(container, q.detail, q);
       return;
     }
     if (canViewDetail()) {
-      buildDetailBlocks(container, q.detail);
+      buildDetailBlocks(container, q.detail, q);
       return;
     }
 
@@ -195,7 +195,7 @@
     container.appendChild(wrap);
 
     function applyDetail() {
-      buildDetailBlocks(container, q.detail);
+      buildDetailBlocks(container, q.detail, q);
     }
 
     if (!cfg.client || !cfg.slot) {

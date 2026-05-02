@@ -149,6 +149,7 @@
     if (String(d.legal || "").trim()) parts.push("법리 근거: " + String(d.legal).trim());
     if (String(d.trap || "").trim()) parts.push("함정 포인트: " + String(d.trap).trim());
     if (String(d.precedent || "").trim()) parts.push("판례: " + String(d.precedent).trim());
+    if (String(d.memoTip || "").trim()) parts.push("암기 팁: " + String(d.memoTip).trim());
     return parts.join("\n\n");
   }
 
@@ -596,6 +597,7 @@
     if (normalizeExplainText(detail.legal).length > 0) return true;
     if (normalizeExplainText(detail.trap).length > 0) return true;
     if (normalizeExplainText(detail.precedent).length > 0) return true;
+    if (normalizeExplainText(detail.memoTip).length > 0) return true;
     return false;
   }
 
@@ -1386,16 +1388,22 @@
     lineEl.appendChild(stars);
   }
 
+  function detailPanelHasRenderableContent(q) {
+    if (!q) return false;
+    var exp = String(q.explanation || "").replace(/\r\n/g, "\n").trim();
+    var bas = String(q.explanationBasic || "").replace(/\r\n/g, "\n").trim();
+    var hasLeadExplain = !!(exp && (!bas || exp !== bas));
+    var d = q.detail;
+    var hasStructured =
+      d &&
+      ((d.body && String(d.body).trim()) || d.legal || d.trap || d.precedent || d.memoTip);
+    return !!(hasStructured || hasLeadExplain);
+  }
+
   function populateDetailContainer(container, q) {
     if (!container) return;
     container.innerHTML = "";
-    var hasDetail =
-      q.detail &&
-      ((q.detail.body && String(q.detail.body).trim()) ||
-        q.detail.legal ||
-        q.detail.trap ||
-        q.detail.precedent);
-    if (!hasDetail) {
+    if (!detailPanelHasRenderableContent(q)) {
       var empty = document.createElement("p");
       empty.className = "feedback-detail__empty";
       empty.textContent = "등록된 상세 해설이 없습니다.";
@@ -1404,7 +1412,7 @@
     }
     if (!isViewerLoggedIn()) {
       if (isGuestFullQuizPreview()) {
-        buildDetailBlocks(container, q.detail);
+        buildDetailBlocks(container, q.detail, q);
       } else {
         var lockGuest = document.createElement("p");
         lockGuest.className = "feedback-premium-lock";
@@ -1422,7 +1430,7 @@
       return;
     }
     if (userIsPaidMember()) {
-      buildDetailBlocks(container, q.detail);
+      buildDetailBlocks(container, q.detail, q);
     } else {
       var lockP = document.createElement("p");
       lockP.className = "feedback-premium-lock";
@@ -2158,9 +2166,9 @@
     syncQuizUrl(false);
   }
 
-  function buildDetailBlocks(container, detail) {
+  function buildDetailBlocks(container, detail, q) {
+    if (!container) return;
     container.innerHTML = "";
-    if (!detail) return;
     function stripHeadLabel(text, labels) {
       var t = String(text || "").trim();
       if (!t) return "";
@@ -2182,44 +2190,62 @@
       return String(raw || "").replace(/\r\n/g, "\n").trim();
     }
 
+    var d = detail != null && typeof detail === "object" ? detail : {};
     var merged = "";
     if (typeof detail === "string") {
       merged = normalizeDetailBodyRaw(detail);
-    } else if (typeof detail === "object") {
-      if (detail.body != null && String(detail.body).trim()) {
-        merged = normalizeDetailBodyRaw(String(detail.body));
+    } else {
+      if (d.body != null && String(d.body).trim()) {
+        merged = normalizeDetailBodyRaw(String(d.body));
       } else {
         var parts = [];
-        if (detail.legal != null && String(detail.legal).trim()) {
+        if (d.legal != null && String(d.legal).trim()) {
           parts.push(
-            "법리 근거: " +
-              stripHeadLabel(String(detail.legal), ["법리 근거", "법리"])
+            "법리 근거: " + stripHeadLabel(String(d.legal), ["법리 근거", "법리"])
           );
         }
-        if (detail.trap != null && String(detail.trap).trim()) {
+        if (d.trap != null && String(d.trap).trim()) {
           parts.push(
-            "함정 포인트: " +
-              stripHeadLabel(String(detail.trap), ["함정 포인트", "함정"])
+            "함정 포인트: " + stripHeadLabel(String(d.trap), ["함정 포인트", "함정"])
           );
         }
-        if (detail.precedent != null && String(detail.precedent).trim()) {
+        if (d.precedent != null && String(d.precedent).trim()) {
           parts.push(
-            "판례: " +
-              stripHeadLabel(String(detail.precedent), ["판례 요지", "판례"])
+            "판례: " + stripHeadLabel(String(d.precedent), ["판례 요지", "판례"])
+          );
+        }
+        if (d.memoTip != null && String(d.memoTip).trim()) {
+          parts.push(
+            "암기 팁: " + stripHeadLabel(String(d.memoTip), ["암기 팁", "암기", "메모"])
           );
         }
         merged = normalizedText(parts.join("\n\n"));
       }
     }
-    if (!merged) return;
 
-    /* <p> 안에 불릿용 <div>가 들어가면 HTML이 깨져 스타일·줄간격이 무너짐 → div 루트만 사용, quiz-ai-answer 박스 미적용 */
+    var leadBlock = "";
+    if (q) {
+      var exp = String(q.explanation || "").replace(/\r\n/g, "\n").trim();
+      var bas = String(q.explanationBasic || "").replace(/\r\n/g, "\n").trim();
+      if (exp && (!bas || exp !== bas)) {
+        var mtrim = merged.trim();
+        if (!mtrim || mtrim.indexOf(exp) !== 0) {
+          leadBlock = "**해설**\n\n" + exp;
+        }
+      }
+    }
+
+    var out = [leadBlock, merged].filter(function (x) {
+      return String(x || "").trim().length > 0;
+    }).join("\n\n");
+    if (!out.trim()) return;
+
     var root = document.createElement("div");
     root.className = "feedback-detail__rich-html";
     if (typeof window.formatHanlawAiAnswerHtml === "function") {
-      root.innerHTML = window.formatHanlawAiAnswerHtml(merged);
+      root.innerHTML = window.formatHanlawAiAnswerHtml(out);
     } else {
-      root.textContent = merged;
+      root.textContent = out;
     }
     container.appendChild(root);
   }
