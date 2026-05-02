@@ -191,7 +191,7 @@
     });
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 6;
+  var QUIZ_ADMIN_EDITOR_VER = 7;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -241,9 +241,41 @@
         : btn;
     el.qMeta.parentNode.insertBefore(editor, insertAnchor.nextSibling);
     el.quizAdminEditor = editor;
+    editor.setAttribute(
+      "title",
+      "문제·해설란에서 **텍스트** 형식이 퀴즈 화면에 굵게 표시됩니다. Ctrl+B(맥: ⌘B)로 선택 영역을 **로 감쌀 수 있습니다."
+    );
     window.__hanlawQuizAdminEditInited = true;
     window.__hanlawQuizAdminEditorVer = QUIZ_ADMIN_EDITOR_VER;
     appendQuizAdminFieldCopyButtons(editor);
+
+    editor.addEventListener("keydown", function (e) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      var k = e.key != null ? String(e.key).toLowerCase() : "";
+      if (k !== "b") return;
+      var ta = e.target;
+      if (!ta || ta.tagName !== "TEXTAREA") return;
+      var tid = String(ta.id || "");
+      if (tid.indexOf("quiz-admin-") !== 0) return;
+      e.preventDefault();
+      var start = typeof ta.selectionStart === "number" ? ta.selectionStart : 0;
+      var end = typeof ta.selectionEnd === "number" ? ta.selectionEnd : start;
+      var v = String(ta.value || "");
+      var sel = v.slice(start, end);
+      var ins = "**" + sel + "**";
+      ta.value = v.slice(0, start) + ins + v.slice(end);
+      if (sel.length === 0) {
+        ta.selectionStart = ta.selectionEnd = start + 2;
+      } else {
+        ta.selectionStart = start + 2;
+        ta.selectionEnd = start + 2 + sel.length;
+      }
+      try {
+        ta.dispatchEvent(new Event("input", { bubbles: true }));
+      } catch (err) {
+        /* ignore */
+      }
+    });
 
     function setEditorMsg(text, isError) {
       var m = document.getElementById("quiz-admin-msg");
