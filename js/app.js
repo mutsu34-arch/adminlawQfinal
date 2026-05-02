@@ -191,7 +191,7 @@
     });
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 5;
+  var QUIZ_ADMIN_EDITOR_VER = 6;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -213,6 +213,13 @@
     editor.className = "quiz-admin-editor";
     editor.hidden = true;
     editor.innerHTML =
+      '<div class="quiz-admin-editor__actions quiz-admin-editor__actions--sticky">' +
+      '<button type="button" id="quiz-admin-copy-all" class="btn btn--outline btn--small">전체 복사</button>' +
+      '<button type="button" id="quiz-admin-save" class="btn btn--secondary btn--small">저장</button>' +
+      '<button type="button" id="quiz-admin-cancel" class="btn btn--outline btn--small">닫기</button>' +
+      "</div>" +
+      '<p id="quiz-admin-msg" class="settings-dday-msg quiz-admin-editor__msg" hidden role="status"></p>' +
+      '<div class="quiz-admin-editor__fields">' +
       '<label class="field"><span class="field__label">문제 본문</span><textarea id="quiz-admin-statement" class="input textarea" rows="3"></textarea></label>' +
       '<label class="field"><span class="field__label">정답</span><select id="quiz-admin-answer" class="select"><option value="true">O(참)</option><option value="false">X(거짓)</option></select></label>' +
       '<label class="field"><span class="field__label">해설</span><textarea id="quiz-admin-explanation" class="input textarea" rows="3"></textarea></label>' +
@@ -221,8 +228,11 @@
       '<label class="field"><span class="field__label">중요도(1~5)</span><input id="quiz-admin-importance" type="number" min="1" max="5" class="input" /></label>' +
       '<label class="field"><span class="field__label">난이도(1~5)</span><input id="quiz-admin-difficulty" type="number" min="1" max="5" class="input" /></label>' +
       '<label class="field"><span class="field__label">태그(쉼표 구분)</span><input id="quiz-admin-tags" type="text" class="input" /></label>' +
-      '<div class="quiz-admin-editor__actions"><button type="button" id="quiz-admin-copy-all" class="btn btn--outline btn--small">전체 복사</button><button type="button" id="quiz-admin-save" class="btn btn--secondary btn--small">저장</button><button type="button" id="quiz-admin-cancel" class="btn btn--outline btn--small">닫기</button></div>' +
-      '<p id="quiz-admin-msg" class="settings-dday-msg" hidden role="status"></p>';
+      "</div>" +
+      '<div class="quiz-admin-editor__actions quiz-admin-editor__actions--footer">' +
+      '<button type="button" id="quiz-admin-save-footer" class="btn btn--secondary btn--small">저장</button>' +
+      '<button type="button" id="quiz-admin-cancel-footer" class="btn btn--outline btn--small">닫기</button>' +
+      "</div>";
     var insertAnchor =
       btn.parentNode &&
       btn.parentNode.classList &&
@@ -315,80 +325,82 @@
           });
       });
     }
-    var btnCancel = document.getElementById("quiz-admin-cancel");
-    if (btnCancel) {
-      btnCancel.addEventListener("click", function () {
-        editor.hidden = true;
-      });
+    function closeQuizAdminEditor() {
+      editor.hidden = true;
     }
-    var btnSave = document.getElementById("quiz-admin-save");
-    if (btnSave) {
-      btnSave.addEventListener("click", function () {
-        var q = state.list[state.index];
-        if (!q || !isAdminUser()) return;
-        if (typeof window.saveQuestionToFirestore !== "function") {
-          setEditorMsg("저장 함수를 찾지 못했습니다.", true);
-          return;
-        }
-        var statement = String(document.getElementById("quiz-admin-statement").value || "").trim();
-        var explanation = String(document.getElementById("quiz-admin-explanation").value || "").trim();
-        var explanationBasic = String(
-          document.getElementById("quiz-admin-explanation-basic").value || ""
-        )
-          .replace(/\r\n/g, "\n")
-          .trim();
-        var detailBodyRaw = String(
-          document.getElementById("quiz-admin-detail-body").value || ""
-        ).replace(/\r\n/g, "\n");
-        var detailBodyHas = detailBodyRaw.trim().length > 0;
-        if (!statement || !explanation) {
-          setEditorMsg("문제 본문과 해설은 필수입니다.", true);
-          return;
-        }
-        if (!explanationBasic) {
-          setEditorMsg("기본 해설은 필수입니다.", true);
-          return;
-        }
-        var tagsRaw = String(document.getElementById("quiz-admin-tags").value || "").trim();
-        var tags = tagsRaw
-          ? tagsRaw
-              .split(",")
-              .map(function (x) {
-                return String(x || "").trim();
-              })
-              .filter(Boolean)
-          : [];
-        var impRaw = String(document.getElementById("quiz-admin-importance").value || "").trim();
-        var diffRaw = String(document.getElementById("quiz-admin-difficulty").value || "").trim();
-        var payload = Object.assign({}, q, {
-          statement: statement,
-          explanation: explanation,
-          explanationBasic: explanationBasic,
-          answer: document.getElementById("quiz-admin-answer").value === "true"
+    function runQuizAdminSave() {
+      var q = state.list[state.index];
+      if (!q || !isAdminUser()) return;
+      if (typeof window.saveQuestionToFirestore !== "function") {
+        setEditorMsg("저장 함수를 찾지 못했습니다.", true);
+        return;
+      }
+      var statement = String(document.getElementById("quiz-admin-statement").value || "").trim();
+      var explanation = String(document.getElementById("quiz-admin-explanation").value || "").trim();
+      var explanationBasic = String(
+        document.getElementById("quiz-admin-explanation-basic").value || ""
+      )
+        .replace(/\r\n/g, "\n")
+        .trim();
+      var detailBodyRaw = String(
+        document.getElementById("quiz-admin-detail-body").value || ""
+      ).replace(/\r\n/g, "\n");
+      var detailBodyHas = detailBodyRaw.trim().length > 0;
+      if (!statement || !explanation) {
+        setEditorMsg("문제 본문과 해설은 필수입니다.", true);
+        return;
+      }
+      if (!explanationBasic) {
+        setEditorMsg("기본 해설은 필수입니다.", true);
+        return;
+      }
+      var tagsRaw = String(document.getElementById("quiz-admin-tags").value || "").trim();
+      var tags = tagsRaw
+        ? tagsRaw
+            .split(",")
+            .map(function (x) {
+              return String(x || "").trim();
+            })
+            .filter(Boolean)
+        : [];
+      var impRaw = String(document.getElementById("quiz-admin-importance").value || "").trim();
+      var diffRaw = String(document.getElementById("quiz-admin-difficulty").value || "").trim();
+      var payload = Object.assign({}, q, {
+        statement: statement,
+        explanation: explanation,
+        explanationBasic: explanationBasic,
+        answer: document.getElementById("quiz-admin-answer").value === "true"
+      });
+      delete payload.detail;
+      if (detailBodyHas) payload.detail = { body: detailBodyRaw };
+      var saveOpts = { clearDetail: !detailBodyHas };
+      if (impRaw) payload.importance = parseInt(impRaw, 10);
+      else delete payload.importance;
+      if (diffRaw) payload.difficulty = parseInt(diffRaw, 10);
+      else delete payload.difficulty;
+      if (tags.length) payload.tags = tags;
+      else delete payload.tags;
+      setEditorMsg("저장 중…", false);
+      window
+        .saveQuestionToFirestore(payload, saveOpts)
+        .then(function () {
+          resyncCurrentQuestionRefFromBank();
+          setEditorMsg("저장되었습니다.", false);
+          editor.hidden = true;
+          renderQuestion();
+        })
+        .catch(function (e) {
+          setEditorMsg((e && e.message) || "문항 수정 실패", true);
         });
-        delete payload.detail;
-        if (detailBodyHas) payload.detail = { body: detailBodyRaw };
-        var saveOpts = { clearDetail: !detailBodyHas };
-        if (impRaw) payload.importance = parseInt(impRaw, 10);
-        else delete payload.importance;
-        if (diffRaw) payload.difficulty = parseInt(diffRaw, 10);
-        else delete payload.difficulty;
-        if (tags.length) payload.tags = tags;
-        else delete payload.tags;
-        setEditorMsg("저장 중…", false);
-        window
-          .saveQuestionToFirestore(payload, saveOpts)
-          .then(function () {
-            resyncCurrentQuestionRefFromBank();
-            setEditorMsg("저장되었습니다.", false);
-            editor.hidden = true;
-            renderQuestion();
-          })
-          .catch(function (e) {
-            setEditorMsg((e && e.message) || "문항 수정 실패", true);
-          });
-      });
     }
+    var btnCancel = document.getElementById("quiz-admin-cancel");
+    if (btnCancel) btnCancel.addEventListener("click", closeQuizAdminEditor);
+    var btnCancelFooter = document.getElementById("quiz-admin-cancel-footer");
+    if (btnCancelFooter) btnCancelFooter.addEventListener("click", closeQuizAdminEditor);
+    var btnSave = document.getElementById("quiz-admin-save");
+    if (btnSave) btnSave.addEventListener("click", runQuizAdminSave);
+    var btnSaveFooter = document.getElementById("quiz-admin-save-footer");
+    if (btnSaveFooter) btnSaveFooter.addEventListener("click", runQuizAdminSave);
     return el.btnQuizAdminEdit;
   }
 

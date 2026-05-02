@@ -3554,12 +3554,43 @@ body {
   border-radius: var(--radius);
   background: var(--bg);
   scroll-margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  max-height: min(82vh, 46rem);
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.quiz-admin-editor__fields {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.2rem;
+}
+
+.quiz-admin-editor__msg {
+  flex-shrink: 0;
+  margin: 0.35rem 0 0.2rem;
 }
 
 .quiz-admin-editor__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.45rem;
+  align-items: center;
+}
+
+.quiz-admin-editor__actions--sticky {
+  flex-shrink: 0;
+  margin: 0 0 0.35rem;
+}
+
+.quiz-admin-editor__actions--footer {
+  flex-shrink: 0;
   margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
 }
 
 .feedback {
