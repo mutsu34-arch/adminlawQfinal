@@ -4803,6 +4803,11 @@ p.hanlaw-para-gap {
   font-size: inherit;
 }
 
+/* 기본 해설: 블록 기본(.feedback__block-body)은 muted — 상세(.feedback-detail__rich-html)와 동일 본문색으로 맞춤 */
+#feedback-explain.quiz-ai-answer {
+  color: var(--text);
+}
+
 /* AI·사전 본문: 단락(<p>)과 목록 항목(__item)의 줄간격·단락 간격을 동일 계열로 맞춤 */
 #feedback-explain.quiz-ai-answer p {
   margin: 0.4em 0;
