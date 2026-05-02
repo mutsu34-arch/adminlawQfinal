@@ -195,7 +195,7 @@
     });
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 10;
+  var QUIZ_ADMIN_EDITOR_VER = 11;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -225,11 +225,11 @@
       "</div>" +
       '<p id="quiz-admin-msg" class="settings-dday-msg quiz-admin-editor__msg" hidden role="status"></p>' +
       '<div class="quiz-admin-editor__fields">' +
-      '<label class="field"><span class="field__label">문제 본문</span><textarea id="quiz-admin-statement" class="input textarea" rows="3"></textarea></label>' +
+      '<label class="field"><span class="field__label">문제 본문</span><textarea id="quiz-admin-statement" class="input textarea" rows="5"></textarea></label>' +
       '<label class="field"><span class="field__label">정답</span><select id="quiz-admin-answer" class="select"><option value="true">O(참)</option><option value="false">X(거짓)</option></select></label>' +
-      '<label class="field"><span class="field__label">해설</span><textarea id="quiz-admin-explanation" class="input textarea" rows="3"></textarea></label>' +
-      '<label class="field"><span class="field__label">기본 해설 (필수)</span><textarea id="quiz-admin-explanation-basic" class="input textarea" rows="3"></textarea></label>' +
-      '<label class="field"><span class="field__label">상세 해설 (선택 · 자유 형식)</span><textarea id="quiz-admin-detail-body" class="input textarea" rows="6" placeholder="법리·함정·판례 등 형식 제한 없이 작성"></textarea></label>' +
+      '<label class="field"><span class="field__label">해설</span><textarea id="quiz-admin-explanation" class="input textarea" rows="14" placeholder="정답 근거·본문 해설"></textarea></label>' +
+      '<label class="field"><span class="field__label">기본 해설 (필수)</span><textarea id="quiz-admin-explanation-basic" class="input textarea" rows="5"></textarea></label>' +
+      '<label class="field"><span class="field__label">상세 해설 (선택 · 자유 형식)</span><textarea id="quiz-admin-detail-body" class="input textarea" rows="16" placeholder="법리·함정·판례 등 형식 제한 없이 작성"></textarea></label>' +
       '<label class="field"><span class="field__label">중요도(1~5)</span><input id="quiz-admin-importance" type="number" min="1" max="5" class="input" /></label>' +
       '<label class="field"><span class="field__label">난이도(1~5)</span><input id="quiz-admin-difficulty" type="number" min="1" max="5" class="input" /></label>' +
       '<label class="field"><span class="field__label">태그(쉼표 구분)</span><input id="quiz-admin-tags" type="text" class="input" /></label>' +

@@ -3556,9 +3556,27 @@ body {
   scroll-margin-top: 0.85rem;
   display: flex;
   flex-direction: column;
-  max-height: min(82vh, 46rem);
+  /* 퀴즈 카드 안에서도 편집 영역을 넓게: 상·하 여백만 남기고 뷰포트 높이 활용 */
+  max-height: min(calc(100dvh - 3.5rem), 58rem);
   min-height: 0;
   box-sizing: border-box;
+}
+
+/* 관리자 수정: 긴 해설 입력 시 세로 스크롤 최소화 */
+#quiz-admin-statement {
+  min-height: 5.5rem;
+}
+
+#quiz-admin-explanation {
+  min-height: 14rem;
+}
+
+#quiz-admin-explanation-basic {
+  min-height: 5rem;
+}
+
+#quiz-admin-detail-body {
+  min-height: 16rem;
 }
 
 /* [hidden] + display:flex 동시 지정 시 일부 브라우저에서 숨김이 무시됨 → 닫기가 안 먹는 것처럼 보임 */
