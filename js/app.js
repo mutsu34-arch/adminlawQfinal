@@ -149,7 +149,49 @@
     return parts.join("\n\n");
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 4;
+  function copyQuizAdminToClipboard(text) {
+    var t = String(text || "");
+    if (!t.trim()) return Promise.reject(new Error("복사할 내용이 없습니다."));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(t);
+    }
+    var ta = document.createElement("textarea");
+    ta.value = t;
+    ta.setAttribute("readonly", "readonly");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (err) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok ? Promise.resolve() : Promise.reject(new Error("복사 실패"));
+  }
+
+  function appendQuizAdminFieldCopyButtons(root) {
+    if (!root) return;
+    var labels = root.querySelectorAll(".field");
+    labels.forEach(function (label) {
+      if (label.querySelector("[data-quiz-admin-copy-target]")) return;
+      var target = label.querySelector("textarea, input, select");
+      if (!target || !target.id || String(target.id).indexOf("quiz-admin-") !== 0) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn--ghost btn--small";
+      btn.setAttribute("data-quiz-admin-copy-target", target.id);
+      btn.textContent = "복사";
+      var holder = document.createElement("div");
+      holder.className = "dict-card-nav";
+      holder.appendChild(btn);
+      label.appendChild(holder);
+    });
+  }
+
+  var QUIZ_ADMIN_EDITOR_VER = 5;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -179,7 +221,7 @@
       '<label class="field"><span class="field__label">중요도(1~5)</span><input id="quiz-admin-importance" type="number" min="1" max="5" class="input" /></label>' +
       '<label class="field"><span class="field__label">난이도(1~5)</span><input id="quiz-admin-difficulty" type="number" min="1" max="5" class="input" /></label>' +
       '<label class="field"><span class="field__label">태그(쉼표 구분)</span><input id="quiz-admin-tags" type="text" class="input" /></label>' +
-      '<div class="quiz-admin-editor__actions"><button type="button" id="quiz-admin-save" class="btn btn--secondary btn--small">저장</button><button type="button" id="quiz-admin-cancel" class="btn btn--outline btn--small">닫기</button></div>' +
+      '<div class="quiz-admin-editor__actions"><button type="button" id="quiz-admin-copy-all" class="btn btn--outline btn--small">전체 복사</button><button type="button" id="quiz-admin-save" class="btn btn--secondary btn--small">저장</button><button type="button" id="quiz-admin-cancel" class="btn btn--outline btn--small">닫기</button></div>' +
       '<p id="quiz-admin-msg" class="settings-dday-msg" hidden role="status"></p>';
     var insertAnchor =
       btn.parentNode &&
@@ -191,6 +233,7 @@
     el.quizAdminEditor = editor;
     window.__hanlawQuizAdminEditInited = true;
     window.__hanlawQuizAdminEditorVer = QUIZ_ADMIN_EDITOR_VER;
+    appendQuizAdminFieldCopyButtons(editor);
 
     function setEditorMsg(text, isError) {
       var m = document.getElementById("quiz-admin-msg");
@@ -235,6 +278,42 @@
     btn.addEventListener("click", openQuizAdminEditor);
     if (el.btnQuizAdminEditFeedback) {
       el.btnQuizAdminEditFeedback.addEventListener("click", openQuizAdminEditor);
+    }
+    editor.addEventListener("click", function (e) {
+      var t = e.target && e.target.closest ? e.target.closest("[data-quiz-admin-copy-target]") : null;
+      if (!t) return;
+      var id = t.getAttribute("data-quiz-admin-copy-target");
+      var fieldEl = id ? document.getElementById(id) : null;
+      if (!fieldEl) return;
+      var value = "";
+      if (fieldEl.tagName === "SELECT") {
+        value =
+          fieldEl.options && fieldEl.selectedIndex >= 0
+            ? fieldEl.options[fieldEl.selectedIndex].text
+            : fieldEl.value;
+      } else {
+        value = fieldEl.value != null ? String(fieldEl.value) : "";
+      }
+      copyQuizAdminToClipboard(value)
+        .then(function () {
+          setEditorMsg("선택한 항목을 복사했습니다.", false);
+        })
+        .catch(function (err) {
+          setEditorMsg((err && err.message) || "항목 복사에 실패했습니다.", true);
+        });
+    });
+    var btnCopyAll = document.getElementById("quiz-admin-copy-all");
+    if (btnCopyAll) {
+      btnCopyAll.addEventListener("click", function () {
+        var text = buildQuizAdminCopyAllText();
+        copyQuizAdminToClipboard(text)
+          .then(function () {
+            setEditorMsg("현재 문항 전체를 복사했습니다.", false);
+          })
+          .catch(function (err) {
+            setEditorMsg((err && err.message) || "전체 복사에 실패했습니다.", true);
+          });
+      });
     }
     var btnCancel = document.getElementById("quiz-admin-cancel");
     if (btnCancel) {
@@ -329,6 +408,47 @@
     sessionAnswers: {},
     suppressQuizUrlSync: false
   };
+
+  /** 검수 탭「전체 복사」와 동일한 줄 형식(인라인 수정 폼 필드 기준) */
+  function buildQuizAdminCopyAllText() {
+    var q = state.list[state.index] || {};
+    var st = document.getElementById("quiz-admin-statement");
+    var ans = document.getElementById("quiz-admin-answer");
+    var bas = document.getElementById("quiz-admin-explanation-basic");
+    var exp = document.getElementById("quiz-admin-explanation");
+    var det = document.getElementById("quiz-admin-detail-body");
+    var tagsEl = document.getElementById("quiz-admin-tags");
+    var impEl = document.getElementById("quiz-admin-importance");
+    var diffEl = document.getElementById("quiz-admin-difficulty");
+    var statement = st ? String(st.value || "").trim() : "";
+    var ansTrue = !ans || ans.value !== "false";
+    var basic = bas ? String(bas.value || "").trim() : "";
+    var expl = exp ? String(exp.value || "").trim() : "";
+    var detailBody = det ? String(det.value || "").trim() : "";
+    var detailLine = expl;
+    if (detailBody) {
+      detailLine = detailLine ? detailLine + "\n\n" + detailBody : detailBody;
+    }
+    var topic = String(q.topic || "").trim();
+    var tagsRaw = tagsEl ? String(tagsEl.value || "").trim() : "";
+    var impRaw = impEl && String(impEl.value || "").trim() ? String(impEl.value).trim() : "";
+    var diffRaw = diffEl && String(diffEl.value || "").trim() ? String(diffEl.value).trim() : "";
+    return [
+      "[유형] 퀴즈",
+      "[문제] " + statement,
+      "[정답] " + (ansTrue ? "O(참)" : "X(거짓)"),
+      "[기본 해설] " + basic,
+      "[상세 해설] " + detailLine,
+      "[법리 근거] ",
+      "[함정 포인트] ",
+      "[판례 요지] ",
+      "[주제] " + topic,
+      "[태그] " + tagsRaw,
+      "[중요도] " + impRaw,
+      "[난이도] " + diffRaw
+    ].join("\n");
+  }
+
   var SEO_DEFAULT_TITLE = "행정법Q";
   var SEO_DEFAULT_DESC =
     "변호사가 직접 만든 행정법 학습 앱. 실전형 OX 퀴즈, 핵심 해설, 판례·조문·용어사전을 제공합니다.";
