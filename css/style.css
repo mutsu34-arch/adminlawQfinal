@@ -3576,7 +3576,9 @@ body {
 }
 
 #quiz-admin-detail-body {
-  min-height: 16rem;
+  min-height: min(42dvh, 28rem);
+  resize: vertical;
+  max-height: none;
 }
 
 /* [hidden] + display:flex 동시 지정 시 일부 브라우저에서 숨김이 무시됨 → 닫기가 안 먹는 것처럼 보임 */
@@ -3584,12 +3586,19 @@ body {
   display: none !important;
 }
 
+/* 스크롤되는 편집 구역(빨간 박스 취지): 뷰포트의 큰 비율을 최소로 확보 */
 .quiz-admin-editor__fields {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: min(72dvh, 46rem);
+  min-width: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-right: 0.2rem;
+}
+
+.quiz-admin-editor .dict-card-nav {
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
 }
 
 .quiz-admin-editor__msg {
