@@ -3561,6 +3561,11 @@ body {
   box-sizing: border-box;
 }
 
+/* [hidden] + display:flex 동시 지정 시 일부 브라우저에서 숨김이 무시됨 → 닫기가 안 먹는 것처럼 보임 */
+.quiz-admin-editor[hidden] {
+  display: none !important;
+}
+
 .quiz-admin-editor__fields {
   flex: 1 1 auto;
   min-height: 0;

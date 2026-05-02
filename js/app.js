@@ -191,7 +191,7 @@
     });
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 8;
+  var QUIZ_ADMIN_EDITOR_VER = 9;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -322,6 +322,15 @@
       el.btnQuizAdminEditFeedback.addEventListener("click", openQuizAdminEditor);
     }
     editor.addEventListener("click", function (e) {
+      var closeBtn =
+        e.target && e.target.closest
+          ? e.target.closest("#quiz-admin-cancel, #quiz-admin-cancel-footer")
+          : null;
+      if (closeBtn) {
+        e.preventDefault();
+        closeQuizAdminEditor();
+        return;
+      }
       var t = e.target && e.target.closest ? e.target.closest("[data-quiz-admin-copy-target]") : null;
       if (!t) return;
       var id = t.getAttribute("data-quiz-admin-copy-target");
