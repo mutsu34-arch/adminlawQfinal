@@ -49,7 +49,10 @@
     var adminOn = isAdminUser();
     if (adminEditBtn) adminEditBtn.hidden = !adminOn;
     if (el.btnQuizAdminEditFeedback) el.btnQuizAdminEditFeedback.hidden = !adminOn;
-    if (el.quizAdminEditor && !adminOn) el.quizAdminEditor.hidden = true;
+    if (el.quizAdminEditor && !adminOn) {
+      el.quizAdminEditor.hidden = true;
+      el.quizAdminEditor.style.display = "none";
+    }
   }
 
   /** 이메일 로그인(또는 동일한 수준의 식별) — 익명 세션은 비로그인 UI */
@@ -191,7 +194,7 @@
     });
   }
 
-  var QUIZ_ADMIN_EDITOR_VER = 9;
+  var QUIZ_ADMIN_EDITOR_VER = 10;
 
   function ensureQuizAdminEditButton() {
     if (
@@ -212,6 +215,7 @@
     editor.id = "quiz-admin-editor";
     editor.className = "quiz-admin-editor";
     editor.hidden = true;
+    editor.style.display = "none";
     editor.innerHTML =
       '<div class="quiz-admin-editor__actions quiz-admin-editor__actions--sticky">' +
       '<button type="button" id="quiz-admin-copy-all" class="btn btn--outline btn--small">전체 복사</button>' +
@@ -306,6 +310,7 @@
       var q = state.list[state.index];
       if (!q || !isAdminUser()) return;
       fillEditorFromQuestion(q);
+      editor.style.display = "";
       editor.hidden = false;
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
@@ -368,6 +373,7 @@
     }
     function closeQuizAdminEditor() {
       editor.hidden = true;
+      editor.style.display = "none";
     }
     function runQuizAdminSave() {
       var q = state.list[state.index];
@@ -426,9 +432,10 @@
         .saveQuestionToFirestore(payload, saveOpts)
         .then(function () {
           resyncCurrentQuestionRefFromBank();
-          setEditorMsg("저장되었습니다.", false);
-          editor.hidden = true;
-          renderQuestion();
+            setEditorMsg("저장되었습니다.", false);
+            editor.hidden = true;
+            editor.style.display = "none";
+            renderQuestion();
         })
         .catch(function (e) {
           setEditorMsg((e && e.message) || "문항 수정 실패", true);
@@ -2109,6 +2116,10 @@
     }
     ensureQuizAdminEditButton();
     syncQuizAdminEditVisibility();
+    if (el.quizAdminEditor) {
+      el.quizAdminEditor.hidden = true;
+      el.quizAdminEditor.style.display = "none";
+    }
     window.__QUIZ_QUESTION_CONTEXT = {
       questionId: q.id,
       statement: q.statement,
