@@ -208,6 +208,14 @@
     window.dispatchEvent(new CustomEvent("study-scope-change"));
   }
 
+  /** 문항 뱅크·시험 카탈로그 갱신 후 저장 범위에서 사라진 시험·연도를 정리합니다. */
+  window.revalidateStudyScopeAgainstCatalog = function () {
+    validateExamIds();
+    validateYears();
+    save();
+    emitScopeChange();
+  };
+
   window.initStudyScope = function () {
     var pack = loadRaw();
     if (!pack) {

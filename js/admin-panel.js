@@ -85,6 +85,7 @@
 
   function fillExamSelect(select) {
     if (!select || !window.EXAM_CATALOG) return;
+    var prev = String(select.value || "").trim();
     select.innerHTML = "";
     window.EXAM_CATALOG.forEach(function (ex) {
       var o = document.createElement("option");
@@ -92,6 +93,14 @@
       o.textContent = ex.label;
       select.appendChild(o);
     });
+    if (prev) {
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === prev) {
+          select.value = prev;
+          break;
+        }
+      }
+    }
   }
 
   function bind() {
@@ -196,6 +205,10 @@
     if (yEl && !yEl.value) yEl.value = String(new Date().getFullYear());
     document.getElementById("admin-q-id").value =
       "custom-" + Date.now().toString(36);
+
+    window.addEventListener("question-bank-updated", function () {
+      fillExamSelect(document.getElementById("admin-exam-id"));
+    });
   }
 
   document.addEventListener("DOMContentLoaded", bind);

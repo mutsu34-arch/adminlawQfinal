@@ -860,10 +860,14 @@ function inferExamIdLoose(text) {
   if (s.includes("국가공무원") && s.includes("5급")) return "grade5";
   if (s.includes("5급")) return "grade5";
   if (s.includes("소방")) return "fire";
+  if (s.includes("해경") || s.includes("해양경찰") || s.includes("haekyung") || s.includes("haekyeong")) {
+    return "haekyung";
+  }
   if (s.includes("경찰")) return "police";
   if (s.includes("지방")) return "local";
   if (s.includes("관세") || s.includes("세관")) return "customs";
   if (s.includes("교육청")) return "edu";
+  if (s.includes("행정사") || s.includes("haesaeng")) return "haesaeng";
   return "";
 }
 

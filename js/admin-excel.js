@@ -263,6 +263,7 @@
     if (/grade[_-]?7|guk[_-]?7|national[_-]?7|civil[_-]?7|7[_-]?grade/.test(compact)) return "grade7";
     if (/grade[_-]?5|guk[_-]?5|national[_-]?5|civil[_-]?5|5[_-]?grade/.test(compact)) return "grade5";
     if (/fire/.test(compact)) return "fire";
+    if (/haekyung|haekyeong|kcg|coastguard/.test(compact)) return "haekyung";
     if (/police|cop/.test(compact)) return "police";
     if (/local/.test(compact)) return "local";
     if (/customs|tariff/.test(compact)) return "customs";
@@ -271,10 +272,14 @@
     if (/국가(직|공무원)?7급|^7급$/.test(ns) && !/9급/.test(ns)) return "grade7";
     if (/국가(직|공무원)?5급|^5급$|일반직|5급일반/.test(ns)) return "grade5";
     if (/소방/.test(ns)) return "fire";
+    if (/해경|해양경찰/.test(ns)) return "haekyung";
     if (/경찰/.test(ns)) return "police";
     if (/지방/.test(ns)) return "local";
     if (/세관|관세/.test(ns)) return "customs";
     if (/교육청|교육공무원/.test(ns)) return "edu";
+    if (/행정사/.test(ns)) return "haesaeng";
+    if (/haesaeng|haengjeongsa|admin_sa|adminsa/.test(compact)) return "haesaeng";
+    if (/^[a-z0-9_-]+$/.test(compact) && compact.length >= 2 && compact.length <= 64) return compact;
     return "";
   }
 

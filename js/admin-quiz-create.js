@@ -614,6 +614,7 @@
 
   function fillExamSelect(select) {
     if (!select || !window.EXAM_CATALOG) return;
+    var prev = String(select.value || "").trim();
     select.innerHTML = "";
     window.EXAM_CATALOG.forEach(function (ex) {
       var o = document.createElement("option");
@@ -621,6 +622,14 @@
       o.textContent = ex.label;
       select.appendChild(o);
     });
+    if (prev) {
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === prev) {
+          select.value = prev;
+          break;
+        }
+      }
+    }
   }
 
   function inferExamIdFromText(text) {
@@ -637,10 +646,14 @@
     if (s.indexOf("국가공무원") >= 0 && s.indexOf("5급") >= 0) return "grade5";
     if (s.indexOf("5급") >= 0) return "grade5";
     if (s.indexOf("소방") >= 0) return "fire";
+    if (s.indexOf("해경") >= 0 || s.indexOf("해양경찰") >= 0 || s.indexOf("haekyung") >= 0) {
+      return "haekyung";
+    }
     if (s.indexOf("경찰") >= 0) return "police";
     if (s.indexOf("지방") >= 0) return "local";
     if (s.indexOf("관세") >= 0 || s.indexOf("세관") >= 0) return "customs";
     if (s.indexOf("교육청") >= 0) return "edu";
+    if (s.indexOf("행정사") >= 0 || s.indexOf("haesaeng") >= 0) return "haesaeng";
     return "";
   }
 
@@ -1631,6 +1644,9 @@
     });
     window.addEventListener("membership-updated", refreshVisibility);
     window.addEventListener("online", resumeQuizGenerationIfNeeded);
+    window.addEventListener("question-bank-updated", function () {
+      fillExamSelect($("admin-quiz-create-exam-id"));
+    });
   }
 
   document.addEventListener("DOMContentLoaded", bind);

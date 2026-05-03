@@ -385,3 +385,7 @@ window.QUESTION_BANK = [
 ];
 
 window.QUESTION_BANK_STATIC = window.QUESTION_BANK.slice();
+
+if (typeof window.refreshExamCatalogFromQuestionBank === "function") {
+  window.refreshExamCatalogFromQuestionBank();
+}

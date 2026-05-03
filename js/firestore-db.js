@@ -41,6 +41,12 @@
       else merged.push(r);
     });
     window.QUESTION_BANK = merged;
+    if (typeof window.refreshExamCatalogFromQuestionBank === "function") {
+      window.refreshExamCatalogFromQuestionBank();
+    }
+    if (typeof window.revalidateStudyScopeAgainstCatalog === "function") {
+      window.revalidateStudyScopeAgainstCatalog();
+    }
     window.dispatchEvent(new CustomEvent("question-bank-updated"));
   }
 

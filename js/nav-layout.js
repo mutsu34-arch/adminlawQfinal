@@ -399,6 +399,12 @@
     updateScopeSummary();
   });
 
+  window.addEventListener("question-bank-updated", function () {
+    renderExamList();
+    syncSidebarHighlight();
+    updateScopeSummary();
+  });
+
   window.addEventListener("app-auth", function (e) {
     var user = e.detail ? e.detail.user : null;
     var adminBtn = $("nav-btn-admin");
