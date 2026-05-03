@@ -2719,11 +2719,24 @@
                   </select>
                 </label>
                 <p class="admin-json-help" id="admin-excel-help-quiz">
-                  [퀴즈] 필수 열: <code class="pricing-code">id</code>, <code class="pricing-code">examId</code>, <code class="pricing-code">year</code>, <code class="pricing-code">topic</code>, <code class="pricing-code">statement</code>, <code class="pricing-code">answer</code>, <code class="pricing-code">explanation</code>.
+                  [퀴즈] <strong>최소</strong>로는 <code class="pricing-code">statement</code>(문제)와 시험 식별(<code class="pricing-code">examId</code> 등)만 있어도 됩니다. 정답·해설·주제 등이 비어 있으면 서버에서 AI가 채운 뒤 검수 목록에 올립니다(<code class="pricing-code">id</code>가 비면 자동 부여).
+                  전체 열을 채울 때의 필수: <code class="pricing-code">id</code>, <code class="pricing-code">examId</code>, <code class="pricing-code">year</code>, <code class="pricing-code">topic</code>, <code class="pricing-code">statement</code>, <code class="pricing-code">answer</code>, <code class="pricing-code">explanation</code>.
                   정답은 O/X, 참/거짓, TRUE/FALSE, 1/0 등으로 입력 가능합니다.
                   선택 열: <code class="pricing-code">exam</code>, <code class="pricing-code">explanationBasic</code>, <code class="pricing-code">legal</code>, <code class="pricing-code">trap</code>, <code class="pricing-code">precedent</code>, <code class="pricing-code">detail</code>(JSON 문자열), <code class="pricing-code">tags</code>, <code class="pricing-code">importance</code>, <code class="pricing-code">difficulty</code>.
                   <code class="pricing-code">examId</code>는 <code class="pricing-code">grade9</code> 같은 코드값을 사용하세요.
                 </p>
+                <p class="admin-json-help" id="admin-excel-help-quiz-partial" hidden>
+                  AI 보강은 <code class="pricing-code">GEMINI_API_KEY</code>가 설정된 Functions 배포가 필요합니다. 아래 지침은 모델에 전달되는 추가 편집 지시입니다(비워 두면 기본 톤·수험 관점 지침만 사용).
+                </p>
+                <label class="field" id="admin-excel-quiz-enrich-wrap" hidden>
+                  <span class="field__label">퀴즈 엑셀 — AI 보강 지침 (선택)</span>
+                  <textarea
+                    id="admin-excel-quiz-enrich-prompt"
+                    class="input textarea"
+                    rows="2"
+                    placeholder="예: 존댓말로 해설하고, 쟁점별로 왜 오답인지 짚어 줘. 불명확한 판례 인용은 하지 마."
+                  ></textarea>
+                </label>
                 <p class="admin-json-help" id="admin-excel-help-statute" hidden>
                   [조문사전] 필수 열: <code class="pricing-code">statuteKey</code>, <code class="pricing-code">body</code>.
                   선택 열: <code class="pricing-code">docId</code>, <code class="pricing-code">heading</code>, <code class="pricing-code">sourceNote</code>, <code class="pricing-code">ox1_statement</code>, <code class="pricing-code">ox1_answer</code>, <code class="pricing-code">ox1_explanation</code> (ox2~ox3 동일 패턴).

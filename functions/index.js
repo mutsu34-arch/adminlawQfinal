@@ -2397,43 +2397,231 @@ exports.adminGenerateTermsFromLibrary = onCall({ region: "asia-northeast3" }, as
   };
 });
 
-exports.adminStageQuizBatch = onCall({ region: "asia-northeast3" }, async (request) => {
-  assertAdminCallable(request);
-  const rows = Array.isArray(request.data && request.data.rows) ? request.data.rows : [];
-  if (!rows.length) throw new HttpsError("invalid-argument", "rows 배열이 필요합니다.");
-  if (rows.length > 500) throw new HttpsError("invalid-argument", "한 번에 최대 500건까지 가능합니다.");
-  const email = String(request.auth.token.email || "").toLowerCase();
-  const batch = db.batch();
-  let okCount = 0;
-  const failRows = [];
-  rows.forEach((row, idx) => {
-    try {
-      const payload = sanitizeQuizPayload(row);
-      const ref = db.collection(STAGING_QUIZ_COLLECTION).doc();
-      batch.set(ref, {
-        entityType: "quiz",
-        questionId: payload.id,
-        payload,
-        status: "reviewing",
-        source: "excel",
-        changeType: "upsert",
-        createdBy: email,
-        updatedBy: email,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        approvedBy: null,
-        approvedAt: null,
-        rejectReason: "",
-        version: 1
-      });
-      okCount += 1;
-    } catch (err) {
-      failRows.push({ index: idx + 1, reason: err && err.message ? err.message : "형식 오류" });
+const EXCEL_QUIZ_ENRICH_BATCH = 12;
+
+function normalizeQuizRowForStaging(row, excelRow1) {
+  const o = Object.assign({}, row || {});
+  o.id = String(o.id || "").trim();
+  if (!o.id) o.id = "excel-" + Date.now().toString(36) + "-" + excelRow1;
+  o.examId = String(o.examId || "").trim().toLowerCase();
+  if (!o.examId) o.examId = "lawyer";
+  const y = parseInt(o.year, 10);
+  o.year = Number.isFinite(y) ? y : new Date().getFullYear();
+  o.exam = String(o.exam || o.examId || "").trim() || o.examId;
+  o.topic = String(o.topic || "").trim() || "행정법";
+  o.statement = String(o.statement || "").trim();
+  if (!o.statement) return null;
+  if (o.answer !== true && o.answer !== false) {
+    const p = parseBoolLoose(o.answer);
+    if (p === true || p === false) o.answer = p;
+    else o.answer = null;
+  }
+  o.explanation = String(o.explanation || "").trim();
+  if (o.explanationBasic != null) o.explanationBasic = String(o.explanationBasic || "").trim();
+  return o;
+}
+
+function mergeAiEnrichedQuizRow(base, ai) {
+  const out = Object.assign({}, base);
+  if (!ai || typeof ai !== "object") return out;
+  const ans = parseBoolLoose(ai.answer);
+  if (ans === true || ans === false) {
+    if (out.answer !== true && out.answer !== false) out.answer = ans;
+  }
+  if (String(ai.explanation || "").trim() && !String(out.explanation || "").trim()) {
+    out.explanation = String(ai.explanation).trim();
+  }
+  if (String(ai.explanationBasic || "").trim() && !String(out.explanationBasic || "").trim()) {
+    out.explanationBasic = String(ai.explanationBasic).trim();
+  }
+  if (String(ai.topic || "").trim() && (!String(base.topic || "").trim() || base.topic === "행정법")) {
+    out.topic = String(ai.topic).trim();
+  }
+  if (Array.isArray(ai.tags) && ai.tags.length && (!out.tags || !out.tags.length)) {
+    out.tags = ai.tags.map((x) => String(x || "").trim()).filter(Boolean);
+  }
+  const im = parseIntInRange(ai.importance, 1, 5);
+  if (im != null && (out.importance == null || out.importance === "")) out.importance = im;
+  const df = parseIntInRange(ai.difficulty, 1, 5);
+  if (df != null && (out.difficulty == null || out.difficulty === "")) out.difficulty = df;
+  const leg = String(ai.legal || "").trim();
+  const trap = String(ai.trap || "").trim();
+  const prec = String(ai.precedent || "").trim();
+  if (leg || trap || prec) {
+    const d = out.detail && typeof out.detail === "object" ? Object.assign({}, out.detail) : {};
+    if (leg && !String(d.legal || "").trim()) d.legal = leg;
+    if (trap && !String(d.trap || "").trim()) d.trap = trap;
+    if (prec && !String(d.precedent || "").trim()) d.precedent = prec;
+    if (d.legal || d.trap || d.precedent) out.detail = d;
+  }
+  return out;
+}
+
+async function enrichPartialQuizRowsWithGemini(apiKey, modelId, rows, enrichPrompt) {
+  const defaultHint =
+    "행정법 수험 관점에서 OX를 판정하고 해설을 작성합니다. 존댓말(하십시오체)로 작성하고, 근거 없는 단정은 피합니다.";
+  const hint = String(enrichPrompt || "").trim() || defaultHint;
+  const out = [];
+  for (let i = 0; i < rows.length; i += EXCEL_QUIZ_ENRICH_BATCH) {
+    const chunk = rows.slice(i, i + EXCEL_QUIZ_ENRICH_BATCH);
+    const payload = chunk.map((r) => ({
+      id: r.id,
+      examId: r.examId,
+      year: r.year,
+      exam: r.exam,
+      topic: r.topic,
+      statement: r.statement,
+      answer: r.answer === true || r.answer === false ? r.answer : null,
+      explanation: r.explanation || "",
+      explanationBasic: r.explanationBasic || ""
+    }));
+    const prompt = [
+      "당신은 행정법 퀴즈 데이터 편집자입니다. 입력 JSON 배열과 동일한 순서·동일한 길이의 JSON 배열만 출력하세요.",
+      "마크다운/설명 문장 금지. JSON 배열만.",
+      "",
+      "[엄수]",
+      "- 각 원소의 id, examId, year, exam, statement 문자열은 입력과 동일해야 합니다(수정·요약 금지).",
+      "",
+      "[채우기]",
+      "- answer: true 또는 false (법률적으로 판정)",
+      "- explanation: 2~5문장",
+      "- explanationBasic: 1문장",
+      "- topic이 비어 있거나 '행정법'만 있으면 진술에 맞게 구체화",
+      "- 선택: tags, importance 1~5, difficulty 1~5, legal, trap, precedent(불명확하면 빈 문자열)",
+      "",
+      "[편집 지시]",
+      hint,
+      "",
+      "[입력 배열]",
+      JSON.stringify(payload)
+    ].join("\n");
+    const enriched = await generateLibraryQuizRows(apiKey, modelId, prompt);
+    if (!Array.isArray(enriched) || enriched.length !== chunk.length) {
+      throw new Error(
+        "AI 보강 결과 개수 불일치(기대 " + chunk.length + "개, 실제 " + (Array.isArray(enriched) ? enriched.length : 0) + "개)"
+      );
     }
-  });
-  if (okCount > 0) await batch.commit();
-  return { ok: true, okCount, failRows };
-});
+    for (let j = 0; j < chunk.length; j++) {
+      out.push(mergeAiEnrichedQuizRow(chunk[j], enriched[j] || {}));
+    }
+  }
+  return out;
+}
+
+exports.adminStageQuizBatch = onCall(
+  { region: "asia-northeast3", timeoutSeconds: 300, memory: "1GiB" },
+  async (request) => {
+    assertAdminCallable(request);
+    const data = request.data || {};
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    const enrichWhenIncomplete = data.enrichWhenIncomplete === true;
+    const enrichPrompt = String(data.enrichPrompt || "").trim();
+    if (!rows.length) throw new HttpsError("invalid-argument", "rows 배열이 필요합니다.");
+    if (rows.length > 500) throw new HttpsError("invalid-argument", "한 번에 최대 500건까지 가능합니다.");
+    const email = String(request.auth.token.email || "").toLowerCase();
+    const failRows = [];
+    const staged = [];
+
+    for (let idx = 0; idx < rows.length; idx++) {
+      const normalized = normalizeQuizRowForStaging(rows[idx], idx + 1);
+      if (!normalized) {
+        failRows.push({ index: idx + 1, reason: "문제 본문(statement)이 비어 있거나 정규화할 수 없습니다." });
+        continue;
+      }
+      try {
+        staged.push({
+          index: idx + 1,
+          payload: sanitizeQuizPayload(normalized),
+          source: "excel",
+          enriched: false
+        });
+      } catch (err) {
+        if (enrichWhenIncomplete) {
+          staged.push({
+            index: idx + 1,
+            row: normalized,
+            source: "excel-ai",
+            enriched: true,
+            pending: true
+          });
+        } else {
+          failRows.push({
+            index: idx + 1,
+            reason: err && err.message ? err.message : "형식 오류"
+          });
+        }
+      }
+    }
+
+    const pendingItems = staged.filter((x) => x.pending);
+    if (pendingItems.length) {
+      const apiKey = process.env.GEMINI_API_KEY || "";
+      if (!apiKey) {
+        throw new HttpsError(
+          "failed-precondition",
+          "일부 행에 정답·해설 등이 비어 AI 보강이 필요하지만 서버에 GEMINI_API_KEY가 없습니다."
+        );
+      }
+      const modelId = effectiveGeminiModelId();
+      const toEnrich = pendingItems.map((x) => x.row);
+      let enrichedRows;
+      try {
+        enrichedRows = await enrichPartialQuizRowsWithGemini(apiKey, modelId, toEnrich, enrichPrompt);
+      } catch (e) {
+        throw new HttpsError(
+          "internal",
+          e && e.message ? String(e.message) : "AI 보강 중 오류가 발생했습니다."
+        );
+      }
+      for (let pi = 0; pi < pendingItems.length; pi++) {
+        const item = pendingItems[pi];
+        const merged = enrichedRows[pi] || item.row;
+        try {
+          item.payload = sanitizeQuizPayload(merged);
+          item.pending = false;
+          item.source = "excel-ai";
+        } catch (err2) {
+          failRows.push({
+            index: item.index,
+            reason: err2 && err2.message ? err2.message : "AI 보강 후에도 형식 오류"
+          });
+          item.drop = true;
+        }
+      }
+    }
+
+    const batch = db.batch();
+    let okCount = 0;
+    for (let si = 0; si < staged.length; si++) {
+      const s = staged[si];
+      if (s.drop || s.pending || !s.payload) continue;
+      try {
+        const ref = db.collection(STAGING_QUIZ_COLLECTION).doc();
+        batch.set(ref, {
+          entityType: "quiz",
+          questionId: s.payload.id,
+          payload: s.payload,
+          status: "reviewing",
+          source: s.source || "excel",
+          changeType: "upsert",
+          createdBy: email,
+          updatedBy: email,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          approvedBy: null,
+          approvedAt: null,
+          rejectReason: "",
+          version: 1
+        });
+        okCount += 1;
+      } catch (err3) {
+        failRows.push({ index: s.index, reason: err3 && err3.message ? err3.message : "스테이징 오류" });
+      }
+    }
+    if (okCount > 0) await batch.commit();
+    return { ok: true, okCount, failRows };
+  }
+);
 
 exports.adminListQuizStaging = onCall({ region: "asia-northeast3" }, async (request) => {
   assertAdminCallable(request);

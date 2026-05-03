@@ -844,6 +844,10 @@
       if (helpStatute) helpStatute.hidden = k !== "statute";
       if (helpTerm) helpTerm.hidden = k !== "term";
       if (helpCase) helpCase.hidden = k !== "case";
+      var wrapEnrich = document.getElementById("admin-excel-quiz-enrich-wrap");
+      var helpPartial = document.getElementById("admin-excel-help-quiz-partial");
+      if (wrapEnrich) wrapEnrich.hidden = k !== "quiz";
+      if (helpPartial) helpPartial.hidden = k !== "quiz";
     }
 
     function setSelectedFile(file) {
@@ -877,9 +881,8 @@
         try {
           var k = selectedKind();
           if (k === "quiz") {
-            var validate = window.AdminQuestionUtils && window.AdminQuestionUtils.validateCore;
-            if (!validate) {
-              setMsg(msgEl, "검증 모듈을 불러오지 못했습니다.", true);
+            if (typeof window.adminStageQuizBatch !== "function") {
+              setMsg(msgEl, "검수 업로드 함수를 불러오지 못했습니다.", true);
               return;
             }
             var questions = dedupeQuestionIdsInOrder(parseWorkbookToQuestions(new Uint8Array(reader.result)));
@@ -887,17 +890,18 @@
               setMsg(msgEl, "유효한 데이터 행이 없습니다. 퀴즈 샘플 엑셀 형식을 사용해 주세요.", true);
               return;
             }
-            var ok = [];
-            for (var i = 0; i < questions.length; i++) {
-              var err = validate(questions[i]);
-              if (err) return setMsg(msgEl, i + 2 + "번째 행(헤더 제외): " + err, true);
-              ok.push(questions[i]);
-            }
-            setMsg(msgEl, ok.length + "건 검수대기 등록 중…", false);
-            window.adminStageQuizBatch(ok).then(function (res) {
+            var enrichEl = document.getElementById("admin-excel-quiz-enrich-prompt");
+            var enrichPrompt = enrichEl ? String(enrichEl.value || "").trim() : "";
+            setMsg(msgEl, questions.length + "건 검수대기 등록 중(AI 보강 포함)…", false);
+            window
+              .adminStageQuizBatch(questions, {
+                enrichWhenIncomplete: true,
+                enrichPrompt: enrichPrompt
+              })
+              .then(function (res) {
               var okCount = parseInt(res && res.okCount, 10) || 0;
               var failRows = (res && res.failRows) || [];
-              if (okCount > 0) applyScopeToUploaded(ok.slice(0, okCount));
+              if (okCount > 0) applyScopeToUploaded(questions);
               var msg = okCount + "건이 검수대기로 등록되었습니다.";
               if (failRows.length) msg += " 실패 " + failRows.length + "건(예: " + failRows[0].index + "행 " + failRows[0].reason + ")";
               setMsg(msgEl, msg + " '검수·승인' 탭에서 승인하면 퀴즈에 반영됩니다.", false);

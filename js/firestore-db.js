@@ -680,8 +680,13 @@
     });
   };
 
-  window.adminStageQuizBatch = function (rows) {
-    return getCallable("adminStageQuizBatch")({ rows: Array.isArray(rows) ? rows : [] }).then(function (r) {
+  window.adminStageQuizBatch = function (rows, opts) {
+    opts = opts || {};
+    return getCallable("adminStageQuizBatch")({
+      rows: Array.isArray(rows) ? rows : [],
+      enrichWhenIncomplete: opts.enrichWhenIncomplete === true,
+      enrichPrompt: String(opts.enrichPrompt || "").trim()
+    }).then(function (r) {
       return r.data || {};
     });
   };
