@@ -302,6 +302,10 @@
       } catch (e) {}
     });
 
+    window.addEventListener("hanlaw-panel-root-reset", function (ev) {
+      var id = ev && ev.detail && ev.detail.panelId;
+      if (id === "master") renderMasterPanel();
+    });
     window.addEventListener("question-bank-updated", renderMasterPanel);
     window.addEventListener("membership-updated", renderMasterPanel);
     window.addEventListener("app-auth", function (e) {

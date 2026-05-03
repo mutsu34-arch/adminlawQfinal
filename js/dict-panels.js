@@ -3157,6 +3157,27 @@
     }
   }
 
+  function resetTermPanelToRoot() {
+    selectedTermInitialFilter = "none";
+    var inp = $("dict-term-query");
+    if (inp) inp.value = "";
+    hideDictTermLoading();
+    runTermSearch();
+  }
+
+  function resetStatutePanelToRoot() {
+    var inp = $("statute-article-query");
+    if (inp) inp.value = "";
+    runStatuteSearch();
+  }
+
+  function resetCasePanelToRoot() {
+    selectedCaseYearFilter = "none";
+    var inp = $("case-number-query");
+    if (inp) inp.value = "";
+    runCaseSearch();
+  }
+
   function runTermSearch() {
     var input = $("dict-term-query");
     var out = $("dict-term-results");
@@ -3526,6 +3547,9 @@
     refreshTermSearch: runTermSearch,
     refreshStatuteSearch: runStatuteSearch,
     refreshCaseSearch: runCaseSearch,
+    resetTermPanelToRoot: resetTermPanelToRoot,
+    resetStatutePanelToRoot: resetStatutePanelToRoot,
+    resetCasePanelToRoot: resetCasePanelToRoot,
     refreshPanelsIfOpen: function () {
       var pDict = document.getElementById("panel-dict");
       var pStat = document.getElementById("panel-statutes");

@@ -139,6 +139,22 @@
   var quizQuestionTimerId = null;
   var quizTimerTotalMs = 0;
 
+  /** detail.legal 등이 문자열이 아닐 때(예: { text }) 본문만 꺼내 표시 */
+  function stringifyDetailSegment(v) {
+    if (v == null) return "";
+    if (typeof v === "string") return v.replace(/\r\n/g, "\n").trim();
+    if (typeof v === "number" && isFinite(v)) return String(v).trim();
+    if (typeof v === "object") {
+      var o = v;
+      if (typeof o.text === "string" && o.text.trim()) return o.text.replace(/\r\n/g, "\n").trim();
+      if (typeof o.body === "string" && o.body.trim()) return o.body.replace(/\r\n/g, "\n").trim();
+      if (typeof o.content === "string" && o.content.trim()) return o.content.replace(/\r\n/g, "\n").trim();
+      if (typeof o.value === "string" && o.value.trim()) return o.value.replace(/\r\n/g, "\n").trim();
+      if (typeof o.summary === "string" && o.summary.trim()) return o.summary.replace(/\r\n/g, "\n").trim();
+    }
+    return "";
+  }
+
   /** 상세 해설: detail.body 우선, 없으면 구버전 legal/trap/precedent를 한 덩어리로 편집용 병합 */
   function mergeLegacyDetailToText(d) {
     if (!d || typeof d !== "object") return "";
@@ -147,10 +163,14 @@
       if (b.trim()) return b;
     }
     var parts = [];
-    if (String(d.legal || "").trim()) parts.push("법리 근거: " + String(d.legal).trim());
-    if (String(d.trap || "").trim()) parts.push("함정 포인트: " + String(d.trap).trim());
-    if (String(d.precedent || "").trim()) parts.push("판례: " + String(d.precedent).trim());
-    if (String(d.memoTip || "").trim()) parts.push("암기 팁: " + String(d.memoTip).trim());
+    var leg = stringifyDetailSegment(d.legal);
+    if (leg) parts.push("법리 근거: " + leg);
+    var tr = stringifyDetailSegment(d.trap);
+    if (tr) parts.push("함정 포인트: " + tr);
+    var pr = stringifyDetailSegment(d.precedent);
+    if (pr) parts.push("판례: " + pr);
+    var mt = stringifyDetailSegment(d.memoTip);
+    if (mt) parts.push("암기 팁: " + mt);
     return parts.join("\n\n");
   }
 
@@ -721,7 +741,7 @@
     state.correct = 0;
     state.sessionAnswers = {};
     if (typeof window.hanlawNavigateToPanel === "function") {
-      window.hanlawNavigateToPanel("quiz");
+      window.hanlawNavigateToPanel("quiz", { skipQuizHomeReset: true });
     }
     showScreen("quiz");
     state.suppressQuizUrlSync = true;
@@ -1399,7 +1419,11 @@
     var d = q.detail;
     var hasStructured =
       d &&
-      ((d.body && String(d.body).trim()) || d.legal || d.trap || d.precedent || d.memoTip);
+      ((d.body && String(d.body).trim()) ||
+        stringifyDetailSegment(d.legal) ||
+        stringifyDetailSegment(d.trap) ||
+        stringifyDetailSegment(d.precedent) ||
+        stringifyDetailSegment(d.memoTip));
     return !!(hasStructured || hasLeadExplain);
   }
 
@@ -1892,7 +1916,8 @@
         var titles = { legal: "법리 근거", trap: "함정 포인트", precedent: "판례" };
         for (var i = 0; i < keys.length; i++) {
           var k = keys[i];
-          if (q.detail[k]) det += (titles[k] || k) + ": " + q.detail[k] + "\n\n";
+          var seg = stringifyDetailSegment(q.detail[k]);
+          if (seg) det += (titles[k] || k) + ": " + seg + "\n\n";
         }
       }
     }
@@ -2230,25 +2255,21 @@
         merged = normalizeDetailBodyRaw(String(d.body));
       } else {
         var parts = [];
-        if (d.legal != null && String(d.legal).trim()) {
-          parts.push(
-            "법리 근거: " + stripHeadLabel(String(d.legal), ["법리 근거", "법리"])
-          );
+        var legS = stringifyDetailSegment(d.legal);
+        if (legS) {
+          parts.push("법리 근거: " + stripHeadLabel(legS, ["법리 근거", "법리"]));
         }
-        if (d.trap != null && String(d.trap).trim()) {
-          parts.push(
-            "함정 포인트: " + stripHeadLabel(String(d.trap), ["함정 포인트", "함정"])
-          );
+        var trapS = stringifyDetailSegment(d.trap);
+        if (trapS) {
+          parts.push("함정 포인트: " + stripHeadLabel(trapS, ["함정 포인트", "함정"]));
         }
-        if (d.precedent != null && String(d.precedent).trim()) {
-          parts.push(
-            "판례: " + stripHeadLabel(String(d.precedent), ["판례 요지", "판례"])
-          );
+        var precS = stringifyDetailSegment(d.precedent);
+        if (precS) {
+          parts.push("판례: " + stripHeadLabel(precS, ["판례 요지", "판례"]));
         }
-        if (d.memoTip != null && String(d.memoTip).trim()) {
-          parts.push(
-            "암기 팁: " + stripHeadLabel(String(d.memoTip), ["암기 팁", "암기", "메모"])
-          );
+        var memoS = stringifyDetailSegment(d.memoTip);
+        if (memoS) {
+          parts.push("암기 팁: " + stripHeadLabel(memoS, ["암기 팁", "암기", "메모"]));
         }
         merged = normalizedText(parts.join("\n\n"));
       }
@@ -2261,7 +2282,7 @@
       if (exp && (!bas || exp !== bas)) {
         var mtrim = merged.trim();
         if (!mtrim || mtrim.indexOf(exp) !== 0) {
-          leadBlock = "**해설**\n\n" + exp;
+          leadBlock = exp;
         }
       }
     }
@@ -2663,6 +2684,8 @@
   window.initHanlawQuizFilters = initFilters;
   window.syncHanlawQuizSetupPartTopic = function () {};
   window.ensureHanlawFilterTopicOption = ensureFilterTopicOption;
+  window.hanlawGoQuizHome = goHome;
+  window.hanlawStringifyQuizDetailSegment = stringifyDetailSegment;
 
   window.hanlawAfterLogout = function () {
     try {

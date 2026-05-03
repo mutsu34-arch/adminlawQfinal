@@ -57,6 +57,16 @@
     return q.explanation != null ? q.explanation : "";
   }
 
+  function stringifyDetailSeg(v) {
+    if (typeof window.hanlawStringifyQuizDetailSegment === "function") {
+      return window.hanlawStringifyQuizDetailSegment(v);
+    }
+    if (v == null) return "";
+    if (typeof v === "string") return v.replace(/\r\n/g, "\n").trim();
+    if (typeof v === "number" && isFinite(v)) return String(v).trim();
+    return "";
+  }
+
   function setImportanceLine(lineEl, q) {
     if (!lineEl) return;
     lineEl.textContent = "";
@@ -114,23 +124,21 @@
         merged = normalizeDetailBodyRaw(String(d.body));
       } else {
         var parts = [];
-        if (d.legal != null && String(d.legal).trim()) {
-          parts.push(
-            "법리 근거: " + stripHeadLabel(String(d.legal), ["법리 근거", "법리"])
-          );
+        var legS = stringifyDetailSeg(d.legal);
+        if (legS) {
+          parts.push("법리 근거: " + stripHeadLabel(legS, ["법리 근거", "법리"]));
         }
-        if (d.trap != null && String(d.trap).trim()) {
-          parts.push(
-            "함정 포인트: " + stripHeadLabel(String(d.trap), ["함정 포인트", "함정"])
-          );
+        var trapS = stringifyDetailSeg(d.trap);
+        if (trapS) {
+          parts.push("함정 포인트: " + stripHeadLabel(trapS, ["함정 포인트", "함정"]));
         }
-        if (d.precedent != null && String(d.precedent).trim()) {
-          parts.push("판례: " + stripHeadLabel(String(d.precedent), ["판례 요지", "판례"]));
+        var precS = stringifyDetailSeg(d.precedent);
+        if (precS) {
+          parts.push("판례: " + stripHeadLabel(precS, ["판례 요지", "판례"]));
         }
-        if (d.memoTip != null && String(d.memoTip).trim()) {
-          parts.push(
-            "암기 팁: " + stripHeadLabel(String(d.memoTip), ["암기 팁", "암기", "메모"])
-          );
+        var memoS = stringifyDetailSeg(d.memoTip);
+        if (memoS) {
+          parts.push("암기 팁: " + stripHeadLabel(memoS, ["암기 팁", "암기", "메모"]));
         }
         merged = normalizedText(parts.join("\n\n"));
       }
@@ -143,7 +151,7 @@
       if (exp && (!bas || exp !== bas)) {
         var mtrim = merged.trim();
         if (!mtrim || mtrim.indexOf(exp) !== 0) {
-          leadBlock = "**해설**\n\n" + exp;
+          leadBlock = exp;
         }
       }
     }
@@ -170,7 +178,11 @@
     var d = q.detail;
     var hasStructured =
       d &&
-      ((d.body && String(d.body).trim()) || d.legal || d.trap || d.precedent || d.memoTip);
+      ((d.body && String(d.body).trim()) ||
+        stringifyDetailSeg(d.legal) ||
+        stringifyDetailSeg(d.trap) ||
+        stringifyDetailSeg(d.precedent) ||
+        stringifyDetailSeg(d.memoTip));
     return !!(hasStructured || hasLeadExplain);
   }
 

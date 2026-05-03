@@ -291,6 +291,10 @@
       });
     }
 
+    window.addEventListener("hanlaw-panel-root-reset", function (ev) {
+      var id = ev && ev.detail && ev.detail.panelId;
+      if (id === "trash") renderTrashPanel();
+    });
     window.addEventListener("quiz-trash-updated", renderTrashPanel);
     window.addEventListener("question-bank-updated", renderTrashPanel);
     window.addEventListener("app-auth", function (e) {

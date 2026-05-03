@@ -80,6 +80,58 @@
     window.history[fn]({ hanlawPanel: panelId }, "", nextPath);
   }
 
+  function scrollPanelToTop(panelId) {
+    var root = document.getElementById("panel-" + panelId);
+    if (!root) return;
+    try {
+      root.scrollTop = 0;
+    } catch (e0) {}
+  }
+
+  /** 상단 탭으로 해당 영역을 열 때마다 그 패널의 첫 화면(검색 초기·퀴즈 시작 등)으로 맞춥니다. */
+  function resetMainPanelToRoot(panelId, opts) {
+    opts = opts || {};
+    if (!panelId) return;
+    scrollPanelToTop(panelId);
+
+    if (panelId === "quiz") {
+      if (!opts.skipQuizHomeReset && typeof window.hanlawGoQuizHome === "function") {
+        window.hanlawGoQuizHome();
+      }
+      return;
+    }
+
+    if (panelId === "dict" && window.DictionaryUI && typeof window.DictionaryUI.resetTermPanelToRoot === "function") {
+      window.DictionaryUI.resetTermPanelToRoot();
+      return;
+    }
+    if (
+      panelId === "statutes" &&
+      window.DictionaryUI &&
+      typeof window.DictionaryUI.resetStatutePanelToRoot === "function"
+    ) {
+      window.DictionaryUI.resetStatutePanelToRoot();
+      return;
+    }
+    if (panelId === "cases" && window.DictionaryUI && typeof window.DictionaryUI.resetCasePanelToRoot === "function") {
+      window.DictionaryUI.resetCasePanelToRoot();
+      return;
+    }
+    if (panelId === "qa" && typeof window.refreshHanlawPublicQa === "function") {
+      window.refreshHanlawPublicQa();
+      return;
+    }
+    if (panelId === "wrong" || panelId === "fav" || panelId === "master" || panelId === "trash") {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("hanlaw-panel-root-reset", {
+            detail: { panelId: panelId }
+          })
+        );
+      } catch (e1) {}
+    }
+  }
+
   function showPanel(panelId, opts) {
     opts = opts || {};
     if (!panelId) panelId = "quiz";
@@ -98,34 +150,11 @@
     if (panelId === "settings" && typeof window.refreshHanlawNicknameFormState === "function") {
       window.refreshHanlawNicknameFormState();
     }
-    if (
-      panelId === "dict" &&
-      window.DictionaryUI &&
-      typeof window.DictionaryUI.refreshTermSearch === "function"
-    ) {
-      window.DictionaryUI.refreshTermSearch();
-    }
-    if (panelId === "qa" && typeof window.refreshHanlawPublicQa === "function") {
-      window.refreshHanlawPublicQa();
-    }
-    if (
-      panelId === "statutes" &&
-      window.DictionaryUI &&
-      typeof window.DictionaryUI.refreshStatuteSearch === "function"
-    ) {
-      window.DictionaryUI.refreshStatuteSearch();
-    }
-    if (
-      panelId === "cases" &&
-      window.DictionaryUI &&
-      typeof window.DictionaryUI.refreshCaseSearch === "function"
-    ) {
-      window.DictionaryUI.refreshCaseSearch();
-    }
     syncNavJumpSelect(panelId);
     if (opts.syncUrl !== false) {
       syncPanelUrl(panelId, opts.replace === true);
     }
+    resetMainPanelToRoot(panelId, opts);
   }
 
   function syncNavJumpSelect(panelId) {

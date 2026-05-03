@@ -302,6 +302,10 @@
       });
     }
 
+    window.addEventListener("hanlaw-panel-root-reset", function (ev) {
+      var id = ev && ev.detail && ev.detail.panelId;
+      if (id === "fav") renderFavoritesPanel();
+    });
     window.addEventListener("quiz-favorites-updated", function () {
       renderFavoritesPanel();
       if (typeof window.refreshQuizFavoriteButton === "function") {
