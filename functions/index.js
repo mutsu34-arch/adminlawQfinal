@@ -1916,6 +1916,10 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
     const fileIds = Array.isArray(data.fileIds)
       ? data.fileIds.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 30)
       : [];
+    /** 자료실 RAG 사용: 명시값이 있으면 따르고, 없으면 fileIds가 있을 때만 RAG */
+    let useLibraryRag =
+      typeof data.useLibraryRag === "boolean" ? data.useLibraryRag : fileIds.length > 0;
+    if (useLibraryRag && !fileIds.length) useLibraryRag = false;
     let statements = Array.isArray(data.statements)
       ? data.statements.map((x) => String(x || "").trim()).filter(Boolean)
       : [];
@@ -1958,19 +1962,26 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
         .map((s, i) => i + 1 + ". " + s)
         .join("\n");
     let ragContext = "";
-    try {
-      ragContext = await retrieveLibraryContextForQuiz(
-        queryHint,
-        { topic: "행정법 교과서 예상문제", statement: String(deduped[0] || "").slice(0, 800) },
-        fileIds.length ? { fileIds } : undefined
-      );
-    } catch (e) {
-      console.warn("adminGenerateExpectedQuizFromStatements RAG", e && e.message);
-    }
-    if (!String(ragContext || "").trim()) {
+    if (useLibraryRag) {
+      try {
+        ragContext = await retrieveLibraryContextForQuiz(
+          queryHint,
+          { topic: "행정법 교과서 예상문제", statement: String(deduped[0] || "").slice(0, 800) },
+          fileIds.length ? { fileIds } : undefined
+        );
+      } catch (e) {
+        console.warn("adminGenerateExpectedQuizFromStatements RAG", e && e.message);
+      }
+      if (!String(ragContext || "").trim()) {
+        throw new HttpsError(
+          "failed-precondition",
+          "자료실 컨텍스트를 찾지 못했습니다. 파일을 선택하고 학습이 '완료'된 뒤 다시 시도하거나, 교재 없이 생성하는 경우 자료 선택을 해제해 주세요."
+        );
+      }
+    } else if (!userPrompt) {
       throw new HttpsError(
-        "failed-precondition",
-        "자료실 컨텍스트를 찾지 못했습니다. 파일을 선택하고 학습이 '완료'된 뒤 다시 시도하세요."
+        "invalid-argument",
+        "교재 없이 생성할 때는 생성 지침(prompt)이 필요합니다."
       );
     }
 
@@ -1983,16 +1994,40 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
     const ragSlice = String(ragContext || "").slice(0, 16000);
     const styleBlock = userPrompt
       ? "[편집 지시]\n" + userPrompt.slice(0, 4000)
-      : "[편집 지시]\n자료실 발췌를 근거로 각 문장의 참·거짓을 판정하고, 수험용 해설을 작성하세요.";
+      : useLibraryRag
+        ? "[편집 지시]\n자료실 발췌를 근거로 각 문장의 참·거짓을 판정하고, 수험용 해설을 작성하세요."
+        : "[편집 지시]\n행정법 수험 관점에서 각 문장의 참·거짓을 판정하고, 수험용 해설을 작성하세요.";
 
     let globalIndex = 0;
     for (let c0 = 0; c0 < deduped.length; c0 += EXPECTED_STATEMENTS_CHUNK) {
       const chunk = deduped.slice(c0, c0 + EXPECTED_STATEMENTS_CHUNK);
       const n = chunk.length;
       const listing = chunk.map((s, i) => "[" + (i + 1) + "] " + s).join("\n");
+      const evidenceRules = useLibraryRag
+        ? [
+            "- evidenceQuote는 반드시 [자료실 발췌(RAG)] 안의 문장을 거의 그대로 복사.",
+            "- 근거 없이 추측하지 마세요. 자료로 판단이 어려우면 보수적으로 answer를 정하고 근거를 명확히 하세요.",
+            "- evidenceHint는 파일명·쪽수 등 위치 힌트."
+          ]
+        : [
+            "- 교재 미연결: evidenceQuote에는 해당 판단의 핵심 법리·개념을 12자 이상으로 요약(문장 복사가 아닌 근거 설명).",
+            "- 불확실하면 보수적으로 판정하고 해설에 판단의 한계를 명시.",
+            "- evidenceHint에는 '일반론' 또는 관련 제도명 수준으로 짧게."
+          ];
+      const contextBlock = useLibraryRag
+        ? ["[자료실 발췌(RAG)]", ragSlice]
+        : [
+            "[교재 미연결]",
+            "아래 문장만 주어졌습니다. 행정법 수험에 통용되는 지식으로 판단하세요.",
+            "판례 번호·사건번호를 새로 만들지 마세요. precedent는 빈 문자열."
+          ];
       const generationPrompt = [
-        "당신은 행정법 교과서 기반 예상문제 해설 편집자입니다.",
-        "관리자가 지정한 OX 판단문 각각에 대해, 아래 [자료실 발췌]를 근거로 정답과 해설을 작성합니다.",
+        useLibraryRag
+          ? "당신은 행정법 교과서 기반 예상문제 해설 편집자입니다."
+          : "당신은 행정법 수험용 OX 문항 해설 편집자입니다.",
+        useLibraryRag
+          ? "관리자가 지정한 OX 판단문 각각에 대해, 아래 [자료실 발췌]를 근거로 정답과 해설을 작성합니다."
+          : "관리자가 지정한 OX 판단문 각각에 대해 정답과 해설을 작성합니다.",
         "JSON 배열만 출력. 마크다운/설명/코드블록 금지.",
         "",
         "[출력 배열 길이]",
@@ -2007,8 +2042,10 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
         '    "answer": true 또는 false,',
         '    "explanation": "2~5문장 해설",',
         '    "explanationBasic": "1문장 핵심",',
-        '    "evidenceQuote": "자료실 발췌에서 그대로 옮긴 근거 문장 1개(필수, 12자 이상)",',
-        '    "evidenceHint": "근거 위치 힌트(예: 파일명/쪽수)",',
+        useLibraryRag
+          ? '    "evidenceQuote": "자료실 발췌에서 그대로 옮긴 근거 문장 1개(필수, 12자 이상)",'
+          : '    "evidenceQuote": "핵심 근거 요약(필수, 12자 이상)",',
+        '    "evidenceHint": "근거 위치 또는 범위 힌트",',
         '    "legal": "법령 포인트(선택)",',
         '    "trap": "함정 포인트(선택)",',
         '    "precedent": "반드시 빈 문자열",',
@@ -2020,8 +2057,7 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
         "",
         "[규칙]",
         "- 각 문장이 참이면 answer=true, 거짓이면 false.",
-        "- evidenceQuote는 반드시 [자료실 발췌(RAG)] 안의 문장을 거의 그대로 복사.",
-        "- 근거 없이 추측하지 마세요. 자료로 판단이 어려우면 보수적으로 answer를 정하고 근거를 명확히 하세요.",
+        ...evidenceRules,
         "- 보수 모드: precedent는 빈 문자열, 판례 번호를 새로 쓰지 마세요.",
         "",
         styleBlock,
@@ -2029,8 +2065,7 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
         "[입력 문장 목록]",
         listing,
         "",
-        "[자료실 발췌(RAG)]",
-        ragSlice
+        ...contextBlock
       ].join("\n");
 
       let rows = [];
@@ -2136,7 +2171,13 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
         explanation: x.explanation,
         explanationBasic: x.explanationBasic
       }));
-      aiReviewById = await autoReviewQuizRows(apiKey, modelId, reviewPayload, userPrompt, ragContext);
+      aiReviewById = await autoReviewQuizRows(
+        apiKey,
+        modelId,
+        reviewPayload,
+        userPrompt,
+        useLibraryRag ? ragContext : ""
+      );
     } catch (_) {
       aiReviewById = {};
     }
