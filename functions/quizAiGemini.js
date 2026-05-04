@@ -104,6 +104,64 @@ function clampStr(v, max) {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+const MAX_ELLY_IMAGE_ATTACHMENTS = 3;
+const MAX_ELLY_IMAGE_BYTES = 3 * 1024 * 1024;
+
+/** Firebase Storage 다운로드 URL → 객체 경로 (예: quiz_ai_images/uid/batch/0_x.png) */
+function storageObjectPathFromFirebaseDownloadUrl(url) {
+  try {
+    const u = new URL(String(url || "").trim());
+    if (u.protocol !== "https:") return null;
+    if (!/\.firebasestorage\.googleapis\.com$/i.test(u.hostname)) return null;
+    const m = u.pathname.match(/^\/v0\/b\/[^/]+\/o\/(.+)$/);
+    if (!m) return null;
+    return decodeURIComponent(m[1].replace(/\+/g, " "));
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 클라이언트가 Storage에 올린 엘리 첨부 URL만 허용하고, Gemini용 inline 이미지 파트로 만듭니다.
+ * @param {unknown} urls
+ * @param {string} uid
+ * @returns {Promise<{ mimeType: string, dataBase64: string }[]>}
+ */
+async function attachmentImagePartsForGemini(urls, uid) {
+  if (!urls) return [];
+  if (!Array.isArray(urls)) {
+    throw new HttpsError("invalid-argument", "첨부 이미지 주소는 배열이어야 합니다.");
+  }
+  const list = urls
+    .map((x) => String(x == null ? "" : x).trim())
+    .filter(Boolean)
+    .slice(0, MAX_ELLY_IMAGE_ATTACHMENTS);
+  if (!list.length) return [];
+  const prefix = `quiz_ai_images/${uid}/`;
+  const parts = [];
+  for (const url of list) {
+    const op = storageObjectPathFromFirebaseDownloadUrl(url);
+    if (!op || !op.startsWith(prefix)) {
+      throw new HttpsError("invalid-argument", "허용되지 않은 첨부 이미지 주소입니다.");
+    }
+    const res = await fetch(url, { method: "GET", redirect: "follow" });
+    if (!res.ok) {
+      throw new HttpsError("invalid-argument", "첨부 이미지를 불러오지 못했습니다.");
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_ELLY_IMAGE_BYTES) {
+      throw new HttpsError("invalid-argument", "첨부 이미지는 각 3MB 이하여야 합니다.");
+    }
+    const ctRaw = res.headers.get("content-type") || "image/jpeg";
+    const ct = String(ctRaw).split(";")[0].trim().toLowerCase();
+    if (!ct.startsWith("image/")) {
+      throw new HttpsError("invalid-argument", "이미지 파일만 첨부할 수 있습니다.");
+    }
+    parts.push({ mimeType: ct, dataBase64: buf.toString("base64") });
+  }
+  return parts;
+}
+
 function oxLabel(b) {
   return b === true ? "O(참)" : b === false ? "X(거짓)" : "—";
 }
@@ -258,7 +316,7 @@ async function releaseEllyReservation(uid, reservation) {
   }
 }
 
-async function generateQuizReply(apiKey, modelId, quiz, userQuestion, ragContext, learnerNickname) {
+async function generateQuizReply(apiKey, modelId, quiz, userQuestion, ragContext, learnerNickname, imageParts) {
   const gen = new GoogleGenerativeAI(apiKey);
   const candidates = [];
   [modelId].concat(FALLBACK_MODELS).forEach(function (m) {
@@ -292,6 +350,11 @@ async function generateQuizReply(apiKey, modelId, quiz, userQuestion, ragContext
     system += "\n\n(참고 발췌와 퀴즈 정답·해설이 모순되면 해설·문항을 우선하세요.)";
   }
 
+  if (imageParts && imageParts.length) {
+    system +=
+      "\n\n아래 텍스트 블록 뒤에 이어지는 이미지는 학습자가 참고용으로 첨부한 것입니다. 문항·질문과 관련 있을 때만 반영하고, 관련 없거나 판독하기 어렵다면 그렇게 말하세요.";
+  }
+
   const ctx = [
     "[문항 주제]",
     quiz.topic || "—",
@@ -315,6 +378,14 @@ async function generateQuizReply(apiKey, modelId, quiz, userQuestion, ragContext
     userQuestion
   ].join("\n");
 
+  const promptText = system + "\n\n---\n\n" + ctx;
+  const userContentParts = [{ text: promptText }];
+  if (imageParts && imageParts.length) {
+    for (const ip of imageParts) {
+      userContentParts.push({ inlineData: { mimeType: ip.mimeType, data: ip.dataBase64 } });
+    }
+  }
+
   var lastErr = null;
   for (let i = 0; i < candidates.length; i++) {
     const model = gen.getGenerativeModel({
@@ -325,7 +396,7 @@ async function generateQuizReply(apiKey, modelId, quiz, userQuestion, ragContext
       }
     });
     try {
-      const res = await model.generateContent(system + "\n\n---\n\n" + ctx);
+      const res = await model.generateContent(userContentParts);
       assertGeminiGenerationComplete(res);
       const text = res.response.text();
       if (text && String(text).trim()) return String(text).trim();
@@ -347,7 +418,7 @@ async function generateQuizReply(apiKey, modelId, quiz, userQuestion, ragContext
   throw lastErr || new Error("AI 모델 호출에 실패했습니다.");
 }
 
-async function generateDictionaryReply(apiKey, modelId, quiz, userQuestion, ragContext, learnerNickname) {
+async function generateDictionaryReply(apiKey, modelId, quiz, userQuestion, ragContext, learnerNickname, imageParts) {
   const gen = new GoogleGenerativeAI(apiKey);
   const candidates = [];
   [modelId].concat(FALLBACK_MODELS).forEach(function (m) {
@@ -380,6 +451,11 @@ async function generateDictionaryReply(apiKey, modelId, quiz, userQuestion, ragC
     system += "\n\n(참고 발췌와 사전 수록문이 모순되면 사전 수록문을 우선하세요.)";
   }
 
+  if (imageParts && imageParts.length) {
+    system +=
+      "\n\n아래 텍스트 블록 뒤에 이어지는 이미지는 학습자가 참고용으로 첨부한 것입니다. 수록문·질문과 관련 있을 때만 반영하고, 관련 없거나 판독하기 어렵다면 그렇게 말하세요.";
+  }
+
   const ctx = [
     "[사전 항목 제목·유형]",
     quiz.topic || "—",
@@ -394,6 +470,14 @@ async function generateDictionaryReply(apiKey, modelId, quiz, userQuestion, ragC
     userQuestion
   ].join("\n");
 
+  const promptText = system + "\n\n---\n\n" + ctx;
+  const userContentParts = [{ text: promptText }];
+  if (imageParts && imageParts.length) {
+    for (const ip of imageParts) {
+      userContentParts.push({ inlineData: { mimeType: ip.mimeType, data: ip.dataBase64 } });
+    }
+  }
+
   var lastErr = null;
   for (let i = 0; i < candidates.length; i++) {
     const model = gen.getGenerativeModel({
@@ -404,7 +488,7 @@ async function generateDictionaryReply(apiKey, modelId, quiz, userQuestion, ragC
       }
     });
     try {
-      const res = await model.generateContent(system + "\n\n---\n\n" + ctx);
+      const res = await model.generateContent(userContentParts);
       assertGeminiGenerationComplete(res);
       const text = res.response.text();
       if (text && String(text).trim()) return String(text).trim();
@@ -472,6 +556,23 @@ const quizAskGemini = onCall({ region: "asia-northeast3" }, async (request) => {
     );
   }
 
+  let imageParts = [];
+  try {
+    if (data.attachmentUrls != null) {
+      if (!Array.isArray(data.attachmentUrls)) {
+        throw new HttpsError("invalid-argument", "첨부 이미지 주소는 URL 배열이어야 합니다.");
+      }
+      imageParts = await attachmentImagePartsForGemini(data.attachmentUrls, uid);
+    }
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    console.error("quizAskGemini attachmentImage", e);
+    throw new HttpsError(
+      "invalid-argument",
+      (e && e.message) || "첨부 이미지를 처리하지 못했습니다."
+    );
+  }
+
   let rem;
   try {
     rem = await reserveEllySlot(uid, request.auth);
@@ -497,14 +598,21 @@ const quizAskGemini = onCall({ region: "asia-northeast3" }, async (request) => {
 
   try {
     const answer = isDictionary
-      ? await generateDictionaryReply(apiKey, modelId, quiz, rawQ, ragContext, learnerNick)
-      : await generateQuizReply(apiKey, modelId, quiz, rawQ, ragContext, learnerNick);
+      ? await generateDictionaryReply(apiKey, modelId, quiz, rawQ, ragContext, learnerNick, imageParts)
+      : await generateQuizReply(apiKey, modelId, quiz, rawQ, ragContext, learnerNick, imageParts);
 
     try {
       const qid =
         qz.questionId != null && String(qz.questionId).trim()
           ? clampStr(String(qz.questionId).trim(), 120)
           : null;
+      const attUrlLog =
+        Array.isArray(data.attachmentUrls) && data.attachmentUrls.length
+          ? data.attachmentUrls
+              .map((u) => clampStr(u, 500))
+              .filter(Boolean)
+              .slice(0, MAX_ELLY_IMAGE_ATTACHMENTS)
+          : [];
       await db().collection("hanlaw_quiz_ai_asks").add({
         userId: uid,
         userQuestion: clampStr(rawQ, MAX_USER_Q),
@@ -517,6 +625,8 @@ const quizAskGemini = onCall({ region: "asia-northeast3" }, async (request) => {
         mode: isDictionary ? "dictionary" : "quiz",
         quizTopic: clampStr(quiz.topic, 200) || "",
         questionId: qid,
+        imageAttachmentCount: imageParts.length,
+        attachmentUrls: attUrlLog.length ? attUrlLog : null,
         createdAt: FieldValue.serverTimestamp()
       });
     } catch (logErr) {
@@ -530,7 +640,8 @@ const quizAskGemini = onCall({ region: "asia-northeast3" }, async (request) => {
       ellyUnlimited: rem.reservationKind === "unlimited",
       ellyCreditsRemaining:
         typeof rem.ellyCreditsAfter === "number" ? rem.ellyCreditsAfter : undefined,
-      usedLibraryRag: !!ragContext
+      usedLibraryRag: !!ragContext,
+      usedImageAttachments: imageParts.length > 0
     };
   } catch (e) {
     await releaseEllyReservation(uid, rem);

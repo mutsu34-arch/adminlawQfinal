@@ -18,6 +18,16 @@ service firebase.storage {
       allow delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
+    /** 엘리(AI) 질문 첨부 — 티켓 홍보 인증과 동일(이미지 최대 3장·용량 상한) */
+    match /quiz_ai_images/{userId}/{batchId}/{fileName} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 4 * 1024 * 1024
+        && request.resource.contentType.matches("image/.*");
+      allow delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
     // 행정법 자료실 PDF·Excel (관리자만 업로드·조회)
     match /hanlaw_library/{libraryId}/{fileName} {
       allow read: if isAdmin();

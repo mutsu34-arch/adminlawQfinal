@@ -62,13 +62,16 @@
     });
   };
 
-  window.convertAttendancePointsToEllyCreditCallable = function () {
+  /** @param {{ count?: number }} [payload] count: 1|5|10|20|30, 기본 1 */
+  window.convertAttendancePointsToEllyCreditCallable = function (payload) {
     if (typeof firebase === "undefined" || !firebase.app || !firebase.functions) {
       return Promise.reject(new Error("Firebase Functions를 불러오지 못했습니다."));
     }
     var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
     var fn = firebase.app().functions(region).httpsCallable("convertAttendancePointsToEllyCredit");
-    return fn({}).then(function (res) {
+    var body = {};
+    if (payload && payload.count != null) body.count = payload.count;
+    return fn(body).then(function (res) {
       return res && res.data ? res.data : {};
     });
   };

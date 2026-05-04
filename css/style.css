@@ -5248,6 +5248,99 @@ button.feedback-tag--inactive:hover {
   text-underline-offset: 2px;
 }
 
+.footer__contact .footer__chat-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.footer__contact .footer__chat-link:hover {
+  opacity: 0.9;
+}
+
+.support-chat-fab {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1200;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+}
+
+.support-chat-fab:hover {
+  filter: brightness(1.05);
+}
+
+.support-chat-modal__panel {
+  max-width: 28rem;
+  width: calc(100vw - 2rem);
+}
+
+.support-chat-modal__hint {
+  margin-top: 0.25rem;
+}
+
+.support-chat-log {
+  margin: 0.75rem 0;
+  max-height: min(42vh, 22rem);
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, var(--muted));
+}
+
+.support-chat-msg {
+  margin-bottom: 0.65rem;
+}
+
+.support-chat-msg__meta {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-bottom: 0.15rem;
+}
+
+.support-chat-msg__body {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.support-chat-msg--user .support-chat-msg__body {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.support-chat-msg--staff .support-chat-msg__body {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.support-chat-field {
+  margin-bottom: 0.35rem;
+}
+
+.support-chat-modal__actions {
+  margin-top: 0.5rem;
+}
+
 .pricing-refund-note {
   margin: 0.75rem 0 0;
   font-size: 0.8rem;

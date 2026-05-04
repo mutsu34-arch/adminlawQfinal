@@ -352,7 +352,7 @@
       typeof window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT === "number"
         ? window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT
         : 500;
-    var attConvertElly = document.getElementById("btn-dashboard-attendance-convert-elly");
+    var attConvertSection = document.getElementById("dashboard-point-convert-section");
     function setConvertDisabled(btn, minPts) {
       if (!btn) return;
       if (
@@ -367,7 +367,17 @@
         btn.disabled = pts < minPts;
       }
     }
-    setConvertDisabled(attConvertElly, ptsElly);
+    if (attConvertSection) {
+      attConvertSection.querySelectorAll("[data-elly-convert-count]").forEach(function (b) {
+        var cnt = parseInt(b.getAttribute("data-elly-convert-count"), 10) || 1;
+        setConvertDisabled(b, cnt * ptsElly);
+        if (cnt === 1) {
+          b.textContent = "엘리 질문권 1건 (" + ptsElly.toLocaleString("ko-KR") + "점)";
+        } else {
+          b.textContent = cnt + "건 (" + (cnt * ptsElly).toLocaleString("ko-KR") + "점)";
+        }
+      });
+    }
 
     var row = document.getElementById("dashboard-attendance-row");
     if (row) {
@@ -565,9 +575,11 @@
       : 500;
   }
 
+  var ALLOWED_ELLY_DASHBOARD_COUNTS = [1, 5, 10, 20, 30];
+
   function bindAttendanceConvert() {
     var msg = document.getElementById("dashboard-attendance-convert-msg");
-    var btnElly = document.getElementById("btn-dashboard-attendance-convert-elly");
+    var section = document.getElementById("dashboard-point-convert-section");
 
     function handleErr(err) {
       var t = err && err.message ? err.message : "전환에 실패했습니다.";
@@ -580,9 +592,11 @@
       }
     }
 
-    if (btnElly && btnElly.dataset.bound !== "1") {
-      btnElly.dataset.bound = "1";
-      btnElly.addEventListener("click", function () {
+    if (section && section.dataset.ellyConvertBound !== "1") {
+      section.dataset.ellyConvertBound = "1";
+      section.addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-elly-convert-count]");
+        if (!btn || !section.contains(btn)) return;
         if (typeof window.convertAttendancePointsToEllyCreditCallable !== "function") {
           if (msg) {
             msg.textContent = "기능을 불러오지 못했습니다.";
@@ -591,14 +605,19 @@
           return;
         }
         var need = ptsEllyMin();
+        var count = parseInt(btn.getAttribute("data-elly-convert-count"), 10) || 1;
+        if (ALLOWED_ELLY_DASHBOARD_COUNTS.indexOf(count) < 0) return;
+        var cost = need * count;
         var ptsNow = Math.max(0, parseInt(attendancePointsSnap, 10) || 0);
         var ask = window.confirm(
           "포인트를 엘리(AI) 질문권으로 전환할까요?\n\n" +
             "- 차감 포인트: " +
-            need.toLocaleString("ko-KR") +
+            cost.toLocaleString("ko-KR") +
             "점\n" +
-            "- 지급: 엘리 질문권 1건(구독 일일 한도 소진 후 차감)\n" +
-            "- 유효기간: 전환 시점부터 1개월\n" +
+            "- 지급: 엘리 질문권 " +
+            count +
+            "건(구독 일일 한도 소진 후 차감)\n" +
+            "- 유효기간: 전환 시점부터 1개월(한 건으로 합산된 건수)\n" +
             "- 현재 포인트: " +
             ptsNow.toLocaleString("ko-KR") +
             "점"
@@ -610,10 +629,13 @@
           }
           return;
         }
-        btnElly.disabled = true;
+        var allBtns = section.querySelectorAll("[data-elly-convert-count]");
+        for (var bi = 0; bi < allBtns.length; bi++) {
+          allBtns[bi].disabled = true;
+        }
         if (msg) msg.hidden = true;
         window
-          .convertAttendancePointsToEllyCreditCallable()
+          .convertAttendancePointsToEllyCreditCallable({ count: count })
           .then(function (data) {
             if (msg) {
               var leftPts =
@@ -621,7 +643,9 @@
                   ? Math.max(0, parseInt(data.attendancePoints, 10) || 0)
                   : null;
               msg.textContent =
-                "엘리(AI) 질문권 1건이 추가되었습니다. " +
+                "엘리(AI) 질문권 " +
+                count +
+                "건이 추가되었습니다. " +
                 (leftPts == null
                   ? ""
                   : "(남은 포인트: " + leftPts.toLocaleString("ko-KR") + "점) ") +

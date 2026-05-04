@@ -138,5 +138,20 @@ service cloud.firestore {
     match /hanlaw_qa_view_logs/{id} {
       allow read, write: if false;
     }
+
+    // 고객 문의 채팅(하단 채팅). 쓰기는 submitSupportChatMessage Callable만. 읽기는 본인 스레드 또는 익명 UUID 스레드.
+    match /hanlaw_support_chat/{threadId} {
+      allow read: if isAdmin()
+        || (request.auth != null && threadId == "user_" + request.auth.uid)
+        || threadId.matches("^anon_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$");
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAdmin()
+          || (request.auth != null && threadId == "user_" + request.auth.uid)
+          || threadId.matches("^anon_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$");
+        allow write: if false;
+      }
+    }
   }
 }

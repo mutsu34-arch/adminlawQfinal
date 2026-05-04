@@ -64,6 +64,9 @@ exports.adminDraftTicketAi = adminDraftTicketAi;
 const { setUserNickname } = require("./userProfileServer");
 exports.setUserNickname = setUserNickname;
 
+const { submitSupportChatMessage } = require("./supportChat");
+exports.submitSupportChatMessage = submitSupportChatMessage;
+
 const {
   createLibraryDocument,
   deleteLibraryDocument,
@@ -117,6 +120,8 @@ const ATTENDANCE_POINTS_PER_DAY = 100;
 const ATTENDANCE_POINTS_PER_CREDIT = 5000;
 /** 포인트를 엘리(AI) 질문권 1건으로 바꿀 때 차감(convertAttendancePointsToEllyCredit) — 엘리 10건 팩 건당 약 ₩500 수준 */
 const ATTENDANCE_POINTS_PER_ELLY_CREDIT = 500;
+/** 대시보드에서 한 번에 전환 가능한 엘리 질문권 건수 */
+const ALLOWED_ELLY_CONVERT_COUNTS = [1, 5, 10, 20, 30];
 /** 앱 홍보 인증(관리자 승인 시) 지급 포인트 */
 const PROMOTION_REWARD_POINTS = 9000;
 /** 개선의견 채택 시 기본 지급 포인트(관리자가 Callable에서 가감 가능) */
@@ -254,13 +259,25 @@ exports.convertAttendancePointsToQuestionCredit = onCall({ region: "asia-northea
 });
 
 /**
- * 포인트를 차감하고 엘리(AI) 질문권 1건(지갑 배치, 한국시간 달력 1개월 유효)을 지급합니다.
+ * 포인트를 차감하고 엘리(AI) 질문권을 지급합니다(지갑 배치 1건·한국시간 달력 1개월 유효).
+ * request.data.count: 1 | 5 | 10 | 20 | 30 (미지정 시 1)
  */
 exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   }
   const uid = request.auth.uid;
+  const dataIn = request.data || {};
+  let count = parseInt(dataIn.count, 10);
+  if (!Number.isFinite(count) || count < 1) count = 1;
+  if (!ALLOWED_ELLY_CONVERT_COUNTS.includes(count)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "전환 건수는 1, 5, 10, 20, 30 중에서만 선택할 수 있습니다."
+    );
+  }
+  const cost = count * ATTENDANCE_POINTS_PER_ELLY_CREDIT;
+
   const attRef = db.collection("hanlaw_attendance_rewards").doc(uid);
   const walletRef = db.collection("hanlaw_quiz_ai_wallet").doc(uid);
   const purchaseMs = Date.now();
@@ -272,19 +289,19 @@ exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3"
       0,
       parseInt(attSnap.exists ? attSnap.data().attendancePoints : 0, 10) || 0
     );
-    if (points < ATTENDANCE_POINTS_PER_ELLY_CREDIT) {
+    if (points < cost) {
       throw new HttpsError(
         "failed-precondition",
-        `엘리(AI) 질문권으로 바꾸려면 포인트가 ${ATTENDANCE_POINTS_PER_ELLY_CREDIT.toLocaleString("ko-KR")}점 이상이어야 합니다.`
+        `엘리(AI) 질문권 ${count}건으로 바꾸려면 포인트가 ${cost.toLocaleString("ko-KR")}점 이상이어야 합니다.`
       );
     }
-    points -= ATTENDANCE_POINTS_PER_ELLY_CREDIT;
+    points -= cost;
 
     const walletSnap = await t.get(walletRef);
     const data = walletSnap.exists ? walletSnap.data() : {};
     const batches = Array.isArray(data.batches) ? data.batches.slice() : [];
     batches.push({
-      amount: 1,
+      amount: count,
       expiresAt: exp,
       purchasedAt: Timestamp.now()
     });
@@ -298,9 +315,10 @@ exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3"
       { merge: true }
     );
     appendPointLog(t, attRef, {
-      delta: -ATTENDANCE_POINTS_PER_ELLY_CREDIT,
+      delta: -cost,
       reason: REASON.CONVERT_ELLY,
-      balanceAfter: points
+      balanceAfter: points,
+      meta: { ellyCredits: count }
     });
     t.set(
       walletRef,
@@ -314,7 +332,7 @@ exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3"
     return {
       ok: true,
       attendancePoints: points,
-      ellyCreditsAdded: 1
+      ellyCreditsAdded: count
     };
   });
 });

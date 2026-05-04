@@ -162,6 +162,73 @@
     remain: "quiz-ai-remain"
   };
 
+  var MAIN_ELLY_FILE_IDS = ["quiz-ai-file-1", "quiz-ai-file-2", "quiz-ai-file-3"];
+
+  function ellyImageBatchId() {
+    return "elly_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function collectEllyFilesByInputIds(ids) {
+    var out = [];
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (el && el.files && el.files[0]) out.push(el.files[0]);
+    }
+    return out;
+  }
+
+  function clearEllyFilesByInputIds(ids) {
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (el) el.value = "";
+    }
+  }
+
+  function collectEllyFilesFromNoteRoot(root) {
+    var out = [];
+    if (!root || !root.querySelectorAll) return out;
+    root.querySelectorAll("input.note-quiz-chrome__ai-file").forEach(function (inp) {
+      if (inp.files && inp.files[0]) out.push(inp.files[0]);
+    });
+    return out;
+  }
+
+  function clearEllyFilesFromNoteRoot(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll("input.note-quiz-chrome__ai-file").forEach(function (inp) {
+      inp.value = "";
+    });
+  }
+
+  function dictEllyFileInputIds(prefix) {
+    return [prefix + "-file-1", prefix + "-file-2", prefix + "-file-3"];
+  }
+
+  /** 첨부가 있으면 Storage 업로드 후 quizAskGemini 호출(홍보 인증 티켓과 동일 정책). */
+  function uploadEllyFilesThenAsk(files, basePayload) {
+    function callFn(urls) {
+      var p = Object.assign({}, basePayload);
+      if (urls && urls.length) p.attachmentUrls = urls;
+      return window.quizAskGeminiCallable(p);
+    }
+    if (!files || !files.length) {
+      return Promise.resolve(callFn(null));
+    }
+    if (typeof window.uploadQuizAiAskImages !== "function") {
+      return Promise.reject(new Error("첨부 업로드 모듈을 불러오지 못했습니다."));
+    }
+    var authUser = null;
+    try {
+      if (typeof firebase !== "undefined" && firebase.auth) authUser = firebase.auth().currentUser;
+    } catch (e0) {}
+    if (!authUser) {
+      return Promise.reject(new Error("로그인이 필요합니다."));
+    }
+    return window.uploadQuizAiAskImages(authUser.uid, ellyImageBatchId(), files).then(function (urls) {
+      return callFn(urls);
+    });
+  }
+
   function showAiLoading() {
     var load = document.getElementById(IDS.loading);
     var qEl = document.getElementById(IDS.loadingQuote);
@@ -354,6 +421,7 @@
       err.hidden = true;
     }
     if (btn) btn.setAttribute("aria-expanded", "false");
+    clearEllyFilesByInputIds(MAIN_ELLY_FILE_IDS);
   }
 
   /** 패널을 펼칠 때만: 로그인·질문권 없으면 false (모달/알림 처리됨) */
@@ -431,11 +499,9 @@
 
     showAiLoading();
 
-    window
-      .quizAskGeminiCallable({
-        userQuestion: uq,
-        quiz: ctx
-      })
+    var files = collectEllyFilesByInputIds(MAIN_ELLY_FILE_IDS);
+
+    uploadEllyFilesThenAsk(files, { userQuestion: uq, quiz: ctx })
       .then(function (res) {
         hideAiLoading();
         if (ansEl) {
@@ -453,6 +519,7 @@
         if (res && typeof res.ellyCreditsRemaining === "number") {
           lastEllyCredits = Math.max(0, res.ellyCreditsRemaining);
         }
+        clearEllyFilesByInputIds(MAIN_ELLY_FILE_IDS);
         updateRemainTexts();
       })
       .catch(function (e) {
@@ -540,11 +607,9 @@
       ansEl.hidden = true;
     }
 
-    window
-      .quizAskGeminiCallable({
-        userQuestion: uq,
-        quiz: ctx
-      })
+    var filesNote = collectEllyFilesFromNoteRoot(root);
+
+    uploadEllyFilesThenAsk(filesNote, { userQuestion: uq, quiz: ctx })
       .then(function (res) {
         if (loadEl) {
           loadEl.hidden = true;
@@ -565,6 +630,7 @@
         if (res && typeof res.ellyCreditsRemaining === "number") {
           lastEllyCredits = Math.max(0, res.ellyCreditsRemaining);
         }
+        clearEllyFilesFromNoteRoot(root);
         updateRemainTexts();
       })
       .catch(function (e) {
@@ -675,11 +741,10 @@
 
     showDictAiLoading(pre);
 
-    window
-      .quizAskGeminiCallable({
-        userQuestion: uq,
-        quiz: ctx
-      })
+    var dictFileIds = dictEllyFileInputIds(pre);
+    var filesDict = collectEllyFilesByInputIds(dictFileIds);
+
+    uploadEllyFilesThenAsk(filesDict, { userQuestion: uq, quiz: ctx })
       .then(function (res) {
         hideDictAiLoading(pre);
         if (ansEl) {
@@ -697,6 +762,7 @@
         if (res && typeof res.ellyCreditsRemaining === "number") {
           lastEllyCredits = Math.max(0, res.ellyCreditsRemaining);
         }
+        clearEllyFilesByInputIds(dictFileIds);
         updateRemainTexts();
       })
       .catch(function (e) {

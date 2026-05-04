@@ -46,6 +46,32 @@
     return Promise.all(tasks);
   };
 
+  /**
+   * 엘리(AI) 질문 첨부 이미지 업로드 — 홍보 인증 티켓과 동일 검증(이미지·최대 3장·각 3MB).
+   * Storage 경로: quiz_ai_images/{userId}/{batchId}/...
+   */
+  window.uploadQuizAiAskImages = function (userId, batchId, files) {
+    var st = storage();
+    if (!st) return Promise.reject(new Error("Storage를 사용할 수 없습니다."));
+    var list = [].slice.call(files || [], 0, 3);
+    var tasks = [];
+    for (var i = 0; i < list.length; i++) {
+      var file = list[i];
+      if (!file || !file.size) continue;
+      var err = validateImageFile(file);
+      if (err) return Promise.reject(new Error(err));
+      var safe = String(file.name || "img").replace(/[^\w.-]/g, "_").slice(0, 80);
+      var path = "quiz_ai_images/" + userId + "/" + batchId + "/" + i + "_" + safe;
+      var ref = st.ref(path);
+      tasks.push(
+        ref.put(file, { contentType: file.type }).then(function (snap) {
+          return snap.ref.getDownloadURL();
+        })
+      );
+    }
+    return Promise.all(tasks);
+  };
+
   window.createSupportTicket = function (opts) {
     var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     if (!user) return Promise.reject(new Error("로그인 후 이용할 수 있습니다."));

@@ -705,6 +705,8 @@
     setNoteSortMode: setNoteSortMode,
     syncNoteSortBarUI: syncNoteSortBarUI,
     buildCard: buildCard,
+    /** 노트 카드에 정답·해설을 표시 (재렌더 후 복원용) */
+    revealCardAnswer: revealCardAnswer,
     attachListInteractions: attachListInteractions,
     normalizeId: normalizeId,
     formatQuizSourceLine: formatSourceLine

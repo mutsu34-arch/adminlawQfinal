@@ -134,6 +134,9 @@
     }
   };
 
+  /** 오답 제출 시 record()가 곧바로 목록을 갈아엎어, 방금 연 해설 DOM이 사라지는 것을 막기 위한 복원용 */
+  var pendingRevealAfterRender = null;
+
   function renderWrongPanel() {
     var UI = window.HanlawNoteQuizUi;
     var listEl = document.getElementById("wrong-note-list");
@@ -158,6 +161,7 @@
     listEl.innerHTML = "";
 
     if (!ids.length) {
+      pendingRevealAfterRender = null;
       emptyEl.hidden = false;
       if (bannerEl) {
         bannerEl.hidden = true;
@@ -207,6 +211,26 @@
       }
       listEl.appendChild(UI.buildCard(q, idx1, "wrong"));
     }
+
+    if (pendingRevealAfterRender && UI && typeof UI.revealCardAnswer === "function") {
+      var pr = pendingRevealAfterRender;
+      pendingRevealAfterRender = null;
+      var want = normalizeId(pr.qid);
+      if (want) {
+        var cards = listEl.querySelectorAll("[data-note-quiz]");
+        var ci;
+        for (ci = 0; ci < cards.length; ci++) {
+          if (normalizeId(cards[ci].getAttribute("data-qid")) !== want) continue;
+          var qR = findQuestionById(want);
+          if (qR) {
+            try {
+              UI.revealCardAnswer(cards[ci], qR, pr.userTrue === true);
+            } catch (eReveal) {}
+          }
+          break;
+        }
+      }
+    }
   }
 
   function bind() {
@@ -230,6 +254,7 @@
               window.QuizWrongNote &&
               typeof window.QuizWrongNote.record === "function"
             ) {
+              pendingRevealAfterRender = { qid: q.id, userTrue: userTrue === true };
               window.QuizWrongNote.record(q.id);
             }
           }

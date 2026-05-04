@@ -456,6 +456,9 @@
       err.hidden = true;
     }
     if (btn) btn.setAttribute("aria-expanded", "false");
+    root.querySelectorAll("input.note-quiz-chrome__ai-file").forEach(function (inp) {
+      inp.value = "";
+    });
   }
 
   function onCardRevealed(article, q, userTrue) {
@@ -560,6 +563,12 @@
       '<div class="quiz-ai-panel note-quiz-chrome__ai-panel" hidden>' +
       '<label class="field"><span class="field__label">엘리(AI)에게 질문 (문항·해설 맥락이 함께 전달됩니다)</span>' +
       '<textarea class="input textarea note-quiz-chrome__ai-question" rows="3" maxlength="800" placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다. 예: 왜 이 경우 O인가요?"></textarea></label>' +
+      '<div class="field">' +
+      '<span class="field__label">이미지 첨부 (선택, 최대 3장, 각 3MB 이하)</span>' +
+      '<input type="file" class="input note-quiz-chrome__ai-file" accept="image/*" />' +
+      '<input type="file" class="input note-quiz-chrome__ai-file" accept="image/*" />' +
+      '<input type="file" class="input note-quiz-chrome__ai-file" accept="image/*" />' +
+      "</div>" +
       '<button type="button" class="btn btn--primary note-quiz-chrome__ai-send">질문 보내기</button>' +
       '<p class="admin-msg admin-msg--error quiz-ai-error note-quiz-chrome__ai-error" hidden></p>' +
       '<div class="quiz-ai-loading note-quiz-chrome__ai-loading" hidden aria-live="polite" aria-busy="true">' +

@@ -784,6 +784,12 @@
                           placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다. 예: 왜 이 경우 O인가요?"
                         ></textarea>
                       </label>
+                      <div class="field">
+                        <span class="field__label">이미지 첨부 (선택, 최대 3장, 각 3MB 이하)</span>
+                        <input type="file" id="quiz-ai-file-1" class="input" accept="image/*" />
+                        <input type="file" id="quiz-ai-file-2" class="input" accept="image/*" />
+                        <input type="file" id="quiz-ai-file-3" class="input" accept="image/*" />
+                      </div>
                       <button type="button" class="btn btn--primary" id="btn-quiz-ai-send">질문 보내기</button>
                       <p id="quiz-ai-error" class="admin-msg admin-msg--error quiz-ai-error" hidden></p>
                       <div
@@ -987,6 +993,12 @@
                       placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다."
                     ></textarea>
                   </label>
+                  <div class="field">
+                    <span class="field__label">이미지 첨부 (선택, 최대 3장, 각 3MB 이하)</span>
+                    <input type="file" id="dict-term-eli-file-1" class="input" accept="image/*" />
+                    <input type="file" id="dict-term-eli-file-2" class="input" accept="image/*" />
+                    <input type="file" id="dict-term-eli-file-3" class="input" accept="image/*" />
+                  </div>
                   <button type="button" class="btn btn--primary" id="dict-term-eli-send">질문 보내기</button>
                   <p id="dict-term-eli-error" class="admin-msg admin-msg--error quiz-ai-error" hidden></p>
                   <div id="dict-term-eli-loading" class="quiz-ai-loading" hidden aria-live="polite" aria-busy="true">
@@ -1161,6 +1173,12 @@
                       placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다."
                     ></textarea>
                   </label>
+                  <div class="field">
+                    <span class="field__label">이미지 첨부 (선택, 최대 3장, 각 3MB 이하)</span>
+                    <input type="file" id="dict-statute-eli-file-1" class="input" accept="image/*" />
+                    <input type="file" id="dict-statute-eli-file-2" class="input" accept="image/*" />
+                    <input type="file" id="dict-statute-eli-file-3" class="input" accept="image/*" />
+                  </div>
                   <button type="button" class="btn btn--primary" id="dict-statute-eli-send">질문 보내기</button>
                   <p id="dict-statute-eli-error" class="admin-msg admin-msg--error quiz-ai-error" hidden></p>
                   <div id="dict-statute-eli-loading" class="quiz-ai-loading" hidden aria-live="polite" aria-busy="true">
@@ -1325,6 +1343,12 @@
                       placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다."
                     ></textarea>
                   </label>
+                  <div class="field">
+                    <span class="field__label">이미지 첨부 (선택, 최대 3장, 각 3MB 이하)</span>
+                    <input type="file" id="dict-case-eli-file-1" class="input" accept="image/*" />
+                    <input type="file" id="dict-case-eli-file-2" class="input" accept="image/*" />
+                    <input type="file" id="dict-case-eli-file-3" class="input" accept="image/*" />
+                  </div>
                   <button type="button" class="btn btn--primary" id="dict-case-eli-send">질문 보내기</button>
                   <p id="dict-case-eli-error" class="admin-msg admin-msg--error quiz-ai-error" hidden></p>
                   <div id="dict-case-eli-loading" class="quiz-ai-loading" hidden aria-live="polite" aria-busy="true">
@@ -1933,9 +1957,42 @@
                         type="button"
                         class="btn btn--secondary btn--small dashboard-attendance-convert"
                         id="btn-dashboard-attendance-convert-elly"
+                        data-elly-convert-count="1"
                         disabled
                       >
                         엘리 질문권 1건 (500점)
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--secondary btn--small dashboard-attendance-convert"
+                        data-elly-convert-count="5"
+                        disabled
+                      >
+                        5건 (2,500점)
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--secondary btn--small dashboard-attendance-convert"
+                        data-elly-convert-count="10"
+                        disabled
+                      >
+                        10건 (5,000점)
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--secondary btn--small dashboard-attendance-convert"
+                        data-elly-convert-count="20"
+                        disabled
+                      >
+                        20건 (10,000점)
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--secondary btn--small dashboard-attendance-convert"
+                        data-elly-convert-count="30"
+                        disabled
+                      >
+                        30건 (15,000점)
                       </button>
                     </div>
                     <p id="dashboard-attendance-convert-msg" class="dashboard-attendance-convert-msg" hidden role="status"></p>
@@ -3123,7 +3180,13 @@
   <div class="footer">
     <p>상호 엘루션(ELLUTION) | 대표 정대영 | 사업자등록번호 588-07-03369</p>
     <p>통신판매업신고 신고 예정 | 주소 서울특별시 서초구 서초중앙로 49, 609호(서초동, 동양라디안루키)</p>
-    <p>고객문의 ellutionsoft@gmail.com | 전화 010-3932-1358</p>
+    <p class="footer__contact">
+      고객문의
+      <a href="mailto:ellutionsoft@gmail.com">ellutionsoft@gmail.com</a>
+      · 전화 <a href="tel:07079542912">070-7954-2912</a>
+      ·
+      <button type="button" class="footer__chat-link" id="footer-open-support-chat">채팅 문의</button>
+    </p>
     <p>
       <a href="/content/index.html" target="_blank" rel="noopener noreferrer">공개 학습콘텐츠</a>
       |
@@ -3419,6 +3482,46 @@
     </div>
   </div>
 
+  <div
+    id="support-chat-modal"
+    class="modal support-chat-modal"
+    hidden
+    aria-hidden="true"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="support-chat-modal-title"
+  >
+    <div class="modal__panel card support-chat-modal__panel">
+      <div class="modal__head">
+        <h2 class="modal__title" id="support-chat-modal-title">고객 문의 채팅</h2>
+        <button type="button" class="modal__close" id="support-chat-modal-close" aria-label="닫기">×</button>
+      </div>
+      <p class="modal__hint support-chat-modal__hint">
+        운영팀이 메시지를 확인합니다. 로그인하면 계정에 연결되고, 비회원은 이 브라우저에만 대화가 이어집니다. 긴급한 경우 전화 또는 이메일을 병행해 주세요.
+      </p>
+      <div id="support-chat-log" class="support-chat-log" role="log" aria-relevant="additions"></div>
+      <label class="field support-chat-field">
+        <span class="field__label">메시지</span>
+        <textarea
+          id="support-chat-input"
+          class="input textarea"
+          rows="3"
+          maxlength="2000"
+          placeholder="문의 내용을 입력한 뒤 보내기를 누르세요."
+        ></textarea>
+      </label>
+      <p id="support-chat-error" class="admin-msg admin-msg--error" hidden role="alert"></p>
+      <div class="modal__actions support-chat-modal__actions">
+        <button type="button" class="btn btn--ghost" id="support-chat-modal-dismiss">닫기</button>
+        <button type="button" class="btn btn--primary" id="support-chat-send">보내기</button>
+      </div>
+    </div>
+  </div>
+
+  <button type="button" class="support-chat-fab" id="support-chat-fab" aria-label="고객 문의 채팅 열기" title="채팅 문의">
+    채팅
+  </button>
+
   <script src="/js/header-quote.js?v=8"></script>
   <script src="/js/app-settings.js?v=20260422-adsense-open-mode"></script>
   <script src="/js/theme-toggle.js?v=2"></script>
@@ -3443,11 +3546,12 @@
   <script src="/js/auth-bridge.js"></script>
   <script src="/js/firestore-db.js?v=23"></script>
   <script src="/js/ai-config.js"></script>
-  <script src="/js/tickets-service.js?v=14"></script>
+  <script src="/js/tickets-service.js?v=15"></script>
   <script src="/js/pricing-display-config.js?v=1"></script>
   <script src="/js/portone-config.js?v=2"></script>
   <script src="/js/portone-checkout.js?v=7"></script>
   <script src="/js/auth.js?v=5"></script>
+  <script src="/js/support-chat.js?v=1"></script>
   <script src="/js/user-profile.js?v=20260419"></script>
   <script src="/js/dict-remote.js?v=6"></script>
   <script src="/js/statute-tag.js"></script>
@@ -3467,10 +3571,10 @@
     };
   </script>
   <script src="/js/detail-ad-unlock.js?v=7"></script>
-  <script src="/js/question-credits.js?v=7"></script>
-  <script src="/js/quiz-ai-ask.js?v=16"></script>
+  <script src="/js/question-credits.js?v=8"></script>
+  <script src="/js/quiz-ai-ask.js?v=17"></script>
   <script src="/js/dashboard-tickets.js?v=12"></script>
-  <script src="/js/learning-stats.js?v=5"></script>
+  <script src="/js/learning-stats.js?v=6"></script>
   <script src="/js/nav-layout.js?v=13"></script>
   <script src="/js/free-trial-ui.js?v=3"></script>
   <script src="/js/public-qa.js?v=16"></script>
@@ -3485,7 +3589,7 @@
   <script src="/js/scope-favorites.js?v=9"></script>
   <script src="/js/ticket-modal.js?v=15"></script>
   <script src="/js/dict-panel-actions.js?v=11"></script>
-  <script src="/js/quiz-note-card-actions.js?v=8"></script>
+  <script src="/js/quiz-note-card-actions.js?v=9"></script>
   <script src="/js/notifications-ui.js?v=4"></script>
   <script src="/js/admin-panel.js?v=2"></script>
   <script src="/js/admin-quiz-create.js?v=19"></script>
