@@ -68,11 +68,25 @@
     }
   }
 
-  function writeRaw(data) {
+  function isWrongPanelVisible() {
+    try {
+      var p = document.getElementById("panel-wrong");
+      return !!(p && p.classList.contains("panel--active") && !p.hidden);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function writeRaw(data, opts) {
+    opts = opts || {};
     try {
       localStorage.setItem(storageKey(), JSON.stringify(data));
     } catch (e) {}
-    window.dispatchEvent(new CustomEvent("quiz-wrong-note-updated"));
+    if (!opts.silent) {
+      try {
+        window.dispatchEvent(new CustomEvent("quiz-wrong-note-updated"));
+      } catch (e2) {}
+    }
   }
 
   function findQuestionById(id) {
@@ -115,7 +129,8 @@
     }
     pendingWrongRecordIds.length = 0;
     if (d.order.length > MAX_STORE) d.order.length = MAX_STORE;
-    writeRaw(d);
+    /* 오답노트 화면을 보는 중이면 저장만 하고 이벤트는 막아 목록이 다시 그려지며 순서가 바뀌는 것을 방지 */
+    writeRaw(d, { silent: isWrongPanelVisible() });
   }
 
   window.QuizWrongNote = {

@@ -969,6 +969,29 @@
     };
   }
 
+  /**
+   * 퀴즈에서 오답 시 오답노트 저장 순서를 갱신합니다.
+   * '오답노트' 노트 범위로 퀴즈를 돌릴 때는 defer(다음에 오답노트·다른 탭으로 갈 때 반영)로,
+   * 풀다가 맨 앞으로 튀는 느낌을 막습니다.
+   */
+  function recordMissInWrongNote(q) {
+    var qid = String(q && q.id != null ? q.id : "").trim();
+    if (!qid || !window.QuizWrongNote) return;
+    var nb = state.lastNotebookScope;
+    if (!nb) {
+      try {
+        nb = getNotebookScopeSelections();
+      } catch (e) {
+        nb = null;
+      }
+    }
+    if (nb && nb.wrong && typeof window.QuizWrongNote.deferRecord === "function") {
+      window.QuizWrongNote.deferRecord(qid);
+    } else if (typeof window.QuizWrongNote.record === "function") {
+      window.QuizWrongNote.record(qid);
+    }
+  }
+
   function anyNotebookScopeActive(sel) {
     sel = sel || getNotebookScopeSelections();
     return !!(sel.wrong || sel.fav || sel.master);
@@ -2155,13 +2178,7 @@
       if (el.feedbackMaster) el.feedbackMaster.hidden = true;
       if (el.feedbackAttendanceNotify) el.feedbackAttendanceNotify.hidden = true;
     }
-    if (
-      String(q.id != null ? q.id : "").trim() &&
-      window.QuizWrongNote &&
-      typeof window.QuizWrongNote.record === "function"
-    ) {
-      window.QuizWrongNote.record(q.id);
-    }
+    recordMissInWrongNote(q);
     updateQuizNavButtons();
     afterQuizAnswerTryAttendance();
   }
@@ -2529,13 +2546,8 @@
       if (el.feedbackMaster) el.feedbackMaster.hidden = true;
       if (el.feedbackAttendanceNotify) el.feedbackAttendanceNotify.hidden = true;
     }
-    if (
-      !ok &&
-      String(q.id != null ? q.id : "").trim() &&
-      window.QuizWrongNote &&
-      typeof window.QuizWrongNote.record === "function"
-    ) {
-      window.QuizWrongNote.record(q.id);
+    if (!ok) {
+      recordMissInWrongNote(q);
     }
     updateQuizNavButtons();
     afterQuizAnswerTryAttendance();
