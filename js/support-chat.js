@@ -55,6 +55,61 @@
     }
   }
 
+  /**
+   * @param {"customer"|"admin"} viewMode — 고객 화면: 내 말 오른쪽. 관리자: 고객 왼쪽·운영·AI 오른쪽.
+   */
+  function buildMessageRow(sender, text, tsMs, viewMode) {
+    var isMine =
+      viewMode === "customer"
+        ? sender === "user"
+        : sender === "assistant" || sender === "staff";
+
+    var row = document.createElement("div");
+    row.className = "support-chat-row" + (isMine ? " support-chat-row--mine" : " support-chat-row--them");
+
+    var wrap = document.createElement("div");
+    wrap.className = "support-chat-bubble-wrap";
+
+    var labelText = "";
+    if (viewMode === "customer") {
+      if (!isMine) {
+        if (sender === "assistant") labelText = "AI 안내";
+        else if (sender === "staff") labelText = "운영팀";
+      }
+    } else {
+      if (!isMine && sender === "user") labelText = "고객";
+      if (isMine) {
+        if (sender === "assistant") labelText = "AI 안내";
+        else if (sender === "staff") labelText = "운영팀";
+      }
+    }
+
+    if (labelText) {
+      var lab = document.createElement("div");
+      lab.className = "support-chat-msg__sender";
+      lab.textContent = labelText;
+      wrap.appendChild(lab);
+    }
+
+    var role = sender === "staff" ? "staff" : sender === "assistant" ? "assistant" : "user";
+    var msg = document.createElement("div");
+    msg.className = "support-chat-msg support-chat-msg--" + role;
+
+    var body = document.createElement("div");
+    body.className = "support-chat-msg__body";
+    body.textContent = String(text || "");
+    msg.appendChild(body);
+    wrap.appendChild(msg);
+
+    var meta = document.createElement("div");
+    meta.className = "support-chat-msg__meta";
+    meta.textContent = formatTime(tsMs);
+    wrap.appendChild(meta);
+
+    row.appendChild(wrap);
+    return row;
+  }
+
   function renderMessages(snap) {
     var logEl = $("support-chat-log");
     if (!logEl) return;
@@ -71,24 +126,8 @@
       var d = docs[i].data() || {};
       var text = String(d.text || "");
       var sender = d.sender || "user";
-      var div = document.createElement("div");
-      var roleClass =
-        sender === "staff"
-          ? " support-chat-msg--staff"
-          : sender === "assistant"
-            ? " support-chat-msg--assistant"
-            : " support-chat-msg--user";
-      div.className = "support-chat-msg" + roleClass;
-      var meta = document.createElement("div");
-      meta.className = "support-chat-msg__meta";
       var ts = d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : null;
-      meta.textContent = formatTime(ts);
-      var body = document.createElement("div");
-      body.className = "support-chat-msg__body";
-      body.textContent = text;
-      div.appendChild(meta);
-      div.appendChild(body);
-      logEl.appendChild(div);
+      logEl.appendChild(buildMessageRow(sender, text, ts, "customer"));
     }
     logEl.scrollTop = logEl.scrollHeight;
   }

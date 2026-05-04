@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css?v=20260504-support-chat-ai" />
+  <link rel="stylesheet" href="/css/style.css?v=20260504-support-chat-kakao-ui" />
 </head>
 <body>
   <div class="app">
@@ -3183,7 +3183,7 @@
                   </div>
                   <div id="admin-support-chat-detail" class="admin-inbox-detail" hidden>
                     <p id="admin-support-chat-meta" class="admin-inbox-meta"></p>
-                    <div id="admin-support-chat-log" class="admin-support-chat-log" role="log"></div>
+                    <div id="admin-support-chat-log" class="support-chat-log support-chat-log--admin" role="log"></div>
                     <label class="field">
                       <span class="field__label">운영자 답장</span>
                       <textarea
@@ -3520,28 +3520,32 @@
     aria-labelledby="support-chat-modal-title"
   >
     <div class="modal__panel card support-chat-modal__panel">
-      <div class="modal__head">
-        <h2 class="modal__title" id="support-chat-modal-title">고객 문의 채팅</h2>
-        <button type="button" class="modal__close" id="support-chat-modal-close" aria-label="닫기">×</button>
+      <div class="support-chat-modal__chrome">
+        <div class="modal__head support-chat-modal__head">
+          <h2 class="modal__title support-chat-modal__title" id="support-chat-modal-title">문의 채팅</h2>
+          <button type="button" class="modal__close support-chat-modal__close" id="support-chat-modal-close" aria-label="닫기">×</button>
+        </div>
+        <p class="support-chat-modal__hint">
+          AI가 먼저 짧게 안내할 수 있으며, 필요하면 운영팀이 직접 답합니다. 로그인하면 계정에 연결되고, 비회원은 이 브라우저에만 대화가 이어집니다. 급한 환불·결제 문의는 이메일 또는 전화를 병행해 주세요.
+        </p>
       </div>
-      <p class="modal__hint support-chat-modal__hint">
-        AI가 먼저 짧게 안내할 수 있으며, 필요하면 운영팀이 직접 답합니다. 로그인하면 계정에 연결되고, 비회원은 이 브라우저에만 대화가 이어집니다. 급한 환불·결제 문의는 이메일 또는 전화를 병행해 주세요.
-      </p>
       <div id="support-chat-log" class="support-chat-log" role="log" aria-relevant="additions"></div>
-      <label class="field support-chat-field">
-        <span class="field__label">메시지</span>
-        <textarea
-          id="support-chat-input"
-          class="input textarea"
-          rows="3"
-          maxlength="2000"
-          placeholder="문의 내용을 입력한 뒤 보내기를 누르세요."
-        ></textarea>
-      </label>
-      <p id="support-chat-error" class="admin-msg admin-msg--error" hidden role="alert"></p>
-      <div class="modal__actions support-chat-modal__actions">
-        <button type="button" class="btn btn--ghost" id="support-chat-modal-dismiss">닫기</button>
-        <button type="button" class="btn btn--primary" id="support-chat-send">보내기</button>
+      <div class="support-chat-composer">
+        <div class="support-chat-composer__row">
+          <textarea
+            id="support-chat-input"
+            class="support-chat-input"
+            rows="2"
+            maxlength="2000"
+            placeholder="메시지를 입력하세요"
+            aria-label="문의 메시지"
+          ></textarea>
+          <button type="button" class="support-chat-send-btn" id="support-chat-send">전송</button>
+        </div>
+        <p id="support-chat-error" class="support-chat-error" hidden role="alert"></p>
+        <div class="support-chat-composer__footer">
+          <button type="button" class="support-chat-dismiss" id="support-chat-modal-dismiss">닫기</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3579,7 +3583,7 @@
   <script src="/js/portone-config.js?v=2"></script>
   <script src="/js/portone-checkout.js?v=7"></script>
   <script src="/js/auth.js?v=5"></script>
-  <script src="/js/support-chat.js?v=2"></script>
+  <script src="/js/support-chat.js?v=3"></script>
   <script src="/js/user-profile.js?v=20260419"></script>
   <script src="/js/dict-remote.js?v=6"></script>
   <script src="/js/statute-tag.js"></script>
@@ -3626,7 +3630,7 @@
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/admin-excel.js?v=9"></script>
-  <script src="/js/admin-support-chat.js?v=1"></script>
+  <script src="/js/admin-support-chat.js?v=2"></script>
   <script src="/js/admin-tickets.js?v=13"></script>
   <script src="/js/admin-quotes.js?v=8"></script>
 </body>

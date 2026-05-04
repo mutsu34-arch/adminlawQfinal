@@ -76,29 +76,65 @@
     });
   }
 
+  function buildMessageRow(sender, text, tsMs, viewMode) {
+    var isMine =
+      viewMode === "customer"
+        ? sender === "user"
+        : sender === "assistant" || sender === "staff";
+
+    var row = document.createElement("div");
+    row.className = "support-chat-row" + (isMine ? " support-chat-row--mine" : " support-chat-row--them");
+
+    var wrap = document.createElement("div");
+    wrap.className = "support-chat-bubble-wrap";
+
+    var labelText = "";
+    if (viewMode === "customer") {
+      if (!isMine) {
+        if (sender === "assistant") labelText = "AI 안내";
+        else if (sender === "staff") labelText = "운영팀";
+      }
+    } else {
+      if (!isMine && sender === "user") labelText = "고객";
+      if (isMine) {
+        if (sender === "assistant") labelText = "AI 안내";
+        else if (sender === "staff") labelText = "운영팀";
+      }
+    }
+
+    if (labelText) {
+      var lab = document.createElement("div");
+      lab.className = "support-chat-msg__sender";
+      lab.textContent = labelText;
+      wrap.appendChild(lab);
+    }
+
+    var role = sender === "staff" ? "staff" : sender === "assistant" ? "assistant" : "user";
+    var msg = document.createElement("div");
+    msg.className = "support-chat-msg support-chat-msg--" + role;
+
+    var body = document.createElement("div");
+    body.className = "support-chat-msg__body";
+    body.textContent = String(text || "");
+    msg.appendChild(body);
+    wrap.appendChild(msg);
+
+    var meta = document.createElement("div");
+    meta.className = "support-chat-msg__meta";
+    meta.textContent = formatTime(tsMs);
+    wrap.appendChild(meta);
+
+    row.appendChild(wrap);
+    return row;
+  }
+
   function renderMessages(messages) {
     var logEl = $("admin-support-chat-log");
     if (!logEl) return;
     logEl.innerHTML = "";
     (messages || []).forEach(function (m) {
       var sender = m.sender || "user";
-      var roleClass =
-        sender === "staff"
-          ? " support-chat-msg--staff"
-          : sender === "assistant"
-            ? " support-chat-msg--assistant"
-            : " support-chat-msg--user";
-      var div = document.createElement("div");
-      div.className = "support-chat-msg" + roleClass;
-      var meta = document.createElement("div");
-      meta.className = "support-chat-msg__meta";
-      meta.textContent = formatTime(m.createdAtMs);
-      var body = document.createElement("div");
-      body.className = "support-chat-msg__body";
-      body.textContent = String(m.text || "");
-      div.appendChild(meta);
-      div.appendChild(body);
-      logEl.appendChild(div);
+      logEl.appendChild(buildMessageRow(sender, String(m.text || ""), m.createdAtMs, "admin"));
     });
     logEl.scrollTop = logEl.scrollHeight;
   }
