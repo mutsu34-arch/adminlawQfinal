@@ -30,8 +30,11 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css?v=20260504-dict-card-delete" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/style.css?v=20260504-dashboard-width" />
 </head>
 <body>
   <div class="app">
@@ -1856,166 +1859,237 @@
 
           </div>
 
-          <div id="panel-dashboard" class="panel" hidden>
-            <div class="card card--dashboard">
-              <h2 class="card__title">대시보드</h2>
+          <div id="panel-dashboard" class="panel panel--dashboard" hidden>
+            <div class="dashboard-shell">
+              <header class="dashboard-hero">
+                <h1 class="dashboard-hero__title">대시보드</h1>
+                <p class="dashboard-hero__subtitle">학습 통계·포인트·알림·문의 내역을 한곳에서 확인합니다.</p>
+              </header>
 
-              <section class="dashboard-block" aria-labelledby="dash-heading-notif">
-                <h3 id="dash-heading-notif" class="dashboard-subtitle settings-block__title">알림</h3>
-                <p class="dashboard-lead">
-                  문의·신고 등 답변은 알림으로 전달됩니다. 요약에서 확인하지 않은 건수를 보고, 펼치면 목록과 도착 일시를 볼 수 있습니다.
-                </p>
-                <div id="dashboard-notifications" class="dashboard-notifications"></div>
-              </section>
+              <div class="dashboard-layout">
+                <article class="dashboard-section" aria-labelledby="dash-heading-notif">
+                  <h3 id="dash-heading-notif" class="dashboard-section__title">알림</h3>
+                  <p class="dashboard-section__lead">
+                    문의·신고 등 답변은 알림으로 전달됩니다. 요약에서 확인하지 않은 건수를 보고, 펼치면 목록과 도착 일시를 볼 수 있습니다.
+                  </p>
+                  <div id="dashboard-notifications" class="dashboard-notifications"></div>
+                </article>
 
-              <section class="dashboard-block" aria-labelledby="dash-heading-member">
-              <h3 id="dash-heading-member" class="dashboard-subtitle settings-block__title">회원 유형</h3>
-              <p id="dashboard-membership" class="dashboard-membership">—</p>
-              <p id="dashboard-membership-until" class="dashboard-membership-until" hidden></p>
-              <div id="dashboard-portone-recurring-cancel-wrap" class="pricing-card__pay-actions" hidden>
-                <button type="button" class="btn btn--outline btn--small" id="dashboard-portone-recurring-cancel-btn">정기결제 해지</button>
-              </div>
-              <div id="dashboard-one-month-refund-wrap" class="pricing-card__pay-actions" hidden>
-                <button type="button" class="btn btn--outline btn--small" id="dashboard-one-month-refund-btn">환불 요청</button>
-              </div>
-              <p id="dashboard-membership-hint" class="dashboard-lead dashboard-membership-hint" hidden>
-                상세 해설(법리·함정·판례)은 유료 구독 또는 광고 확인 후 일정 시간 열람이 가능합니다.
-                <button type="button" class="btn btn--link" id="dashboard-goto-pricing">요금제 보기</button>
-              </p>
-              </section>
-
-              <section class="dashboard-block" aria-labelledby="dash-heading-learn">
-              <div id="dashboard-learning" class="dashboard-learning">
-                <h3 id="dash-heading-learn" class="dashboard-subtitle settings-block__title">나의 학습</h3>
-                <p id="dashboard-learning-loggedout" class="dashboard-lead" hidden>
-                  로그인하면 출석·학습 시간·푼 문항·정답률·약점 분석이 이 브라우저(기기)에 저장됩니다.
-                </p>
-                <div id="dashboard-learning-body" class="dashboard-learning-body" hidden>
-                  <div class="dashboard-learning-grid">
-                    <div class="dashboard-stat-card">
-                      <span class="dashboard-stat-card__label">연속 출석</span>
-                      <span id="dashboard-streak" class="dashboard-stat-card__value">0</span>
-                      <span class="dashboard-stat-card__unit">일</span>
-                      <p class="dashboard-stat-card__hint">한국시간 기준, 퀴즈를 1문제 이상 푼 날만 출석으로 집계됩니다.</p>
-                    </div>
-                    <div class="dashboard-stat-card">
-                      <span class="dashboard-stat-card__label">포인트</span>
-                      <span id="dashboard-attendance-points" class="dashboard-stat-card__value">—</span>
-                      <span class="dashboard-stat-card__unit">점</span>
-                      <p class="dashboard-stat-card__hint">
-                        퀴즈 1문제 이상 풀면 그날 출석으로 인정되며 하루 1회 포인트가 쌓입니다.
-                        아래 「포인트 전환」에서 <strong>500점</strong>으로 엘리(AI) 질문권 1건으로 바꿀 수 있습니다(전환 시점부터 1개월 유효).
-                      </p>
-                    </div>
-                    <div class="dashboard-stat-card">
-                      <span class="dashboard-stat-card__label">오늘 학습 시간</span>
-                      <span id="dashboard-time-today" class="dashboard-stat-card__value dashboard-stat-card__value--sm">0초</span>
-                      <p class="dashboard-stat-card__hint">앱이 열려 있고 이 탭이 보이는 동안만 측정됩니다.</p>
-                    </div>
-                    <div class="dashboard-stat-card">
-                      <span class="dashboard-stat-card__label">최근 7일 학습 시간</span>
-                      <span id="dashboard-time-week" class="dashboard-stat-card__value dashboard-stat-card__value--sm">0초</span>
-                    </div>
-                    <div class="dashboard-stat-card">
-                      <span class="dashboard-stat-card__label">누적 푼 문항</span>
-                      <span id="dashboard-total-answered" class="dashboard-stat-card__value">0</span>
-                      <span class="dashboard-stat-card__unit">문항</span>
-                    </div>
-                    <div class="dashboard-stat-card">
-                      <span class="dashboard-stat-card__label">누적 정답률</span>
-                      <span id="dashboard-accuracy" class="dashboard-stat-card__value">—</span>
-                    </div>
+                <article class="dashboard-section" aria-labelledby="dash-heading-member">
+                  <h3 id="dash-heading-member" class="dashboard-section__title">회원 유형</h3>
+                  <div class="dashboard-membership-row">
+                    <p id="dashboard-membership" class="dashboard-membership dashboard-membership-pill">—</p>
                   </div>
-                  <h4 class="dashboard-subheading">출석 도장 (최근 7일)</h4>
-                  <div id="dashboard-attendance-row" class="dashboard-attendance-row" aria-label="최근 7일 출석"></div>
-                  <h4 class="dashboard-subheading">약점 분석 리포트</h4>
-                  <div id="dashboard-weakness" class="dashboard-weakness"></div>
-                </div>
-              </div>
-              </section>
+                  <p id="dashboard-membership-until" class="dashboard-membership-until" hidden></p>
+                  <div id="dashboard-portone-recurring-cancel-wrap" class="dashboard-membership-actions" hidden>
+                    <button type="button" class="btn btn--outline btn--small dashboard-btn-soft" id="dashboard-portone-recurring-cancel-btn">정기결제 해지</button>
+                  </div>
+                  <div id="dashboard-one-month-refund-wrap" class="dashboard-membership-actions" hidden>
+                    <button type="button" class="btn btn--outline btn--small dashboard-btn-soft" id="dashboard-one-month-refund-btn">환불 요청</button>
+                  </div>
+                  <p id="dashboard-membership-hint" class="dashboard-section__lead dashboard-membership-hint" hidden>
+                    상세 해설(법리·함정·판례)은 유료 구독 또는 광고 확인 후 일정 시간 열람이 가능합니다.
+                    <button type="button" class="btn btn--link" id="dashboard-goto-pricing">요금제 보기</button>
+                  </p>
+                </article>
 
-              <section class="dashboard-block" aria-labelledby="dash-heading-points">
-              <div id="dashboard-my-points" class="dashboard-my-points">
-                <h3 id="dash-heading-points" class="dashboard-subtitle settings-block__title">나의 포인트</h3>
-                <p id="dashboard-my-points-loggedout" class="dashboard-lead" hidden>
-                  로그인하면 포인트 내역과 엘리 질문권 전환이 표시됩니다.
-                </p>
-                <div id="dashboard-my-points-body" class="dashboard-my-points-body" hidden>
-                  <p class="dashboard-my-points-summary">
-                    현재 <strong id="dashboard-my-points-balance">—</strong>점
-                  </p>
-                  <div
-                    id="dashboard-point-log-list"
-                    class="dashboard-point-log"
-                    role="list"
-                    aria-label="포인트 내역"
-                  ></div>
-                  <p id="dashboard-point-log-empty" class="dashboard-point-log-empty" hidden>
-                    아직 기록된 내역이 없습니다. 퀴즈 출석·이벤트·전환 내역은 앞으로 여기에 쌓입니다.
-                  </p>
-                  <p id="dashboard-point-log-err" class="dashboard-point-log-err" hidden role="status"></p>
-                  <div id="dashboard-point-convert-section" class="dashboard-point-convert-section">
-                    <h4 class="dashboard-subheading">포인트로 엘리 질문권 전환</h4>
-                    <p class="dashboard-lead dashboard-point-convert-lead">
-                      모은 포인트로 <strong>엘리(AI) 질문권</strong>으로 바꿀 수 있습니다(구독 일일 한도를 넘긴 뒤 차감).
-                      전환한 질문권은 전환 시점부터 1개월간 유효합니다.
+                <article class="dashboard-section dashboard-section--learning" aria-labelledby="dash-heading-learn">
+                  <div id="dashboard-learning" class="dashboard-learning">
+                    <h3 id="dash-heading-learn" class="dashboard-section__title">나의 학습</h3>
+                    <p id="dashboard-learning-loggedout" class="dashboard-section__lead" hidden>
+                      로그인하면 출석·학습 시간·푼 문항·정답률·약점 분석이 이 브라우저(기기)에 저장됩니다.
                     </p>
-                    <div class="dashboard-question-actions">
-                      <button
-                        type="button"
-                        class="btn btn--secondary btn--small dashboard-attendance-convert"
-                        id="btn-dashboard-attendance-convert-elly"
-                        data-elly-convert-count="1"
-                        disabled
-                      >
-                        엘리 질문권 1건 (500점)
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--secondary btn--small dashboard-attendance-convert"
-                        data-elly-convert-count="5"
-                        disabled
-                      >
-                        5건 (2,500점)
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--secondary btn--small dashboard-attendance-convert"
-                        data-elly-convert-count="10"
-                        disabled
-                      >
-                        10건 (5,000점)
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--secondary btn--small dashboard-attendance-convert"
-                        data-elly-convert-count="20"
-                        disabled
-                      >
-                        20건 (10,000점)
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--secondary btn--small dashboard-attendance-convert"
-                        data-elly-convert-count="30"
-                        disabled
-                      >
-                        30건 (15,000점)
-                      </button>
+                    <div id="dashboard-learning-body" class="dashboard-learning-body" hidden>
+                      <div class="dashboard-learning-grid">
+                        <div class="dashboard-stat-card">
+                          <div class="dashboard-stat-card__head">
+                            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                            </span>
+                            <div class="dashboard-stat-card__main">
+                              <span class="dashboard-stat-card__label">연속 출석</span>
+                              <div class="dashboard-stat-card__value-row">
+                                <span id="dashboard-streak" class="dashboard-stat-card__value">0</span>
+                                <span class="dashboard-stat-card__unit">일</span>
+                              </div>
+                            </div>
+                          </div>
+                          <p class="dashboard-stat-card__hint">한국시간 기준, 퀴즈를 1문제 이상 푼 날만 출석으로 집계됩니다.</p>
+                        </div>
+                        <div class="dashboard-stat-card">
+                          <div class="dashboard-stat-card__head">
+                            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                            </span>
+                            <div class="dashboard-stat-card__main">
+                              <span class="dashboard-stat-card__label">포인트</span>
+                              <div class="dashboard-stat-card__value-row">
+                                <span id="dashboard-attendance-points" class="dashboard-stat-card__value">—</span>
+                                <span class="dashboard-stat-card__unit">점</span>
+                              </div>
+                            </div>
+                          </div>
+                          <p class="dashboard-stat-card__hint">
+                            퀴즈 1문제 이상 풀면 그날 출석으로 인정되며 하루 1회 포인트가 쌓입니다.
+                            아래 「포인트 전환」에서 <strong>500점</strong>으로 엘리(AI) 질문권 1건으로 바꿀 수 있습니다(전환 시점부터 1개월 유효).
+                          </p>
+                        </div>
+                        <div class="dashboard-stat-card">
+                          <div class="dashboard-stat-card__head">
+                            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            </span>
+                            <div class="dashboard-stat-card__main">
+                              <span class="dashboard-stat-card__label">오늘 학습 시간</span>
+                              <span id="dashboard-time-today" class="dashboard-stat-card__value dashboard-stat-card__value--sm">0초</span>
+                            </div>
+                          </div>
+                          <p class="dashboard-stat-card__hint">앱이 열려 있고 이 탭이 보이는 동안만 측정됩니다.</p>
+                        </div>
+                        <div class="dashboard-stat-card">
+                          <div class="dashboard-stat-card__head">
+                            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            </span>
+                            <div class="dashboard-stat-card__main">
+                              <span class="dashboard-stat-card__label">최근 7일 학습 시간</span>
+                              <span id="dashboard-time-week" class="dashboard-stat-card__value dashboard-stat-card__value--sm">0초</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="dashboard-stat-card">
+                          <div class="dashboard-stat-card__head">
+                            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                            </span>
+                            <div class="dashboard-stat-card__main">
+                              <span class="dashboard-stat-card__label">누적 푼 문항</span>
+                              <div class="dashboard-stat-card__value-row">
+                                <span id="dashboard-total-answered" class="dashboard-stat-card__value">0</span>
+                                <span class="dashboard-stat-card__unit">문항</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="dashboard-stat-card dashboard-stat-card--accuracy" id="dashboard-accuracy-card">
+                          <div class="dashboard-stat-card__head">
+                            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                            </span>
+                            <div class="dashboard-stat-card__main">
+                              <span class="dashboard-stat-card__label">누적 정답률</span>
+                              <span id="dashboard-accuracy" class="dashboard-stat-card__value">—</span>
+                            </div>
+                          </div>
+                          <div class="dashboard-stat-card__meter" id="dashboard-accuracy-meter" aria-hidden="true">
+                            <span class="dashboard-stat-card__meter-fill" id="dashboard-accuracy-meter-fill"></span>
+                          </div>
+                        </div>
+                      </div>
+                      <h4 class="dashboard-subheading">출석 도장 (최근 7일)</h4>
+                      <div id="dashboard-attendance-row" class="dashboard-attendance-row" aria-label="최근 7일 출석"></div>
+                      <h4 class="dashboard-subheading">약점 분석 리포트</h4>
+                      <div id="dashboard-weakness" class="dashboard-weakness"></div>
                     </div>
-                    <p id="dashboard-attendance-convert-msg" class="dashboard-attendance-convert-msg" hidden role="status"></p>
                   </div>
-                </div>
-              </div>
-              </section>
+                </article>
 
-              <section class="dashboard-block" aria-labelledby="dash-heading-inquiry">
-              <h3 id="dash-heading-inquiry" class="dashboard-subtitle settings-block__title">나의 신고·질문</h3>
-              <div class="dashboard-inquiry">
-                <p class="dashboard-lead dashboard-inquiry-lead">
-                  오류 신고·개선 의견·엘리(AI) 질문 내역을 확인할 수 있습니다. 답변은 위 알림 영역에도 표시됩니다.
-                </p>
-                <div class="dashboard-inquiry-tabs" role="tablist" aria-label="신고·질문 유형">
+                <article class="dashboard-section" aria-labelledby="dash-heading-points">
+                  <div id="dashboard-my-points" class="dashboard-my-points">
+                    <h3 id="dash-heading-points" class="dashboard-section__title">나의 포인트</h3>
+                    <p id="dashboard-my-points-loggedout" class="dashboard-section__lead" hidden>
+                      로그인하면 포인트 내역과 엘리 질문권 전환이 표시됩니다.
+                    </p>
+                    <div id="dashboard-my-points-body" class="dashboard-my-points-body" hidden>
+                      <div class="dashboard-points-balance">
+                        <span class="dashboard-points-balance__label">현재 보유</span>
+                        <p class="dashboard-my-points-summary">
+                          <strong id="dashboard-my-points-balance">—</strong><span class="dashboard-points-balance__unit">점</span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        id="dashboard-point-log-toggle"
+                        class="btn btn--outline btn--small dashboard-point-log-toggle"
+                        aria-expanded="false"
+                        aria-controls="dashboard-point-log-region"
+                      >
+                        포인트 획득/차감 내역
+                      </button>
+                      <div id="dashboard-point-log-region" class="dashboard-point-log-region" hidden>
+                        <div
+                          id="dashboard-point-log-list"
+                          class="dashboard-point-log"
+                          role="list"
+                          aria-label="포인트 내역"
+                        ></div>
+                        <p id="dashboard-point-log-empty" class="dashboard-point-log-empty" hidden>
+                          아직 기록된 내역이 없습니다. 퀴즈 출석·이벤트·전환 내역은 앞으로 여기에 쌓입니다.
+                        </p>
+                        <p id="dashboard-point-log-err" class="dashboard-point-log-err" hidden role="status"></p>
+                      </div>
+                      <div id="dashboard-point-convert-section" class="dashboard-point-convert-section">
+                        <h4 class="dashboard-subheading">포인트로 엘리 질문권 전환</h4>
+                        <p class="dashboard-section__lead dashboard-point-convert-lead">
+                          모은 포인트로 <strong>엘리(AI) 질문권</strong>으로 바꿀 수 있습니다(구독 일일 한도를 넘긴 뒤 차감).
+                          전환한 질문권은 전환 시점부터 1개월간 유효합니다.
+                        </p>
+                        <div class="dashboard-question-actions">
+                          <button
+                            type="button"
+                            class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
+                            id="btn-dashboard-attendance-convert-elly"
+                            data-elly-convert-count="1"
+                            disabled
+                          >
+                            엘리 질문권 1건 (500점)
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
+                            data-elly-convert-count="5"
+                            disabled
+                          >
+                            5건 (2,500점)
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
+                            data-elly-convert-count="10"
+                            disabled
+                          >
+                            10건 (5,000점)
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
+                            data-elly-convert-count="20"
+                            disabled
+                          >
+                            20건 (10,000점)
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
+                            data-elly-convert-count="30"
+                            disabled
+                          >
+                            30건 (15,000점)
+                          </button>
+                        </div>
+                        <p id="dashboard-attendance-convert-msg" class="dashboard-attendance-convert-msg" hidden role="status"></p>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="dashboard-section" aria-labelledby="dash-heading-inquiry">
+                  <h3 id="dash-heading-inquiry" class="dashboard-section__title">나의 신고·질문</h3>
+                  <div class="dashboard-inquiry">
+                    <p class="dashboard-section__lead dashboard-inquiry-lead">
+                      오류 신고·개선 의견·엘리(AI) 질문 내역을 확인할 수 있습니다. 답변은 위 알림 영역에도 표시됩니다.
+                    </p>
+                    <div class="dashboard-inquiry-tabs" role="tablist" aria-label="신고·질문 유형">
                   <button
                     type="button"
                     role="tab"
@@ -2024,8 +2098,14 @@
                     aria-selected="false"
                     data-filter="report"
                   >
-                    <span class="dashboard-inquiry-tab__label">오류 신고</span>
-                    <span class="dashboard-inquiry-tab__hint">버그·오탈자 등</span>
+                    <span class="dashboard-inquiry-tab__icon" aria-hidden="true">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </span>
+                    <span class="dashboard-inquiry-tab__copy">
+                      <span class="dashboard-inquiry-tab__label">오류 신고</span>
+                      <span class="dashboard-inquiry-tab__hint">버그·오탈자 등</span>
+                    </span>
+                    <span class="dashboard-inquiry-tab__chev" aria-hidden="true">→</span>
                   </button>
                   <button
                     type="button"
@@ -2035,8 +2115,14 @@
                     aria-selected="false"
                     data-filter="suggestion"
                   >
-                    <span class="dashboard-inquiry-tab__label">개선 의견</span>
-                    <span class="dashboard-inquiry-tab__hint">아이디어·건의</span>
+                    <span class="dashboard-inquiry-tab__icon" aria-hidden="true">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    </span>
+                    <span class="dashboard-inquiry-tab__copy">
+                      <span class="dashboard-inquiry-tab__label">개선 의견</span>
+                      <span class="dashboard-inquiry-tab__hint">아이디어·건의</span>
+                    </span>
+                    <span class="dashboard-inquiry-tab__chev" aria-hidden="true">→</span>
                   </button>
                   <button
                     type="button"
@@ -2046,8 +2132,14 @@
                     aria-selected="false"
                     data-filter="elly"
                   >
-                    <span class="dashboard-inquiry-tab__label">엘리(AI) 질문</span>
-                    <span class="dashboard-inquiry-tab__hint">성공한 질문 기록</span>
+                    <span class="dashboard-inquiry-tab__icon" aria-hidden="true">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </span>
+                    <span class="dashboard-inquiry-tab__copy">
+                      <span class="dashboard-inquiry-tab__label">엘리(AI) 질문</span>
+                      <span class="dashboard-inquiry-tab__hint">성공한 질문 기록</span>
+                    </span>
+                    <span class="dashboard-inquiry-tab__chev" aria-hidden="true">→</span>
                   </button>
                 </div>
                 <div id="dashboard-tickets-drawer" class="dashboard-tickets-drawer" hidden>
@@ -2076,8 +2168,8 @@
                   <div id="dashboard-tickets-drawer-list" class="dashboard-tickets-drawer__list" aria-live="polite"></div>
                 </div>
               </div>
-              </section>
-
+                </article>
+              </div>
             </div>
           </div>
 

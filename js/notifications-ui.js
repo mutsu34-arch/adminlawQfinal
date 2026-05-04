@@ -153,7 +153,11 @@
     if (!container) return;
     container.innerHTML = "";
     if (!items.length) {
-      container.innerHTML = "<p class=\"notif-empty\">알림이 없습니다.</p>";
+      container.innerHTML =
+        "<div class=\"dashboard-notifs-empty\" role=\"status\">" +
+        "<svg class=\"dashboard-notifs-empty__icon\" xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">" +
+        "<path d=\"M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9\"/><path d=\"M10.3 21a1.94 1.94 0 0 0 3.4 0\"/></svg>" +
+        "<p class=\"notif-empty notif-empty--dashboard\" style=\"margin:0\">알림이 없습니다.</p></div>";
       return;
     }
     var unread = items.filter(function (x) {

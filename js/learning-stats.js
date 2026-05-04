@@ -410,10 +410,15 @@
     var ta = document.getElementById("dashboard-total-answered");
     if (ta) ta.textContent = String(state.totalAnswered || 0);
     var acc = document.getElementById("dashboard-accuracy");
+    var accCard = document.getElementById("dashboard-accuracy-card");
+    var accMeterFill = document.getElementById("dashboard-accuracy-meter-fill");
     if (acc) {
       var tq = state.totalAnswered || 0;
       var tc = state.totalCorrect || 0;
-      acc.textContent = tq ? Math.round((tc / tq) * 100) + "%" : "—";
+      var pct = tq ? Math.round((tc / tq) * 100) : 0;
+      acc.textContent = tq ? pct + "%" : "—";
+      if (accMeterFill) accMeterFill.style.width = tq ? pct + "%" : "0%";
+      if (accCard) accCard.classList.toggle("dashboard-stat-card--no-data", !tq);
     }
 
     var weak = document.getElementById("dashboard-weakness");
@@ -569,6 +574,18 @@
     }
   }
 
+  function bindPointLogToggle() {
+    var toggle = document.getElementById("dashboard-point-log-toggle");
+    var region = document.getElementById("dashboard-point-log-region");
+    if (!toggle || !region || toggle.dataset.bound === "1") return;
+    toggle.dataset.bound = "1";
+    toggle.addEventListener("click", function () {
+      var nextOpen = region.hidden;
+      region.hidden = !nextOpen;
+      toggle.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+    });
+  }
+
   function ptsEllyMin() {
     return typeof window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT === "number"
       ? window.HANLAW_ATTENDANCE_POINTS_PER_ELLY_CREDIT
@@ -664,6 +681,7 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       bindNav();
+      bindPointLogToggle();
       bindAttendanceConvert();
       var u = currentUid();
       subscribeAttendancePoints(u);
@@ -672,6 +690,7 @@
     });
   } else {
     bindNav();
+    bindPointLogToggle();
     bindAttendanceConvert();
     var u0 = currentUid();
     subscribeAttendancePoints(u0);
