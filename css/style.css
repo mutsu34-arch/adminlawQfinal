@@ -3610,6 +3610,13 @@ html[data-theme="light"] .case-result-card__ox-explain.quiz-ai-answer .quiz-ai-a
   background: color-mix(in srgb, var(--danger) 8%, var(--surface));
 }
 
+.dict-card-admin-delete {
+  margin-top: 0.2rem;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
 .card.card--question {
   display: flex;
   flex-direction: column;

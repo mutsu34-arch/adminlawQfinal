@@ -361,6 +361,15 @@
         btnStEdit.setAttribute("data-admin-edit-statute", "1");
         btnStEdit._statute = s;
         article.appendChild(btnStEdit);
+        if (String(s._docId || "").trim()) {
+          var btnDelSt = document.createElement("button");
+          btnDelSt.type = "button";
+          btnDelSt.className = "btn btn--small btn--outline dict-card-admin-delete";
+          btnDelSt.textContent = "삭제";
+          btnDelSt.setAttribute("data-admin-delete-statute", "1");
+          btnDelSt._delStatute = s;
+          article.appendChild(btnDelSt);
+        }
       }
       if (window.DictFavorites && !opts.skipFavButton) {
         var stTitle0 = statuteDisplayTitle(s);
@@ -2820,6 +2829,15 @@
         btnEdit.setAttribute("data-admin-edit-term", "1");
         btnEdit._term = t;
         article.appendChild(btnEdit);
+        if (String(t._docId || "").trim()) {
+          var btnDelT = document.createElement("button");
+          btnDelT.type = "button";
+          btnDelT.className = "btn btn--small btn--outline dict-card-admin-delete";
+          btnDelT.textContent = "삭제";
+          btnDelT.setAttribute("data-admin-delete-term", "1");
+          btnDelT._delTerm = t;
+          article.appendChild(btnDelT);
+        }
       }
       if (window.DictFavorites && !opts.skipFavButton) {
         appendDictFavoriteControl(article, "term", {
@@ -3198,6 +3216,13 @@
         btnCaseEdit.setAttribute("data-admin-edit-case", "1");
         btnCaseEdit._case = c;
         article.appendChild(btnCaseEdit);
+        var btnDelC = document.createElement("button");
+        btnDelC.type = "button";
+        btnDelC.className = "btn btn--small btn--outline dict-card-admin-delete";
+        btnDelC.textContent = "삭제";
+        btnDelC.setAttribute("data-admin-delete-case", "1");
+        btnDelC._delCase = c;
+        article.appendChild(btnDelC);
       }
       if (window.DictFavorites && !opts.skipFavButton) {
         var citP = String(c.citation || "").trim();
@@ -3374,6 +3399,101 @@
     emitDictResultsUpdated("case");
   }
 
+  /**
+   * 사전·판례·조문 카드의 인라인「삭제」버튼(검색 결과·찜 패널 등).
+   * @returns {boolean} 삭제 버튼이면 true(처리 시작 또는 안내 후 종료)
+   */
+  function handleAdminDictDeleteClick(el) {
+    if (!el || !isAdminUser()) return false;
+    var dt = el.closest("[data-admin-delete-term]");
+    if (dt && dt._delTerm) {
+      var t = dt._delTerm;
+      var docIdT = String((t && t._docId) || "").trim();
+      if (!docIdT) {
+        window.alert("Firestore에 저장된 용어만 여기서 삭제할 수 있습니다. 수정 모달에서도 삭제할 수 있습니다.");
+        return true;
+      }
+      if (!window.confirm("이 용어를 삭제할까요?")) return true;
+      if (typeof window.deleteTermEntryFromFirestore !== "function") {
+        window.alert("삭제 함수를 찾지 못했습니다.");
+        return true;
+      }
+      window
+        .deleteTermEntryFromFirestore(docIdT, { rawDocId: true })
+        .then(function () {
+          runTermSearch();
+        })
+        .catch(function (err) {
+          window.alert((err && err.message) || "용어 삭제에 실패했습니다.");
+        });
+      return true;
+    }
+    var dc = el.closest("[data-admin-delete-case]");
+    if (dc && dc._delCase) {
+      var c = dc._delCase;
+      var docIdC = String((c && c._docId) || "").trim();
+      var citation = String((c && c.citation) || "").trim();
+      if (!docIdC && !citation) {
+        window.alert("삭제할 판례 식별자를 찾지 못했습니다.");
+        return true;
+      }
+      if (!docIdC) {
+        if (typeof window.softHideBundledCaseEntry !== "function") {
+          window.alert("번들 판례 숨김 함수를 찾지 못했습니다.");
+          return true;
+        }
+        if (!window.confirm("이 앱 기본(번들) 판례를 목록에서 숨길까요? (soft delete)")) return true;
+        window
+          .softHideBundledCaseEntry(citation)
+          .then(function () {
+            runCaseSearch();
+          })
+          .catch(function (err) {
+            window.alert((err && err.message) || "번들 판례 숨김에 실패했습니다.");
+          });
+        return true;
+      }
+      if (!window.confirm("이 판례 항목을 삭제할까요?")) return true;
+      if (typeof window.deleteCaseEntryFromFirestore !== "function") {
+        window.alert("삭제 함수를 찾지 못했습니다.");
+        return true;
+      }
+      window
+        .deleteCaseEntryFromFirestore(docIdC, { rawDocId: true })
+        .then(function () {
+          runCaseSearch();
+        })
+        .catch(function (err) {
+          window.alert((err && err.message) || "판례 삭제에 실패했습니다.");
+        });
+      return true;
+    }
+    var ds = el.closest("[data-admin-delete-statute]");
+    if (ds && ds._delStatute) {
+      var s = ds._delStatute;
+      var docIdS = String((s && s._docId) || "").trim();
+      if (!docIdS) {
+        window.alert("Firestore에 저장된 조문만 여기서 삭제할 수 있습니다.");
+        return true;
+      }
+      if (!window.confirm("이 조문 Firestore 항목을 삭제할까요? 정적 조문 원본은 앱에 남습니다.")) return true;
+      if (typeof window.deleteStatuteEntryFromFirestore !== "function") {
+        window.alert("삭제 함수를 찾지 못했습니다.");
+        return true;
+      }
+      window
+        .deleteStatuteEntryFromFirestore(docIdS, { rawDocId: true })
+        .then(function () {
+          runStatuteSearch();
+        })
+        .catch(function (err) {
+          window.alert((err && err.message) || "조문 삭제에 실패했습니다.");
+        });
+      return true;
+    }
+    return false;
+  }
+
   function bind() {
     var btnT = $("dict-term-search");
     var inpT = $("dict-term-query");
@@ -3398,6 +3518,7 @@
       outT.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
+        if (handleAdminDictDeleteClick(el)) return;
         var bc = el.closest("[data-admin-edit-case]");
         if (bc && bc._case) {
           if (typeof window.saveCaseEntryToFirestore !== "function") {
@@ -3417,6 +3538,7 @@
     document.body.addEventListener("click", function (e) {
       var el = eventTargetElement(e);
       if (!el || !el.closest("#tag-dict-modal")) return;
+      if (handleAdminDictDeleteClick(el)) return;
       var bc = el.closest("[data-admin-edit-case]");
       if (bc && bc._case) {
         if (typeof window.saveCaseEntryToFirestore !== "function") {
@@ -3439,6 +3561,7 @@
       outC.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
+        if (handleAdminDictDeleteClick(el)) return;
         var bc = el.closest("[data-admin-edit-case]");
         if (bc && bc._case) {
           if (typeof window.saveCaseEntryToFirestore !== "function") {
@@ -3475,6 +3598,7 @@
       outS.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
+        if (handleAdminDictDeleteClick(el)) return;
         var bs = el.closest("[data-admin-edit-statute]");
         if (bs && bs._statute) {
           if (typeof window.saveStatuteEntryToFirestore !== "function") {
@@ -3507,6 +3631,7 @@
       panelFav.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
+        if (handleAdminDictDeleteClick(el)) return;
         var bc = el.closest("[data-admin-edit-case]");
         if (bc && bc._case) {
           if (typeof window.saveCaseEntryToFirestore !== "function") {
