@@ -28,6 +28,7 @@ if (_envProjectId) {
  * 사전·퀴즈 AI: GEMINI_API_KEY, 선택 GEMINI_MODEL (기본 gemini-2.0-flash, 구형 gemini-1.5-flash-latest 는 1.5-flash 로 치환)
  * 퀴즈 AI: quizAskGemini — 유료 구독 플랜별 일일 한도(hanlaw_quiz_ai_usage) + 엘리 질문권(hanlaw_quiz_ai_wallet); ellyUnlimitedUntil·구매 배치 유지
  * 엘리 팩 금액 env: PORTONE_KRW_EQ10/20/30 (선택, 미설정 시 PAYAPP_KRW_EQ* 레거시명 호환)
+ * 고객 하단 채팅: submitSupportChatMessage(회원·익명) — 저장 후 GEMINI_API_KEY 있으면 assistant 메시지 자동 추가. 관리자: adminListSupportChatThreads, adminGetSupportChatMessages, adminReplySupportChat
  * 관리자 문의함 AI 초안: adminDraftTicketAi — GEMINI_API_KEY, 관리자만, 선택 자료실 RAG(PINECONE·quizAskGemini와 동일 retrieveLibraryContextForQuiz)
  * 자료실 RAG: GEMINI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME, 선택 PINECONE_HOST, PINECONE_NAMESPACE, GEMINI_EMBED_MODEL, GEMINI_EMBED_DIM
  * Storage 자료실 트리거 버킷: HANLAW_STORAGE_BUCKET — PDF·xlsx 업로드 시 청크·임베딩 (libraryPipeline)
@@ -64,8 +65,16 @@ exports.adminDraftTicketAi = adminDraftTicketAi;
 const { setUserNickname } = require("./userProfileServer");
 exports.setUserNickname = setUserNickname;
 
-const { submitSupportChatMessage } = require("./supportChat");
+const {
+  submitSupportChatMessage,
+  adminListSupportChatThreads,
+  adminGetSupportChatMessages,
+  adminReplySupportChat
+} = require("./supportChat");
 exports.submitSupportChatMessage = submitSupportChatMessage;
+exports.adminListSupportChatThreads = adminListSupportChatThreads;
+exports.adminGetSupportChatMessages = adminGetSupportChatMessages;
+exports.adminReplySupportChat = adminReplySupportChat;
 
 const {
   createLibraryDocument,

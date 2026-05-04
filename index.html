@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css?v=20260502-memo-draw-toggle" />
+  <link rel="stylesheet" href="/css/style.css?v=20260504-support-chat-ai" />
 </head>
 <body>
   <div class="app">
@@ -2227,6 +2227,7 @@
                 <button type="button" class="admin-tab" id="admin-tab-review" role="tab">검수·승인</button>
                 <button type="button" class="admin-tab" id="admin-tab-library" role="tab">자료실</button>
                 <button type="button" class="admin-tab" id="admin-tab-inbox" role="tab">문의·신고</button>
+                <button type="button" class="admin-tab" id="admin-tab-support-chat" role="tab">고객 채팅</button>
               </div>
               <div id="admin-panel-single">
                 <form id="admin-form-single" class="admin-form">
@@ -3169,6 +3170,33 @@
                   </div>
                 </div>
               </div>
+              <div id="admin-panel-support-chat" class="admin-support-chat" hidden>
+                <p class="admin-inbox-intro">
+                  하단 고객 채팅 스레드 목록입니다. 고객이 메시지를 내면 서버에서 Gemini로 1차 안내 답변이 붙을 수 있습니다(환경변수
+                  <code class="pricing-code">GEMINI_API_KEY</code> 필요). 운영자는 여기서 직접 답장하면 고객 화면에 즉시 반영됩니다.
+                </p>
+                <button type="button" class="btn btn--secondary" id="admin-support-chat-refresh">목록 새로고침</button>
+                <p id="admin-support-chat-msg" class="admin-msg" role="status" hidden></p>
+                <div class="admin-inbox-layout">
+                  <div class="admin-inbox-list-wrap">
+                    <div id="admin-support-chat-list" class="admin-inbox-list"></div>
+                  </div>
+                  <div id="admin-support-chat-detail" class="admin-inbox-detail" hidden>
+                    <p id="admin-support-chat-meta" class="admin-inbox-meta"></p>
+                    <div id="admin-support-chat-log" class="admin-support-chat-log" role="log"></div>
+                    <label class="field">
+                      <span class="field__label">운영자 답장</span>
+                      <textarea
+                        id="admin-support-chat-reply"
+                        class="input textarea"
+                        rows="4"
+                        placeholder="고객에게 보낼 내용을 입력하세요."
+                      ></textarea>
+                    </label>
+                    <button type="button" class="btn btn--primary" id="admin-support-chat-send">답장 보내기</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -3497,7 +3525,7 @@
         <button type="button" class="modal__close" id="support-chat-modal-close" aria-label="닫기">×</button>
       </div>
       <p class="modal__hint support-chat-modal__hint">
-        운영팀이 메시지를 확인합니다. 로그인하면 계정에 연결되고, 비회원은 이 브라우저에만 대화가 이어집니다. 긴급한 경우 전화 또는 이메일을 병행해 주세요.
+        AI가 먼저 짧게 안내할 수 있으며, 필요하면 운영팀이 직접 답합니다. 로그인하면 계정에 연결되고, 비회원은 이 브라우저에만 대화가 이어집니다. 급한 환불·결제 문의는 이메일 또는 전화를 병행해 주세요.
       </p>
       <div id="support-chat-log" class="support-chat-log" role="log" aria-relevant="additions"></div>
       <label class="field support-chat-field">
@@ -3551,7 +3579,7 @@
   <script src="/js/portone-config.js?v=2"></script>
   <script src="/js/portone-checkout.js?v=7"></script>
   <script src="/js/auth.js?v=5"></script>
-  <script src="/js/support-chat.js?v=1"></script>
+  <script src="/js/support-chat.js?v=2"></script>
   <script src="/js/user-profile.js?v=20260419"></script>
   <script src="/js/dict-remote.js?v=6"></script>
   <script src="/js/statute-tag.js"></script>
@@ -3598,7 +3626,8 @@
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/admin-excel.js?v=9"></script>
-  <script src="/js/admin-tickets.js?v=12"></script>
+  <script src="/js/admin-support-chat.js?v=1"></script>
+  <script src="/js/admin-tickets.js?v=13"></script>
   <script src="/js/admin-quotes.js?v=8"></script>
 </body>
 </html>

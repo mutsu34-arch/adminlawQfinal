@@ -72,9 +72,13 @@
       var text = String(d.text || "");
       var sender = d.sender || "user";
       var div = document.createElement("div");
-      div.className =
-        "support-chat-msg" +
-        (sender === "staff" ? " support-chat-msg--staff" : " support-chat-msg--user");
+      var roleClass =
+        sender === "staff"
+          ? " support-chat-msg--staff"
+          : sender === "assistant"
+            ? " support-chat-msg--assistant"
+            : " support-chat-msg--user";
+      div.className = "support-chat-msg" + roleClass;
       var meta = document.createElement("div");
       meta.className = "support-chat-msg__meta";
       var ts = d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : null;

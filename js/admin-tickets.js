@@ -30,6 +30,7 @@
     var tabReview = $("admin-tab-review");
     var tabLibrary = $("admin-tab-library");
     var tabInbox = $("admin-tab-inbox");
+    var tabSupportChat = $("admin-tab-support-chat");
     var tabQuotes = $("admin-tab-quotes");
     var panelSingle = $("admin-panel-single");
     var panelQuizCreate = $("admin-panel-quiz-create");
@@ -42,16 +43,43 @@
     var panelReview = $("admin-panel-review");
     var panelLibrary = $("admin-panel-library");
     var panelInbox = $("admin-panel-inbox");
+    var panelSupportChat = $("admin-panel-support-chat");
     var panelQuotes = $("admin-panel-quotes");
     function off() {
-      [tabSingle, tabQuizCreate, tabBundledQuiz, tabCaseDictCreate, tabTermDictCreate, tabStatuteDictCreate, tabJson, tabExcel, tabReview, tabLibrary, tabInbox, tabQuotes].forEach(function (t) {
+      [
+        tabSingle,
+        tabQuizCreate,
+        tabBundledQuiz,
+        tabCaseDictCreate,
+        tabTermDictCreate,
+        tabStatuteDictCreate,
+        tabJson,
+        tabExcel,
+        tabReview,
+        tabLibrary,
+        tabInbox,
+        tabSupportChat,
+        tabQuotes
+      ].forEach(function (t) {
         if (t) t.classList.remove("admin-tab--active");
       });
-      [panelSingle, panelQuizCreate, panelBundledQuiz, panelCaseDictCreate, panelTermDictCreate, panelStatuteDictCreate, panelJson, panelExcel, panelReview, panelLibrary, panelInbox, panelQuotes].forEach(
-        function (p) {
-          if (p) p.hidden = true;
-        }
-      );
+      [
+        panelSingle,
+        panelQuizCreate,
+        panelBundledQuiz,
+        panelCaseDictCreate,
+        panelTermDictCreate,
+        panelStatuteDictCreate,
+        panelJson,
+        panelExcel,
+        panelReview,
+        panelLibrary,
+        panelInbox,
+        panelSupportChat,
+        panelQuotes
+      ].forEach(function (p) {
+        if (p) p.hidden = true;
+      });
     }
     off();
     if (which === "json") {
@@ -71,6 +99,10 @@
     } else if (which === "inbox") {
       if (tabInbox) tabInbox.classList.add("admin-tab--active");
       if (panelInbox) panelInbox.hidden = false;
+    } else if (which === "support-chat") {
+      if (tabSupportChat) tabSupportChat.classList.add("admin-tab--active");
+      if (panelSupportChat) panelSupportChat.hidden = false;
+      if (typeof window.loadAdminSupportChatList === "function") window.loadAdminSupportChatList();
     } else if (which === "quotes") {
       if (tabQuotes) tabQuotes.classList.add("admin-tab--active");
       if (panelQuotes) panelQuotes.hidden = false;
@@ -287,6 +319,7 @@
 
   function bind() {
     var tabInbox = $("admin-tab-inbox");
+    var tabSupportChat = $("admin-tab-support-chat");
     var tabSingle = $("admin-tab-single");
     var tabQuizCreate = $("admin-tab-quiz-create");
     var tabBundledQuiz = $("admin-tab-bundled-quiz");
@@ -352,6 +385,11 @@
       tabInbox.addEventListener("click", function () {
         switchAdminTab("inbox");
         loadTickets();
+      });
+    }
+    if (tabSupportChat) {
+      tabSupportChat.addEventListener("click", function () {
+        switchAdminTab("support-chat");
       });
     }
     if (tabQuotes) {
