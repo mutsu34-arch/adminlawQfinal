@@ -136,6 +136,15 @@
     opts = opts || {};
     if (!panelId) panelId = "quiz";
     if (!canOpenPanel(panelId)) panelId = "quiz";
+
+    var prevPanelId = "";
+    try {
+      var activeP = document.querySelector(".panel.panel--active");
+      if (activeP && activeP.id && activeP.id.indexOf("panel-") === 0) {
+        prevPanelId = activeP.id.slice("panel-".length);
+      }
+    } catch (ePrev) {}
+
     document.querySelectorAll(".panel").forEach(function (p) {
       var on = p.id === "panel-" + panelId;
       p.classList.toggle("panel--active", on);
@@ -153,6 +162,13 @@
     syncNavJumpSelect(panelId);
     if (opts.syncUrl !== false) {
       syncPanelUrl(panelId, opts.replace === true);
+    }
+    if (prevPanelId === "wrong" && panelId !== "wrong") {
+      try {
+        if (window.QuizWrongNote && typeof window.QuizWrongNote.flushDeferredRecords === "function") {
+          window.QuizWrongNote.flushDeferredRecords();
+        }
+      } catch (eWrongFlush) {}
     }
     resetMainPanelToRoot(panelId, opts);
   }

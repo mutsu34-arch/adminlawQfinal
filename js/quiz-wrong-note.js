@@ -85,21 +85,61 @@
     return null;
   }
 
+  /** 오답노트 카드에서 틀린 직후에는 넣지 않고, 다음에 오답노트 패널을 열 때 반영 */
+  var pendingWrongRecordIds = [];
+
+  function splicePendingWrong(qid) {
+    var want = normalizeId(qid);
+    if (!want) return;
+    pendingWrongRecordIds = pendingWrongRecordIds.filter(function (x) {
+      return normalizeId(x) !== want;
+    });
+  }
+
+  function applyWrongRecordToOrder(d, qid) {
+    var id = normalizeId(qid);
+    if (!id) return;
+    d.order = d.order.filter(function (x) {
+      return normalizeId(x) !== id;
+    });
+    d.order.unshift(id);
+  }
+
+  /** 오답노트 탭으로 들어올 때(hanlaw-panel-root-reset wrong) 한꺼번에 반영 */
+  function flushPendingWrongRecordsToStorage() {
+    if (!pendingWrongRecordIds.length) return;
+    var d = readRaw();
+    var i;
+    for (i = 0; i < pendingWrongRecordIds.length; i++) {
+      applyWrongRecordToOrder(d, pendingWrongRecordIds[i]);
+    }
+    pendingWrongRecordIds.length = 0;
+    if (d.order.length > MAX_STORE) d.order.length = MAX_STORE;
+    writeRaw(d);
+  }
+
   window.QuizWrongNote = {
     record: function (questionId) {
       var qid = normalizeId(questionId);
       if (!qid) return;
       var d = readRaw();
-      d.order = d.order.filter(function (x) {
-        return normalizeId(x) !== qid;
-      });
-      d.order.unshift(qid);
+      applyWrongRecordToOrder(d, qid);
       if (d.order.length > MAX_STORE) d.order.length = MAX_STORE;
       writeRaw(d);
     },
+    /** 오답노트 화면에서 틀렸을 때만 사용 — 다음에 패널을 열 때 순서·최신순 반영 */
+    deferRecord: function (questionId) {
+      var qid = normalizeId(questionId);
+      if (!qid) return;
+      splicePendingWrong(qid);
+      pendingWrongRecordIds.push(qid);
+    },
+    /** 오답노트를 떠나거나 탭을 닫기 전에 지연된 순서 반영을 저장합니다. */
+    flushDeferredRecords: flushPendingWrongRecordsToStorage,
     remove: function (questionId) {
       var qid = normalizeId(questionId);
       if (!qid) return;
+      splicePendingWrong(qid);
       if (window.QuizTrash && typeof window.QuizTrash.add === "function") {
         window.QuizTrash.add("wrong", qid);
       }
@@ -110,6 +150,7 @@
       writeRaw(d);
     },
     clear: function () {
+      pendingWrongRecordIds.length = 0;
       var d0 = readRaw();
       if (window.QuizTrash && typeof window.QuizTrash.add === "function") {
         d0.order.forEach(function (id) {
@@ -133,9 +174,6 @@
       return false;
     }
   };
-
-  /** 오답 제출 시 record()가 곧바로 목록을 갈아엎어, 방금 연 해설 DOM이 사라지는 것을 막기 위한 복원용 */
-  var pendingRevealAfterRender = null;
 
   function renderWrongPanel() {
     var UI = window.HanlawNoteQuizUi;
@@ -161,7 +199,6 @@
     listEl.innerHTML = "";
 
     if (!ids.length) {
-      pendingRevealAfterRender = null;
       emptyEl.hidden = false;
       if (bannerEl) {
         bannerEl.hidden = true;
@@ -211,26 +248,6 @@
       }
       listEl.appendChild(UI.buildCard(q, idx1, "wrong"));
     }
-
-    if (pendingRevealAfterRender && UI && typeof UI.revealCardAnswer === "function") {
-      var pr = pendingRevealAfterRender;
-      pendingRevealAfterRender = null;
-      var want = normalizeId(pr.qid);
-      if (want) {
-        var cards = listEl.querySelectorAll("[data-note-quiz]");
-        var ci;
-        for (ci = 0; ci < cards.length; ci++) {
-          if (normalizeId(cards[ci].getAttribute("data-qid")) !== want) continue;
-          var qR = findQuestionById(want);
-          if (qR) {
-            try {
-              UI.revealCardAnswer(cards[ci], qR, pr.userTrue === true);
-            } catch (eReveal) {}
-          }
-          break;
-        }
-      }
-    }
   }
 
   function bind() {
@@ -252,10 +269,9 @@
               !ok &&
               String(q.id != null ? q.id : "").trim() &&
               window.QuizWrongNote &&
-              typeof window.QuizWrongNote.record === "function"
+              typeof window.QuizWrongNote.deferRecord === "function"
             ) {
-              pendingRevealAfterRender = { qid: q.id, userTrue: userTrue === true };
-              window.QuizWrongNote.record(q.id);
+              window.QuizWrongNote.deferRecord(q.id);
             }
           }
         });
@@ -288,10 +304,12 @@
 
     window.addEventListener("hanlaw-panel-root-reset", function (ev) {
       var id = ev && ev.detail && ev.detail.panelId;
-      if (id === "wrong") renderWrongPanel();
+      if (id === "wrong") {
+        flushPendingWrongRecordsToStorage();
+        renderWrongPanel();
+      }
     });
     window.addEventListener("quiz-wrong-note-updated", renderWrongPanel);
-    window.addEventListener("question-bank-updated", renderWrongPanel);
     window.addEventListener("membership-updated", renderWrongPanel);
     window.addEventListener("app-auth", function (e) {
       var u = e && e.detail && e.detail.user;
@@ -307,6 +325,12 @@
         });
       }
     } catch (e) {}
+
+    window.addEventListener("pagehide", function () {
+      try {
+        flushPendingWrongRecordsToStorage();
+      } catch (ePh) {}
+    });
 
     renderWrongPanel();
   }
