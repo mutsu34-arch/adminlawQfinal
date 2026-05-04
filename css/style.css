@@ -3553,8 +3553,10 @@ html[data-theme="light"] .case-result-card__ox-explain.quiz-ai-answer .quiz-ai-a
 /* 관리자 수정: .btn width:100%·stretch를 피하고 툴바에서 가운데 정렬 */
 .quiz-admin-edit-toolbar {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 0.35rem;
   width: 100%;
   box-sizing: border-box;
   margin-top: 0.45rem;
@@ -3580,10 +3582,32 @@ html[data-theme="light"] .case-result-card__ox-explain.quiz-ai-answer .quiz-ai-a
   align-self: stretch;
 }
 
-.quiz-admin-edit-toolbar:has(> button[hidden]) {
+/* 관리자 버튼이 모두 숨겨졌을 때만 툴바 숨김(수정·삭제 중 하나라도 보이면 유지) */
+.quiz-admin-edit-toolbar:not(:has(> button:not([hidden]))) {
   display: none;
   margin: 0;
   min-height: 0;
+}
+
+.quiz-admin-edit-toolbar .btn--quiz-admin-delete {
+  width: 100% !important;
+  max-width: 100%;
+  box-sizing: border-box;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.dict-edit-actions--danger {
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.dict-edit-actions--danger .btn {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
 }
 
 .card.card--question {

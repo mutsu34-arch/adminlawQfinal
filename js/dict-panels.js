@@ -1026,6 +1026,10 @@
     }
     m.dataset.docId = term._docId ? String(term._docId) : "";
     setDictTermEditMsg("", false);
+    var delTerm = $("dict-term-edit-delete");
+    if (delTerm) {
+      delTerm.hidden = !isAdminUser() || !String(m.dataset.docId || "").trim();
+    }
     m.hidden = false;
     m.setAttribute("aria-hidden", "false");
     if (termIn) {
@@ -1087,6 +1091,8 @@
     m._oxQuizzes = Array.isArray(c.oxQuizzes) ? c.oxQuizzes.slice(0, 5) : [];
     m.dataset.docId = c._docId ? String(c._docId) : "";
     setDictCaseEditMsg("", false);
+    var delCase = $("dict-case-edit-delete");
+    if (delCase) delCase.hidden = !isAdminUser();
     m.hidden = false;
     m.setAttribute("aria-hidden", "false");
     var cit = $("dict-case-edit-citation");
@@ -2183,6 +2189,43 @@
           });
       });
     }
+    var delTermBtn = $("dict-term-edit-delete");
+    if (delTermBtn) {
+      delTermBtn.addEventListener("click", function () {
+        if (!isAdminUser()) {
+          setDictTermEditMsg("관리자만 삭제할 수 있습니다.", true);
+          return;
+        }
+        if (dictTermEditSaving) return;
+        if (typeof window.deleteTermEntryFromFirestore !== "function") {
+          setDictTermEditMsg("삭제 함수를 찾지 못했습니다.", true);
+          return;
+        }
+        var modal = $("dict-term-edit-modal");
+        var docId = modal && modal.dataset ? String(modal.dataset.docId || "").trim() : "";
+        if (!docId) {
+          setDictTermEditMsg("Firestore에 저장된 용어만 삭제할 수 있습니다.", true);
+          return;
+        }
+        if (!window.confirm("이 용어 항목을 삭제할까요?")) return;
+        dictTermEditSaving = true;
+        delTermBtn.disabled = true;
+        setDictTermEditMsg("삭제 중…", false);
+        window
+          .deleteTermEntryFromFirestore(docId, { rawDocId: true })
+          .then(function () {
+            closeDictTermEditModal();
+            runTermSearch();
+          })
+          .catch(function (err) {
+            setDictTermEditMsg((err && err.message) || "용어 삭제에 실패했습니다.", true);
+          })
+          .then(function () {
+            dictTermEditSaving = false;
+            delTermBtn.disabled = false;
+          });
+      });
+    }
     document.addEventListener("keydown", function (e) {
       if (e.key !== "Escape") return;
       var caseModal = $("dict-case-edit-modal");
@@ -2351,6 +2394,10 @@
     m.dataset.docId = s._docId ? String(s._docId) : "";
     m.dataset.statuteKey = s.key ? String(s.key) : "";
     setDictStatuteEditMsg("", false);
+    var delSt = $("dict-statute-edit-delete");
+    if (delSt) {
+      delSt.hidden = !isAdminUser() || !String(m.dataset.docId || "").trim();
+    }
     m.hidden = false;
     m.setAttribute("aria-hidden", "false");
     if (hEl) hEl.focus();
@@ -2435,6 +2482,43 @@
           .then(function () {
             dictStatuteEditSaving = false;
             if (btnSave) btnSave.disabled = false;
+          });
+      });
+    }
+    var delStatuteBtn = $("dict-statute-edit-delete");
+    if (delStatuteBtn) {
+      delStatuteBtn.addEventListener("click", function () {
+        if (!isAdminUser()) {
+          setDictStatuteEditMsg("관리자만 삭제할 수 있습니다.", true);
+          return;
+        }
+        if (dictStatuteEditSaving) return;
+        if (typeof window.deleteStatuteEntryFromFirestore !== "function") {
+          setDictStatuteEditMsg("삭제 함수를 찾지 못했습니다.", true);
+          return;
+        }
+        var modal = $("dict-statute-edit-modal");
+        var docId = modal && modal.dataset ? String(modal.dataset.docId || "").trim() : "";
+        if (!docId) {
+          setDictStatuteEditMsg("Firestore에 저장된 조문만 삭제할 수 있습니다.", true);
+          return;
+        }
+        if (!window.confirm("이 조문 Firestore 항목을 삭제할까요? 정적 조문 원본은 앱에 남습니다.")) return;
+        dictStatuteEditSaving = true;
+        delStatuteBtn.disabled = true;
+        setDictStatuteEditMsg("삭제 중…", false);
+        window
+          .deleteStatuteEntryFromFirestore(docId, { rawDocId: true })
+          .then(function () {
+            closeDictStatuteEditModal();
+            runStatuteSearch();
+          })
+          .catch(function (err) {
+            setDictStatuteEditMsg((err && err.message) || "조문 삭제에 실패했습니다.", true);
+          })
+          .then(function () {
+            dictStatuteEditSaving = false;
+            delStatuteBtn.disabled = false;
           });
       });
     }

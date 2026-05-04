@@ -655,6 +655,17 @@
     return directWrite();
   };
 
+  window.deleteStatuteEntryFromFirestore = function (docIdOrKey, options) {
+    var db = getDb();
+    if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
+    var id = String(docIdOrKey || "").trim();
+    if (!id) return Promise.reject(new Error("삭제할 조문 식별자가 없습니다."));
+    if (id.indexOf("/") >= 0) return Promise.reject(new Error("잘못된 문서 ID입니다."));
+    var opt = options && typeof options === "object" ? options : {};
+    var resolvedId = opt.rawDocId ? id : normalizeDocId(id, "statute");
+    return db.collection("hanlaw_dict_statutes").doc(resolvedId).delete();
+  };
+
   function getCallable(name) {
     if (typeof firebase === "undefined" || !firebase.functions) {
       throw new Error("Firebase Functions를 사용할 수 없습니다.");

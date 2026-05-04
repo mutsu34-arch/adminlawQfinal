@@ -48,6 +48,7 @@
     var adminEditBtn = ensureQuizAdminEditButton();
     var adminOn = isAdminUser();
     if (adminEditBtn) adminEditBtn.hidden = !adminOn;
+    if (el.btnQuizAdminDelete) el.btnQuizAdminDelete.hidden = !adminOn;
     if (el.btnQuizAdminEditFeedback) el.btnQuizAdminEditFeedback.hidden = !adminOn;
     if (el.quizAdminEditor && !adminOn) {
       el.quizAdminEditor.hidden = true;
@@ -118,6 +119,7 @@
     feedbackGuestHint: document.getElementById("feedback-guest-hint"),
     feedbackTagsSection: document.getElementById("feedback-tags-section"),
     btnQuizAdminEdit: document.getElementById("btn-quiz-admin-edit"),
+    btnQuizAdminDelete: document.getElementById("btn-quiz-admin-delete"),
     btnQuizAdminEditFeedback: document.getElementById("btn-quiz-admin-edit-feedback"),
     quizAdminEditor: null,
     quizMemoSection: document.getElementById("quiz-memo-section"),
@@ -311,6 +313,84 @@
       m.style.color = isError ? "var(--danger)" : "var(--muted)";
     }
 
+    function quizAdminDeleteFeedback(text, isError) {
+      var ed = document.getElementById("quiz-admin-editor");
+      if (ed && !ed.hidden) {
+        setEditorMsg(text, isError);
+      } else if (text && isError) {
+        window.alert(text);
+      }
+    }
+
+    function runQuizAdminDelete() {
+      if (!isAdminUser()) return;
+      var q = state.list[state.index];
+      if (!q || q.id == null || String(q.id).trim() === "") {
+        quizAdminDeleteFeedback("삭제할 문항 ID가 없습니다.", true);
+        return;
+      }
+      if (
+        !window.confirm(
+          "이 문항을 삭제할까요? Firestore에만 있는 문항은 완전히 삭제되고, 기본 번들에 포함된 문항은 목록에서 숨김 처리됩니다."
+        )
+      ) {
+        return;
+      }
+      var remote = window.QUESTION_BANK_REMOTE || [];
+      var remoteEntry = null;
+      for (var ri = 0; ri < remote.length; ri++) {
+        if (remote[ri] && remote[ri].id === q.id) {
+          remoteEntry = remote[ri];
+          break;
+        }
+      }
+      var runDel;
+      if (remoteEntry) {
+        runDel = function () {
+          return window.deleteQuestionFromFirestore(q.id);
+        };
+      } else {
+        var staticList = window.QUESTION_BANK_STATIC || [];
+        var inStatic = staticList.some(function (s) {
+          return s && s.id === q.id;
+        });
+        if (!inStatic) {
+          quizAdminDeleteFeedback("Firestore·기본 문항에서 이 ID를 찾지 못했습니다.", true);
+          return;
+        }
+        runDel = function () {
+          return window.softHideBundledQuestion(q.id);
+        };
+      }
+      var delBtn = document.getElementById("btn-quiz-admin-delete");
+      if (delBtn) delBtn.disabled = true;
+      setEditorMsg("삭제 처리 중…", false);
+      runDel()
+        .then(function () {
+          closeQuizAdminEditor();
+          state.list.splice(state.index, 1);
+          state.sessionAnswers = {};
+          if (!state.list.length) {
+            setEditorMsg("", false);
+            showScreen("start");
+            syncQuizAdminEditVisibility();
+            return;
+          }
+          if (state.index >= state.list.length) {
+            state.index = state.list.length - 1;
+          }
+          setEditorMsg("", false);
+          renderQuestion();
+          syncQuizAdminEditVisibility();
+        })
+        .catch(function (e) {
+          quizAdminDeleteFeedback((e && e.message) || "삭제에 실패했습니다.", true);
+        })
+        .then(function () {
+          if (delBtn) delBtn.disabled = false;
+        });
+    }
+
     function fillEditorFromQuestion(q) {
       if (!q) return;
       document.getElementById("quiz-admin-statement").value = q.statement || "";
@@ -348,6 +428,11 @@
     btn.addEventListener("click", openQuizAdminEditor);
     if (el.btnQuizAdminEditFeedback) {
       el.btnQuizAdminEditFeedback.addEventListener("click", openQuizAdminEditor);
+    }
+    var btnDelQuiz = document.getElementById("btn-quiz-admin-delete");
+    if (btnDelQuiz && !btnDelQuiz.dataset.boundDelete) {
+      btnDelQuiz.dataset.boundDelete = "1";
+      btnDelQuiz.addEventListener("click", runQuizAdminDelete);
     }
     editor.addEventListener("click", function (e) {
       var closeBtn =
