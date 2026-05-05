@@ -615,7 +615,13 @@
     body: "body",
     본문: "body",
     sourcenote: "sourceNote",
-    출처: "sourceNote"
+    출처: "sourceNote",
+    appliedrules: "appliedRules",
+    준용규정: "appliedRules",
+    subordinaterules: "subordinateRules",
+    하위법령: "subordinateRules",
+    exampoint: "examPoint",
+    수험포인트: "examPoint"
   };
 
   function mapByHeader(rawRow, headerMap) {
@@ -692,12 +698,30 @@
           statuteKey: statuteKey,
           heading: String(m.heading || "").trim(),
           body: body,
+          appliedRules: String(m.appliedRules != null ? m.appliedRules : "").trim(),
+          subordinateRules: String(m.subordinateRules != null ? m.subordinateRules : "").trim(),
+          examPoint: String(m.examPoint != null ? m.examPoint : "").trim(),
           sourceNote: String(m.sourceNote || "").trim(),
           oxQuizzes: parseOxSet(m, 3)
         }
       });
     }
     return out;
+  }
+
+  /** parseWorkbookToStatutes 결과 → adminStageDictBatch(statute)용 평면 행 */
+  function flatStatuteRowFromParsed(parsed) {
+    var e = (parsed && parsed.entry) || {};
+    return {
+      statuteKey: String(e.statuteKey || "").trim(),
+      heading: String(e.heading != null ? e.heading : "").trim(),
+      body: String(e.body != null ? e.body : "").trim(),
+      appliedRules: String(e.appliedRules != null ? e.appliedRules : "").trim(),
+      subordinateRules: String(e.subordinateRules != null ? e.subordinateRules : "").trim(),
+      examPoint: String(e.examPoint != null ? e.examPoint : "").trim(),
+      sourceNote: String(e.sourceNote != null ? e.sourceNote : "").trim(),
+      oxQuizzes: Array.isArray(e.oxQuizzes) ? e.oxQuizzes : []
+    };
   }
 
   function downloadTermTemplate() {
@@ -768,6 +792,425 @@
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, row]), "조문사전");
     downloadWorkbookSafe(wb, "hanlaw_dict_statutes_template.xlsx");
+  }
+
+  function getFirestoreDbOrAlert() {
+    if (typeof firebase === "undefined" || !firebase.firestore) {
+      window.alert("Firestore를 사용할 수 없습니다.");
+      return null;
+    }
+    if (typeof window.ensureHanlawFirebaseApp === "function" && !window.ensureHanlawFirebaseApp()) {
+      window.alert("Firebase 앱을 초기화할 수 없습니다.");
+      return null;
+    }
+    try {
+      return firebase.firestore();
+    } catch (e) {
+      window.alert("Firestore 연결에 실패했습니다.");
+      return null;
+    }
+  }
+
+  function formatAnswerForExcel(v) {
+    if (v === true) return "O";
+    if (v === false) return "X";
+    return "";
+  }
+
+  function oxAnswerCell(item) {
+    if (!item || item.answer !== true && item.answer !== false) return "";
+    return item.answer === true ? "O" : "X";
+  }
+
+  var QUIZ_EXPORT_HEAD = [
+    "id",
+    "examId",
+    "year",
+    "exam",
+    "topic",
+    "statement",
+    "answer",
+    "explanation",
+    "explanationBasic",
+    "legal",
+    "trap",
+    "precedent",
+    "detail",
+    "tags",
+    "importance",
+    "difficulty"
+  ];
+
+  function questionToAoaRow(q) {
+    var det = q && q.detail && typeof q.detail === "object" ? q.detail : {};
+    var legal = det.legal != null ? String(det.legal) : "";
+    var trap = det.trap != null ? String(det.trap) : "";
+    var precedent = det.precedent != null ? String(det.precedent) : "";
+    var detailCell = "";
+    if (q && q.detail && typeof q.detail === "object") {
+      var hasBody = q.detail.body != null && String(q.detail.body).trim();
+      var extraKeys = Object.keys(q.detail).filter(function (k) {
+        if (k === "legal" || k === "trap" || k === "precedent") return false;
+        return q.detail[k] != null && String(q.detail[k]).trim();
+      });
+      if (hasBody || extraKeys.length) {
+        try {
+          detailCell = JSON.stringify(q.detail);
+        } catch (e) {}
+      }
+    }
+    var tags = Array.isArray(q && q.tags) ? q.tags.join(",") : q && q.tags != null ? String(q.tags) : "";
+    return [
+      q && q.id != null ? String(q.id) : "",
+      q && q.examId != null ? String(q.examId) : "",
+      q && q.year != null && q.year !== "" ? q.year : "",
+      q && q.exam != null ? String(q.exam) : "",
+      q && q.topic != null ? String(q.topic) : "",
+      q && q.statement != null ? String(q.statement) : "",
+      formatAnswerForExcel(q && q.answer),
+      q && q.explanation != null ? String(q.explanation) : "",
+      q && q.explanationBasic != null ? String(q.explanationBasic) : "",
+      legal,
+      trap,
+      precedent,
+      detailCell,
+      tags,
+      q && q.importance != null && q.importance !== "" ? q.importance : "",
+      q && q.difficulty != null && q.difficulty !== "" ? q.difficulty : ""
+    ];
+  }
+
+  function downloadQuizFullExport(msgEl) {
+    if (typeof XLSX === "undefined") {
+      window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+      return;
+    }
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!isAdminUser(user)) {
+      window.alert("관리자만 내보낼 수 있습니다.");
+      return;
+    }
+    if (typeof window.loadRemoteQuestions !== "function") {
+      window.alert("문항 로드 함수를 찾을 수 없습니다.");
+      return;
+    }
+    setMsg(msgEl, "퀴즈 병합 목록 준비 중…", false);
+    window
+      .loadRemoteQuestions()
+      .then(function () {
+        var bank = window.QUESTION_BANK || [];
+        var rows = [QUIZ_EXPORT_HEAD];
+        for (var i = 0; i < bank.length; i++) {
+          rows.push(questionToAoaRow(bank[i] || {}));
+        }
+        var ws = XLSX.utils.aoa_to_sheet(rows);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "문항");
+        var stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        downloadWorkbookSafe(wb, "hanlaw_questions_export_" + stamp + ".xlsx");
+        setMsg(msgEl, "다운로드: 퀴즈 " + bank.length + "건(정적+원격 병합).", false);
+      })
+      .catch(function (e) {
+        setMsg(msgEl, (e && e.message) || "퀴즈 내보내기 실패", true);
+      });
+  }
+
+  function mapOxListForExport(raw, maxItems) {
+    var out = [];
+    if (!Array.isArray(raw)) return out;
+    for (var i = 0; i < raw.length && out.length < maxItems; i++) {
+      var row = raw[i] || {};
+      var st = String(row.statement || "").trim();
+      var ex = String(row.explanation != null ? row.explanation : "").trim();
+      var basic = String(row.explanationBasic != null ? row.explanationBasic : ex).trim();
+      var ans = row.answer;
+      if (ans !== true && ans !== false) {
+        var s = String(row.answer == null ? "" : row.answer)
+          .trim()
+          .toLowerCase();
+        if (s === "o" || s === "true" || s === "참" || s === "1") ans = true;
+        else if (s === "x" || s === "false" || s === "거짓" || s === "0") ans = false;
+        else ans = null;
+      }
+      if (!st && ans == null && !ex) continue;
+      out.push({ statement: st, answer: ans, explanation: ex || basic, explanationBasic: basic || ex });
+    }
+    return out;
+  }
+
+  function termMappedToRow(m) {
+    var row = [
+      m.term != null ? String(m.term) : "",
+      Array.isArray(m.aliases) ? m.aliases.join(",") : "",
+      m.definition != null ? String(m.definition) : ""
+    ];
+    var ox = mapOxListForExport(m.oxQuizzes, 3);
+    for (var i = 0; i < 3; i++) {
+      var item = ox[i];
+      row.push(item && item.statement ? item.statement : "");
+      row.push(oxAnswerCell(item));
+      row.push(item && item.explanation ? item.explanation : "");
+    }
+    row.push(m._docId != null ? String(m._docId) : "");
+    row.push(m.sourceTag != null ? String(m.sourceTag) : "");
+    row.push(m.source != null ? String(m.source) : "");
+    return row;
+  }
+
+  var TERM_EXPORT_HEAD = [
+    "term",
+    "aliases",
+    "definition",
+    "ox1_statement",
+    "ox1_answer",
+    "ox1_explanation",
+    "ox2_statement",
+    "ox2_answer",
+    "ox2_explanation",
+    "ox3_statement",
+    "ox3_answer",
+    "ox3_explanation",
+    "_docId",
+    "sourceTag",
+    "source"
+  ];
+
+  function downloadDictTermsFullExport(msgEl) {
+    if (typeof XLSX === "undefined") {
+      window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+      return;
+    }
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!isAdminUser(user)) {
+      window.alert("관리자만 내보낼 수 있습니다.");
+      return;
+    }
+    var db = getFirestoreDbOrAlert();
+    if (!db) return;
+    setMsg(msgEl, "용어사전 전체 읽는 중…", false);
+    db
+      .collection("hanlaw_dict_terms")
+      .get()
+      .then(function (snap) {
+        var rows = [TERM_EXPORT_HEAD];
+        snap.docs.forEach(function (doc) {
+          var d = doc.data() || {};
+          rows.push(
+            termMappedToRow({
+              _docId: doc.id,
+              term: d.term || doc.id,
+              aliases: Array.isArray(d.aliases) ? d.aliases : [],
+              definition: d.definition || "",
+              source: d.source || "",
+              sourceTag: d.sourceTag || "",
+              oxQuizzes: mapOxListForExport(d.oxQuizzes, 3)
+            })
+          );
+        });
+        var ws = XLSX.utils.aoa_to_sheet(rows);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "용어사전");
+        var stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        downloadWorkbookSafe(wb, "hanlaw_dict_terms_export_" + stamp + ".xlsx");
+        setMsg(msgEl, "다운로드: 용어 " + snap.docs.length + "건.", false);
+      })
+      .catch(function (e) {
+        setMsg(msgEl, (e && e.message) || "용어사전 내보내기 실패", true);
+      });
+  }
+
+  var CASE_EXPORT_HEAD = [
+    "citation",
+    "title",
+    "facts",
+    "issues",
+    "judgment",
+    "caseFullText",
+    "searchKeys",
+    "topicKeywords",
+    "casenoteUrl",
+    "jisCntntsSrno",
+    "scourtPortalUrl",
+    "ox1_statement",
+    "ox1_answer",
+    "ox1_explanation",
+    "ox2_statement",
+    "ox2_answer",
+    "ox2_explanation",
+    "ox3_statement",
+    "ox3_answer",
+    "ox3_explanation",
+    "ox4_statement",
+    "ox4_answer",
+    "ox4_explanation",
+    "ox5_statement",
+    "ox5_answer",
+    "ox5_explanation",
+    "hidden",
+    "_docId",
+    "sourceTag",
+    "tagAliases"
+  ];
+
+  function caseMappedToRow(m) {
+    var row = [
+      m.citation != null ? String(m.citation) : "",
+      m.title != null ? String(m.title) : "",
+      m.facts != null ? String(m.facts) : "",
+      m.issues != null ? String(m.issues) : "",
+      m.judgment != null ? String(m.judgment) : "",
+      m.caseFullText != null ? String(m.caseFullText) : "",
+      Array.isArray(m.searchKeys) ? m.searchKeys.join(",") : "",
+      Array.isArray(m.topicKeywords) ? m.topicKeywords.join(",") : "",
+      m.casenoteUrl != null ? String(m.casenoteUrl) : "",
+      m.jisCntntsSrno != null ? String(m.jisCntntsSrno) : "",
+      m.scourtPortalUrl != null ? String(m.scourtPortalUrl) : ""
+    ];
+    var ox = mapOxListForExport(m.oxQuizzes, 5);
+    for (var i = 0; i < 5; i++) {
+      var item = ox[i];
+      row.push(item && item.statement ? item.statement : "");
+      row.push(oxAnswerCell(item));
+      row.push(item && item.explanation ? item.explanation : "");
+    }
+    row.push(m.hidden ? "TRUE" : "FALSE");
+    row.push(m._docId != null ? String(m._docId) : "");
+    row.push(m.sourceTag != null ? String(m.sourceTag) : "");
+    row.push(Array.isArray(m.tagAliases) ? m.tagAliases.join(",") : "");
+    return row;
+  }
+
+  function downloadDictCasesFullExport(msgEl) {
+    if (typeof XLSX === "undefined") {
+      window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+      return;
+    }
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!isAdminUser(user)) {
+      window.alert("관리자만 내보낼 수 있습니다.");
+      return;
+    }
+    var db = getFirestoreDbOrAlert();
+    if (!db) return;
+    setMsg(msgEl, "판례사전 전체 읽는 중…", false);
+    db
+      .collection("hanlaw_dict_cases")
+      .get()
+      .then(function (snap) {
+        var rows = [CASE_EXPORT_HEAD];
+        snap.docs.forEach(function (doc) {
+          var d = doc.data() || {};
+          rows.push(
+            caseMappedToRow({
+              _docId: doc.id,
+              hidden: !!d.hidden,
+              citation: d.citation || "",
+              title: d.title || "",
+              facts: d.facts || "",
+              issues: d.issues || "",
+              judgment: d.judgment || "",
+              caseFullText: d.caseFullText || "",
+              searchKeys: Array.isArray(d.searchKeys) ? d.searchKeys : [],
+              topicKeywords: Array.isArray(d.topicKeywords)
+                ? d.topicKeywords
+                : Array.isArray(d.keywords)
+                  ? d.keywords
+                  : [],
+              casenoteUrl: d.casenoteUrl || "",
+              jisCntntsSrno: d.jisCntntsSrno || "",
+              scourtPortalUrl: d.scourtPortalUrl || "",
+              tagAliases: Array.isArray(d.tagAliases) ? d.tagAliases : [],
+              sourceTag: d.sourceTag || "",
+              oxQuizzes: mapOxListForExport(d.oxQuizzes, 5)
+            })
+          );
+        });
+        var ws = XLSX.utils.aoa_to_sheet(rows);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "판례사전");
+        var stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        downloadWorkbookSafe(wb, "hanlaw_dict_cases_export_" + stamp + ".xlsx");
+        setMsg(msgEl, "다운로드: 판례 " + snap.docs.length + "건.", false);
+      })
+      .catch(function (e) {
+        setMsg(msgEl, (e && e.message) || "판례사전 내보내기 실패", true);
+      });
+  }
+
+  var STATUTE_EXPORT_HEAD = [
+    "docId",
+    "statuteKey",
+    "heading",
+    "body",
+    "sourceNote",
+    "appliedRules",
+    "subordinateRules",
+    "examPoint",
+    "sourceTag",
+    "tagAliases",
+    "ox1_statement",
+    "ox1_answer",
+    "ox1_explanation",
+    "ox2_statement",
+    "ox2_answer",
+    "ox2_explanation",
+    "ox3_statement",
+    "ox3_answer",
+    "ox3_explanation"
+  ];
+
+  function downloadDictStatutesFullExport(msgEl) {
+    if (typeof XLSX === "undefined") {
+      window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+      return;
+    }
+    var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!isAdminUser(user)) {
+      window.alert("관리자만 내보낼 수 있습니다.");
+      return;
+    }
+    var db = getFirestoreDbOrAlert();
+    if (!db) return;
+    setMsg(msgEl, "조문사전 전체 읽는 중…", false);
+    db
+      .collection("hanlaw_dict_statutes")
+      .get()
+      .then(function (snap) {
+        var rows = [STATUTE_EXPORT_HEAD];
+        snap.docs.forEach(function (doc) {
+          var d = doc.data() || {};
+          var statuteKey = String(d.statuteKey || doc.id || "").trim();
+          var ox = mapOxListForExport(d.oxQuizzes, 3);
+          var bodyRow = [
+            doc.id,
+            statuteKey,
+            d.heading != null ? String(d.heading) : "",
+            d.body != null ? String(d.body) : "",
+            d.sourceNote != null ? String(d.sourceNote) : "",
+            d.appliedRules != null ? String(d.appliedRules) : "",
+            d.subordinateRules != null ? String(d.subordinateRules) : "",
+            d.examPoint != null ? String(d.examPoint) : "",
+            d.sourceTag != null ? String(d.sourceTag) : "",
+            Array.isArray(d.tagAliases) ? d.tagAliases.join(",") : ""
+          ];
+          for (var i = 0; i < 3; i++) {
+            var item = ox[i];
+            bodyRow.push(item && item.statement ? item.statement : "");
+            bodyRow.push(oxAnswerCell(item));
+            bodyRow.push(item && item.explanation ? item.explanation : "");
+          }
+          rows.push(bodyRow);
+        });
+        var ws = XLSX.utils.aoa_to_sheet(rows);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "조문사전");
+        var stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        downloadWorkbookSafe(wb, "hanlaw_dict_statutes_export_" + stamp + ".xlsx");
+        setMsg(msgEl, "다운로드: 조문 " + snap.docs.length + "건.", false);
+      })
+      .catch(function (e) {
+        setMsg(msgEl, (e && e.message) || "조문사전 내보내기 실패", true);
+      });
   }
 
   function setMsg(el, text, isError) {
@@ -932,20 +1375,38 @@
             return;
           }
 
-          if (k === "term" || k === "case") {
+          if (k === "term" || k === "case" || k === "statute") {
             if (typeof window.adminStageDictBatch !== "function") {
               setMsg(msgEl, "사전 스테이징 함수가 없습니다. Functions/클라이언트를 배포해 주세요.", true);
               return;
             }
-            var rows = k === "term" ? parseWorkbookToTerms(new Uint8Array(reader.result)) : parseWorkbookToCases(new Uint8Array(reader.result));
+            var rows;
+            if (k === "term") {
+              rows = parseWorkbookToTerms(new Uint8Array(reader.result));
+            } else if (k === "case") {
+              rows = parseWorkbookToCases(new Uint8Array(reader.result));
+            } else {
+              var statutes = parseWorkbookToStatutes(new Uint8Array(reader.result));
+              rows = statutes.map(flatStatuteRowFromParsed);
+            }
             if (!rows.length) return setMsg(msgEl, "유효한 데이터 행이 없습니다. 샘플 형식을 확인해 주세요.", true);
             setMsg(msgEl, rows.length + "건 검수대기 등록 중…", false);
             window.adminStageDictBatch(k, rows).then(function (res2) {
               var okCount2 = parseInt(res2 && res2.okCount, 10) || 0;
               var failRows2 = (res2 && res2.failRows) || [];
-              var label = k === "term" ? "용어사전" : "판례사전";
+              var label =
+                k === "term" ? "용어사전" : k === "case" ? "판례사전" : "조문사전";
               var msg2 = label + " " + okCount2 + "건이 검수대기로 등록되었습니다.";
-              if (failRows2.length) msg2 += " 실패 " + failRows2.length + "건(예: " + failRows2[0].index + "행 " + failRows2[0].reason + ")";
+              if (failRows2.length) {
+                msg2 +=
+                  " 실패 " +
+                  failRows2.length +
+                  "건(예: " +
+                  failRows2[0].index +
+                  "행 " +
+                  failRows2[0].reason +
+                  ")";
+              }
               setMsg(msgEl, msg2 + " '검수·승인' 탭에서 승인하면 반영됩니다.", false);
               fileEl.value = "";
             }).catch(function (e2) {
@@ -953,31 +1414,6 @@
             });
             return;
           }
-
-          var statutes = parseWorkbookToStatutes(new Uint8Array(reader.result));
-          if (!statutes.length) return setMsg(msgEl, "유효한 데이터 행이 없습니다. 샘플 형식을 확인해 주세요.", true);
-          if (typeof window.saveLegalStatuteRemote !== "function") {
-            return setMsg(msgEl, "조문 저장 함수를 찾지 못했습니다.", true);
-          }
-          setMsg(msgEl, statutes.length + "건 조문 저장 중…", false);
-          var seq = Promise.resolve();
-          var saved = 0;
-          statutes.forEach(function (row) {
-            seq = seq.then(function () {
-              return window.saveLegalStatuteRemote(row.entry, row.docId).then(function () {
-                saved += 1;
-              });
-            });
-          });
-          seq.then(function () {
-            setMsg(msgEl, "조문사전 " + saved + "건이 즉시 반영되었습니다.", false);
-            fileEl.value = "";
-            try {
-              window.dispatchEvent(new CustomEvent("dict-remote-updated"));
-            } catch (e3) {}
-          }).catch(function (e4) {
-            setMsg(msgEl, (e4 && e4.message) || "조문 저장 실패", true);
-          });
         } catch (e) {
           setMsg(msgEl, (e && e.message) || "파일을 읽지 못했습니다.", true);
         }
@@ -996,6 +1432,31 @@
     }
     if (btnTplCase) {
       btnTplCase.addEventListener("click", downloadCaseTemplate);
+    }
+
+    var btnExQuiz = document.getElementById("admin-btn-excel-export-quiz");
+    var btnExStatute = document.getElementById("admin-btn-excel-export-statute");
+    var btnExTerm = document.getElementById("admin-btn-excel-export-term");
+    var btnExCase = document.getElementById("admin-btn-excel-export-case");
+    if (btnExQuiz) {
+      btnExQuiz.addEventListener("click", function () {
+        downloadQuizFullExport(msgEl);
+      });
+    }
+    if (btnExStatute) {
+      btnExStatute.addEventListener("click", function () {
+        downloadDictStatutesFullExport(msgEl);
+      });
+    }
+    if (btnExTerm) {
+      btnExTerm.addEventListener("click", function () {
+        downloadDictTermsFullExport(msgEl);
+      });
+    }
+    if (btnExCase) {
+      btnExCase.addEventListener("click", function () {
+        downloadDictCasesFullExport(msgEl);
+      });
     }
 
     if (btnUp && fileEl) {

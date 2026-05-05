@@ -1810,41 +1810,56 @@
               </article>
             </div>
 
-            <div id="pricing-elly-extra" class="card card--pricing-intro pricing-elly-intro">
+            <div id="pricing-elly-extra" class="card card--pricing-intro" tabindex="-1">
               <h2 class="card__title">엘리(AI) 질문권</h2>
               <p class="pricing-lead">
                 구독의 <strong>일일 한도</strong>를 모두 쓴 뒤에는 엘리(AI) 질문권이 추가로 차감됩니다.
+                팩은 결제 시점부터 각각 <strong>1개월간 유효</strong>하며, 동일 건당 단가로 충전할 수 있습니다.
               </p>
-              <div class="pricing-grid" role="list" aria-label="엘리(AI) 질문권 팩">
-                <article class="pricing-card pricing-card--mini" role="listitem">
-                  <h3 class="pricing-card__name">엘리 10건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main">₩5,000</p>
-                  <p class="pricing-card__desc">1건당 500원 · 유효기간 1개월</p>
-                  <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--primary" data-portone-product="elly_10">결제하기</button>
-                  </div>
-                </article>
-                <article class="pricing-card pricing-card--mini" role="listitem">
-                  <h3 class="pricing-card__name">엘리 20건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main">₩10,000</p>
-                  <p class="pricing-card__desc">1건당 500원 · 유효기간 1개월</p>
-                  <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--primary" data-portone-product="elly_20">결제하기</button>
-                  </div>
-                </article>
-                <article class="pricing-card pricing-card--mini" role="listitem">
-                  <h3 class="pricing-card__name">엘리 30건</h3>
-                  <p class="pricing-card__price pricing-card__price--krw-main">₩15,000</p>
-                  <p class="pricing-card__desc">1건당 500원 · 유효기간 1개월</p>
-                  <div class="pricing-card__pay-actions">
-                    <button type="button" class="btn btn--primary" data-portone-product="elly_30">결제하기</button>
-                  </div>
-                </article>
-              </div>
-              <div class="pricing-elly-convert">
-                <p class="pricing-elly-convert__text">엘리(AI) 질문권은 포인트로 전환할 수 있습니다.</p>
-                <button type="button" class="btn btn--primary" data-go-dashboard-point-convert>포인트로 질문권 전환하기</button>
-              </div>
+            </div>
+            <div class="pricing-grid" role="list" aria-label="엘리(AI) 질문권 팩">
+              <article class="pricing-card" role="listitem">
+                <span class="pricing-card__badge">팩</span>
+                <h3 class="pricing-card__name">엘리 10건</h3>
+                <p class="pricing-card__price-was pricing-card__price-was-ghost" aria-hidden="true">&nbsp;</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩5,000</p>
+                <p class="pricing-card__discount-label">1건당 500원</p>
+                <p class="pricing-card__period">유효기간 1개월 · 한도 초과 후 차감</p>
+                <p class="pricing-card__note">10건 묶음 팩</p>
+                <div class="pricing-card__pay-actions">
+                  <button type="button" class="btn btn--primary" data-portone-product="elly_10">결제하기</button>
+                </div>
+              </article>
+              <article class="pricing-card pricing-card--featured" role="listitem">
+                <span class="pricing-card__badge">팩</span>
+                <h3 class="pricing-card__name">엘리 20건</h3>
+                <p class="pricing-card__price-was pricing-card__price-was-ghost" aria-hidden="true">&nbsp;</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩10,000</p>
+                <p class="pricing-card__discount-label">1건당 500원</p>
+                <p class="pricing-card__period">유효기간 1개월 · 한도 초과 후 차감</p>
+                <p class="pricing-card__note">동일 단가 · 중간 용량</p>
+                <div class="pricing-card__pay-actions">
+                  <button type="button" class="btn btn--primary" data-portone-product="elly_20">결제하기</button>
+                </div>
+              </article>
+              <article class="pricing-card" role="listitem">
+                <span class="pricing-card__badge">팩</span>
+                <h3 class="pricing-card__name">엘리 30건</h3>
+                <p class="pricing-card__price-was pricing-card__price-was-ghost" aria-hidden="true">&nbsp;</p>
+                <p class="pricing-card__price pricing-card__price--krw-main">₩15,000</p>
+                <p class="pricing-card__discount-label">1건당 500원</p>
+                <p class="pricing-card__period">유효기간 1개월 · 한도 초과 후 차감</p>
+                <p class="pricing-card__note">다량 이용 시 동일 단가</p>
+                <div class="pricing-card__pay-actions">
+                  <button type="button" class="btn btn--primary" data-portone-product="elly_30">결제하기</button>
+                </div>
+              </article>
+            </div>
+            <div class="pricing-elly-convert pricing-elly-convert--boxed">
+              <p class="pricing-elly-convert__text">엘리(AI) 질문권은 포인트로 전환할 수 있습니다.</p>
+              <button type="button" class="btn btn--primary pricing-elly-convert__btn" data-go-dashboard-point-convert>
+                포인트로 질문권 전환하기
+              </button>
             </div>
 
             <section class="pricing-refund-policy" aria-label="환불정책 요약">
@@ -2897,8 +2912,8 @@
                 </label>
                 <p class="admin-json-help" id="admin-excel-help-statute" hidden>
                   [조문사전] 필수 열: <code class="pricing-code">statuteKey</code>, <code class="pricing-code">body</code>.
-                  선택 열: <code class="pricing-code">docId</code>, <code class="pricing-code">heading</code>, <code class="pricing-code">sourceNote</code>, <code class="pricing-code">ox1_statement</code>, <code class="pricing-code">ox1_answer</code>, <code class="pricing-code">ox1_explanation</code> (ox2~ox3 동일 패턴).
-                  업로드 즉시 조문사전에 반영됩니다.
+                  선택 열: <code class="pricing-code">docId</code>(참고·백업용), <code class="pricing-code">heading</code>, <code class="pricing-code">appliedRules</code>, <code class="pricing-code">subordinateRules</code>, <code class="pricing-code">examPoint</code>, <code class="pricing-code">sourceNote</code>, <code class="pricing-code">ox1_statement</code>, <code class="pricing-code">ox1_answer</code>, <code class="pricing-code">ox1_explanation</code> (ox2~ox3 동일 패턴).
+                  업로드 시 검수대기에 등록되며, 검수·승인 탭에서 승인하면 조문사전에 반영됩니다.
                 </p>
                 <p class="admin-json-help" id="admin-excel-help-term" hidden>
                   [용어사전] 필수 열: <code class="pricing-code">term</code>, <code class="pricing-code">definition</code>.
@@ -2931,6 +2946,16 @@
                   <button type="button" class="btn btn--secondary" id="admin-btn-excel-template-statute">조문사전 샘플</button>
                   <button type="button" class="btn btn--secondary" id="admin-btn-excel-template-term">용어사전 샘플</button>
                   <button type="button" class="btn btn--secondary" id="admin-btn-excel-template-case">판례사전 샘플</button>
+                </div>
+                <p class="admin-json-help">
+                  Firestore·앱에 반영된 데이터를 엑셀로 통째로 내려받습니다. 퀴즈는 정적 문항과 원격 문항이 합쳐진 목록(앱과 동일)입니다.
+                  조문·용어·판례는 각 컬렉션 전체입니다. 내보내기 열에 샘플에 없는 항목이 있으면 백업용이며, 다시 업로드할 때는 기존 업로드 규칙이 적용됩니다.
+                </p>
+                <div class="admin-excel-actions">
+                  <button type="button" class="btn btn--outline" id="admin-btn-excel-export-quiz">퀴즈 전체 다운로드</button>
+                  <button type="button" class="btn btn--outline" id="admin-btn-excel-export-statute">조문사전 전체 다운로드</button>
+                  <button type="button" class="btn btn--outline" id="admin-btn-excel-export-term">용어사전 전체 다운로드</button>
+                  <button type="button" class="btn btn--outline" id="admin-btn-excel-export-case">판례사전 전체 다운로드</button>
                 </div>
                 <label class="field">
                   <span class="field__label">엑셀 파일 (.xlsx / .xls)</span>
@@ -3737,7 +3762,7 @@
   <script src="/js/admin-review.js?v=20"></script>
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="/js/admin-excel.js?v=9"></script>
+  <script src="/js/admin-excel.js?v=11"></script>
   <script src="/js/admin-support-chat.js?v=2"></script>
   <script src="/js/admin-tickets.js?v=13"></script>
   <script src="/js/admin-quotes.js?v=8"></script>

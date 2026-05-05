@@ -1945,31 +1945,30 @@ html[data-theme="light"] .case-result-card__ox-explain.quiz-ai-answer .quiz-ai-a
   margin-top: 1.75rem;
 }
 
-/** 변호사 질문권 그리드 다음 엘리(AI) 안내 블록 */
-#pricing-question-packs .pricing-grid + .card--pricing-intro.pricing-elly-intro {
-  margin-top: 1.5rem;
-}
-
-.pricing-card--mini .pricing-card__desc {
-  margin: 0.2rem 0 0.3rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.pricing-elly-convert {
-  margin-top: 0.85rem;
+.pricing-elly-convert--boxed {
+  max-width: var(--pricing-inner-width, 900px);
+  margin: 1.75rem auto 0;
+  padding: 1.15rem 1.25rem;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-.pricing-elly-convert__text {
+.pricing-elly-convert--boxed .pricing-elly-convert__text {
   margin: 0;
+  text-align: center;
   font-size: 0.82rem;
   color: var(--muted);
+  line-height: 1.5;
+}
+
+.pricing-elly-convert--boxed .pricing-elly-convert__btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .card--pricing-intro .card__title {
@@ -8627,6 +8626,13 @@ html:not([data-theme="light"]) .pricing-refund-policy {
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(32, 34, 42, 0.95) 0%, rgba(22, 24, 30, 0.98) 100%);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+}
+
+html:not([data-theme="light"]) .pricing-elly-convert--boxed {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(32, 34, 42, 0.92) 0%, rgba(22, 24, 30, 0.97) 100%);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.26);
 }
 
 html:not([data-theme="light"]) .wrong-note-card,
