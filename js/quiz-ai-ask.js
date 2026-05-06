@@ -13,8 +13,8 @@
 
   function capFromEllyDailyTier(raw) {
     var t = String(raw || "basic").toLowerCase();
-    if (t === "super") return 15;
-    if (t === "ultra") return 30;
+    if (t === "super") return 10;
+    if (t === "ultra") return 20;
     return 5;
   }
 
@@ -261,7 +261,7 @@
     var msg;
     if (!isRealFirebaseUser()) {
       msg =
-        "로그인 후 이용 · 유료 구독 회원 한정 · 플랜별 일일 한도(베이직 5·슈퍼 15·울트라 30회, 한국시간)";
+        "로그인 후 이용 · 유료 구독 회원 한정 · 플랜별 일일 한도(베이직 5·슈퍼 10·울트라 20회, 한국시간)";
     } else if (typeof window.isPaidMember === "function" && !window.isPaidMember()) {
       msg = HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.";
     } else if (hasEllyUnlimited()) {

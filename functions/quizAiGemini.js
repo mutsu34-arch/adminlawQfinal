@@ -38,8 +38,8 @@ function isAdminEmailFromAuth(auth) {
 /** 유료 구독 플랜별 엘리(AI) 일일 한도(KST). 미설정·기존 회원은 basic. */
 function ellyDailyLimitForMemberData(m) {
   const t = String((m && m.ellyDailyTier) || "basic").toLowerCase();
-  if (t === "super") return 15;
-  if (t === "ultra") return 30;
+  if (t === "super") return 10;
+  if (t === "ultra") return 20;
   return 5;
 }
 const MAX_USER_Q = 800;
@@ -207,7 +207,7 @@ async function reserveEllySlot(uid, auth) {
 
     const adminOk = isAdminEmailFromAuth(auth);
     const paidOk = adminOk || isMembershipPaidActive(m, nowMs);
-    const dailyCap = paidOk ? (adminOk ? 30 : ellyDailyLimitForMemberData(m)) : 0;
+    const dailyCap = paidOk ? (adminOk ? 20 : ellyDailyLimitForMemberData(m)) : 0;
 
     let count = 0;
     if (usageSnap.exists) {
