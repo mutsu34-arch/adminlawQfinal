@@ -52,6 +52,13 @@
     return true;
   }
 
+  function selectedPgProvider() {
+    var checked = document.querySelector('input[name="pricing-pg"]:checked');
+    var v = checked ? String(checked.value || "").trim().toLowerCase() : "";
+    if (v === "galaxia") return "galaxia";
+    return "kpn";
+  }
+
   function buildReturnUrl() {
     try {
       var u = new URL(window.location.href);
@@ -278,7 +285,7 @@
     if (!requireLoginAndFirebase()) return;
     var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
     var prepare = firebase.app().functions(region).httpsCallable("preparePortOnePayment");
-    prepare({ product: product })
+    prepare({ product: product, pgProvider: selectedPgProvider() })
       .then(function (res) {
         var d = res && res.data;
         if (!d || !d.paymentId || !d.storeId || !d.channelKey) {

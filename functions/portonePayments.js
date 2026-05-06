@@ -7,6 +7,7 @@
  * - PORTONE_API_SECRET: 콘솔 결제연동에서 발급한 V2 API Secret
  * - PORTONE_STORE_ID: 스토어 ID
  * - PORTONE_CHANNEL_KEY_KPN: KPN 채널의 채널 키 (관리자 콘솔 채널관리)
+ * - PORTONE_CHANNEL_KEY_GALAXIA: 갤럭시아머니트리 채널 키 (선택)
  *
  * 엘리 팩 금액: PORTONE_KRW_EQ10/20/30 우선, 없으면 PAYAPP_KRW_EQ*(레거시 env명) 호환.
  * 구독권 만료일: 한국시간 달력 기준 1개월 가산(2월·31일 등 반영).
@@ -161,14 +162,29 @@ function productSpec(product) {
 function assertPortoneEnv() {
   const secret = String(process.env.PORTONE_API_SECRET || "").trim();
   const storeId = String(process.env.PORTONE_STORE_ID || "").trim();
-  const channelKey = String(process.env.PORTONE_CHANNEL_KEY_KPN || "").trim();
-  if (!secret || !storeId || !channelKey) {
+  const channelKeyKpn = String(process.env.PORTONE_CHANNEL_KEY_KPN || "").trim();
+  const channelKeyGalaxia = String(process.env.PORTONE_CHANNEL_KEY_GALAXIA || "").trim();
+  if (!secret || !storeId || !channelKeyKpn) {
     throw new HttpsError(
       "failed-precondition",
       "PortOne 환경변수(PORTONE_API_SECRET, PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN)가 설정되지 않았습니다."
     );
   }
-  return { secret, storeId, channelKey };
+  return { secret, storeId, channelKeyKpn, channelKeyGalaxia };
+}
+
+function resolveChannelKeyByPg(pgProvider, env) {
+  const picked = String(pgProvider || "kpn").trim().toLowerCase();
+  if (picked === "galaxia") {
+    if (!env.channelKeyGalaxia) {
+      throw new HttpsError(
+        "failed-precondition",
+        "갤럭시아머니트리 채널 키(PORTONE_CHANNEL_KEY_GALAXIA)가 설정되지 않았습니다."
+      );
+    }
+    return { channelKey: env.channelKeyGalaxia, pgProvider: "galaxia" };
+  }
+  return { channelKey: env.channelKeyKpn, pgProvider: "kpn" };
 }
 
 async function fetchPortOnePayment(secret, paymentId) {
@@ -279,7 +295,13 @@ const preparePortOnePayment = onCall({ region: REGION }, async (request) => {
   if (!spec || !spec.amount) {
     throw new HttpsError("invalid-argument", "지원하지 않는 상품 코드입니다.");
   }
-  const { storeId, channelKey } = assertPortoneEnv();
+  const env = assertPortoneEnv();
+  const pgProvider = String((request.data && request.data.pgProvider) || "kpn")
+    .trim()
+    .toLowerCase();
+  const resolved = resolveChannelKeyByPg(pgProvider, env);
+  const storeId = env.storeId;
+  const channelKey = resolved.channelKey;
 
   // KPN 채널에서 주문번호 필드 길이 제한(바이트)에 걸리지 않도록 paymentId를 짧게 유지
   const ts = Date.now().toString(36);
@@ -297,6 +319,7 @@ const preparePortOnePayment = onCall({ region: REGION }, async (request) => {
     amount: spec.amount,
     tier: spec.tier != null ? spec.tier : null,
     pack: spec.pack != null ? spec.pack : null,
+    pgProvider: resolved.pgProvider,
     createdAt: FieldValue.serverTimestamp(),
     consumed: false
   });
@@ -304,6 +327,7 @@ const preparePortOnePayment = onCall({ region: REGION }, async (request) => {
   return {
     storeId,
     channelKey,
+    pgProvider: resolved.pgProvider,
     paymentId,
     orderName: spec.orderName,
     totalAmount: spec.amount,
@@ -475,7 +499,7 @@ const runPortOneRecurringBilling = onSchedule(
     timeZone: "Asia/Seoul"
   },
   async () => {
-    const { secret, storeId, channelKey } = assertPortoneEnv();
+    const { secret, storeId, channelKeyKpn } = assertPortoneEnv();
     const now = nowTs();
     const snap = await db()
       .collection("hanlaw_members")
@@ -499,7 +523,7 @@ const runPortOneRecurringBilling = onSchedule(
       const paymentId = buildRecurringPaymentId(uid);
       const body = {
         storeId: storeId,
-        channelKey: channelKey,
+        channelKey: channelKeyKpn,
         billingKey: billingKey,
         orderName: "행정법Q 월 정기구독 자동결제",
         totalAmount: amount,

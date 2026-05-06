@@ -3,7 +3,7 @@
  *
  * enabled: true 이면 data-portone-product 버튼이 포트원 결제창으로 연결됩니다.
  * 스토어 ID·채널 키·API 시크릿은 클라이언트에 두지 말고 Firebase Functions 환경변수에만 설정하세요:
- *   PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN, PORTONE_API_SECRET
+ *   PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN, PORTONE_CHANNEL_KEY_GALAXIA(선택), PORTONE_API_SECRET
  *
  * KPN 채널 추가: 포트원 관리자콘솔 결제 연동 채널관리
  * @see https://help.portone.io/content/kpn

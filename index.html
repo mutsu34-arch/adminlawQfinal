@@ -34,7 +34,7 @@
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/css/style.css?v=20260504-light-dimmer" />
+  <link rel="stylesheet" href="/css/style.css?v=20260506-pg-selector" />
 </head>
 <body>
   <div class="app">
@@ -1722,9 +1722,20 @@
                 결제 대행사 정책상 연 단위 등 장기 일괄 결제는 제공하지 않습니다.
                 플랜마다 <strong>엘리(AI) 질문하기</strong>의 <strong>일일 한도(한국시간)</strong>가 다릅니다: 베이직 5회, 슈퍼 10회, 울트라 20회.
                 이미 유료 이용 중이면 만료일 다음 날부터 새 구독이 이어집니다.
-                유료 결제는 <strong>포트원</strong>을 통해 진행되며, PG는 <strong>한국결제네트웍스(KPN)</strong> 등 콘솔에서 연결한 채널을 사용합니다.
-                Firebase Functions 환경에 포트원 스토어 ID·KPN 채널 키·V2 API 시크릿(PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN, PORTONE_API_SECRET)을 넣어야 결제가 열립니다.
+                유료 결제는 <strong>포트원</strong>을 통해 진행되며, 아래에서 사용할 PG를 선택할 수 있습니다.
+                Firebase Functions 환경에 포트원 스토어 ID·채널 키·V2 API 시크릿(PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN, PORTONE_CHANNEL_KEY_GALAXIA, PORTONE_API_SECRET)을 넣어야 결제가 열립니다.
               </p>
+              <div class="pricing-pg-select" role="group" aria-label="결제 PG 선택">
+                <span class="pricing-pg-select__label">결제 PG</span>
+                <label class="pricing-pg-select__option">
+                  <input type="radio" name="pricing-pg" value="kpn" checked />
+                  <span>한국결제네트웍스(KPN)</span>
+                </label>
+                <label class="pricing-pg-select__option">
+                  <input type="radio" name="pricing-pg" value="galaxia" />
+                  <span>갤럭시아머니트리</span>
+                </label>
+              </div>
             </div>
 
             <div class="card card--pricing-intro" id="pricing-block-onemonth">
@@ -3713,8 +3724,8 @@
   <script src="/js/ai-config.js"></script>
   <script src="/js/tickets-service.js?v=15"></script>
   <script src="/js/pricing-display-config.js?v=1"></script>
-  <script src="/js/portone-config.js?v=2"></script>
-  <script src="/js/portone-checkout.js?v=7"></script>
+  <script src="/js/portone-config.js?v=3"></script>
+  <script src="/js/portone-checkout.js?v=8"></script>
   <script src="/js/auth.js?v=5"></script>
   <script src="/js/support-chat.js?v=3"></script>
   <script src="/js/user-profile.js?v=20260419"></script>

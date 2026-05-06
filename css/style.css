@@ -1982,6 +1982,27 @@ html[data-theme="light"] .case-result-card__ox-explain.quiz-ai-answer .quiz-ai-a
   line-height: 1.55;
 }
 
+.pricing-pg-select {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.9rem;
+}
+
+.pricing-pg-select__label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.pricing-pg-select__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
 .pricing-subtitle {
   margin: 1.75rem auto 0.65rem;
   max-width: var(--pricing-inner-width, 900px);
