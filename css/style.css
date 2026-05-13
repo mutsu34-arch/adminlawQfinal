@@ -5116,6 +5116,44 @@ html[data-theme="light"] .btn--quiz-master--on {
   border-radius: 8px;
 }
 
+.quiz-ai-answer__question {
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  background: color-mix(in srgb, var(--bg) 88%, var(--accent) 6%);
+}
+
+.quiz-ai-answer__question-label,
+.quiz-ai-answer__reply-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: -0.02em;
+}
+
+.quiz-ai-answer__question-body {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.quiz-ai-answer__reply {
+  margin: 0;
+}
+
+.quiz-ai-answer__reply-body {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  word-break: break-word;
+}
+
 .quiz-ai-answer {
   margin-top: 0.65rem;
   padding: 0.75rem 0.85rem;

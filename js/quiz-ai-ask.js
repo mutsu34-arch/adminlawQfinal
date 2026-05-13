@@ -55,6 +55,35 @@
     return String(raw || "").replace(/</g, "&lt;");
   }
 
+  function escapeEllyPlainHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;");
+  }
+
+  /** 답변 영역: 나의 질문 → 엘리 답변(면책 + 본문) */
+  function buildEllyAnswerRegionHtml(userQuestionTrimmed, bodyHtml) {
+    var q = String(userQuestionTrimmed || "").trim();
+    var qInner = q
+      ? escapeEllyPlainHtml(q)
+      : "질문은 비우고 보냈습니다. 서버에서는 ‘핵심만 다시 정리’ 요청으로 처리됩니다.";
+    return (
+      '<div class="quiz-ai-answer__question">' +
+      '<p class="quiz-ai-answer__question-label">나의 질문</p>' +
+      '<p class="quiz-ai-answer__question-body">' +
+      qInner +
+      "</p></div>" +
+      '<div class="quiz-ai-answer__reply">' +
+      '<p class="quiz-ai-answer__reply-label">엘리(AI) 답변</p>' +
+      QUIZ_AI_ANSWER_DISCLAIMER +
+      '<div class="quiz-ai-answer__reply-body">' +
+      bodyHtml +
+      "</div></div>"
+    );
+  }
+
   function kstTodayYmd() {
     return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
   }
@@ -581,9 +610,10 @@
           if (!String(bodyHtml || "").trim() && rawAns) {
             bodyHtml = "<p>" + String(rawAns).replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>";
           }
-          ansEl.innerHTML = QUIZ_AI_ANSWER_DISCLAIMER + bodyHtml;
+          ansEl.innerHTML = buildEllyAnswerRegionHtml(uq, bodyHtml);
           ansEl.hidden = false;
         }
+        if (ta) ta.value = "";
         if (res && typeof res.remainingToday === "number") {
           lastRemain = Math.max(0, res.remainingToday);
         }
@@ -692,9 +722,10 @@
           if (!String(bodyHtml || "").trim() && rawAns) {
             bodyHtml = "<p>" + String(rawAns).replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>";
           }
-          ansEl.innerHTML = QUIZ_AI_ANSWER_DISCLAIMER + bodyHtml;
+          ansEl.innerHTML = buildEllyAnswerRegionHtml(uq, bodyHtml);
           ansEl.hidden = false;
         }
+        if (ta) ta.value = "";
         if (res && typeof res.remainingToday === "number") {
           lastRemain = Math.max(0, res.remainingToday);
         }
@@ -824,9 +855,10 @@
           if (!String(bodyHtml || "").trim() && rawAns) {
             bodyHtml = "<p>" + String(rawAns).replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>";
           }
-          ansEl.innerHTML = QUIZ_AI_ANSWER_DISCLAIMER + bodyHtml;
+          ansEl.innerHTML = buildEllyAnswerRegionHtml(uq, bodyHtml);
           ansEl.hidden = false;
         }
+        if (ta) ta.value = "";
         if (res && typeof res.remainingToday === "number") {
           lastRemain = Math.max(0, res.remainingToday);
         }
