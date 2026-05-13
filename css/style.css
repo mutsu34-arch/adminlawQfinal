@@ -23,6 +23,7 @@ html[data-theme="light"] {
   --bg: #e6e9ef;
   --surface: #ffffff;
   --surface-hover: #f1f5f9;
+  --surface-2: #eef1f6;
   --border: #e2e8f0;
   --text: #334155;
   --text-heading: #0f172a;
@@ -150,6 +151,14 @@ html[data-theme="light"] .quiz-bar {
 
 html[data-theme="light"] #q-text {
   color: var(--text-heading);
+}
+
+html[data-theme="light"] .feedback-guest-hint {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 *,
@@ -4234,6 +4243,11 @@ html[data-theme="light"] #q-text .quiz-ai-answer__accent {
 
 .feedback__block-body.feedback__tags {
   margin-bottom: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface-2, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
 }
 
 .feedback__tag-empty {
@@ -4261,9 +4275,9 @@ html[data-theme="light"] #q-text .quiz-ai-answer__accent {
 .feedback-detail {
   margin: 0 0 1rem;
   padding: 0.75rem 0.85rem;
-  background: var(--bg);
+  background: var(--surface-2, var(--bg));
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .feedback-detail__title {
