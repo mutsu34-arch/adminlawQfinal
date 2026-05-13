@@ -42,7 +42,7 @@
       meta.setAttribute("name", "theme-color");
       document.head.appendChild(meta);
     }
-    meta.setAttribute("content", isLight() ? "#eef2f8" : "#0f1419");
+    meta.setAttribute("content", isLight() ? "#e6e9ef" : "#0f1419");
   }
 
   document.addEventListener("DOMContentLoaded", function () {
