@@ -123,30 +123,6 @@ html[data-theme="light"] .user-bar {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.05);
 }
 
-html[data-theme="light"] .btn--o {
-  background: #d9eee6;
-  color: #047857;
-  border-color: #5fd9b0;
-  border-width: 2px;
-}
-
-html[data-theme="light"] .btn--o:hover {
-  background: #c5e8da;
-  border-color: #10b981;
-}
-
-html[data-theme="light"] .btn--x {
-  background: #f3e4e4;
-  color: #b91c1c;
-  border-color: #e8b4b4;
-  border-width: 2px;
-}
-
-html[data-theme="light"] .btn--x:hover {
-  background: #ebd4d4;
-  border-color: #f87171;
-}
-
 html[data-theme="light"] .btn--primary {
   background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
   border-color: rgba(37, 99, 235, 0.35);
