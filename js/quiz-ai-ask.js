@@ -20,9 +20,7 @@
     return 5;
   }
 
-  /** Functions quizAskGemini: 관리자 이메일은 일일 한도 20회(일반 유료는 플랜별) */
-  var ADMIN_ELLY_DAILY_CAP = 20;
-
+  /** 관리자(ADMIN_EMAILS)는 울트라 구독과 동일하게 일일 20회(Functions quizAskGemini와 동일) */
   function isHanlawEllyAdminUser() {
     try {
       if (typeof firebase === "undefined" || !firebase.auth || !firebase.auth().currentUser) return false;
@@ -38,7 +36,7 @@
 
   function dailyUsageCapForViewer() {
     if (typeof window.isPaidMember === "function" && window.isPaidMember()) {
-      if (isHanlawEllyAdminUser()) return ADMIN_ELLY_DAILY_CAP;
+      if (isHanlawEllyAdminUser()) return capFromEllyDailyTier("ultra");
       return lastPaidDailyCap;
     }
     return 0;
@@ -150,16 +148,11 @@
         " 님은 엘리(AI) 질문 무제한 이용 기간입니다(일일 질문권 차감 없음). 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요."
       );
     }
+    var tierKey = isHanlawEllyAdminUser() ? "ultra" : lastEllyDailyTierStr;
+    var tierLabel = ellySubLabelKo(tierKey);
     var wb = sumWalletBuckets(lastWalletBatches);
     var parts = [];
-    if (isHanlawEllyAdminUser()) {
-      parts.push(
-        "관리자 일일 질문 한도 " + lastRemain + "건(일 최대 " + ADMIN_ELLY_DAILY_CAP + "회·한국시간)"
-      );
-    } else {
-      var tierLabel = ellySubLabelKo(lastEllyDailyTierStr);
-      parts.push(tierLabel + " 구독자 질문권 " + lastRemain + "건");
-    }
+    parts.push(tierLabel + " 구독자 질문권 " + lastRemain + "건");
     if (wb.purchase > 0) parts.push("구매 질문권 " + wb.purchase + "건");
     if (wb.point_convert > 0) parts.push("포인트 전환 질문권 " + wb.point_convert + "건");
     if (wb.compensation > 0) parts.push("보정·복구 질문권 " + wb.compensation + "건");

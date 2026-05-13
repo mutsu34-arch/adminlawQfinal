@@ -207,7 +207,8 @@ async function reserveEllySlot(uid, auth) {
 
     const adminOk = isAdminEmailFromAuth(auth);
     const paidOk = adminOk || isMembershipPaidActive(m, nowMs);
-    const dailyCap = paidOk ? (adminOk ? 20 : ellyDailyLimitForMemberData(m)) : 0;
+    /** 관리자는 울트라 구독과 동일 일일 한도(20회) */
+    const dailyCap = paidOk ? ellyDailyLimitForMemberData(adminOk ? { ellyDailyTier: "ultra" } : m) : 0;
 
     let count = 0;
     if (usageSnap.exists) {
