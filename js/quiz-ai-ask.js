@@ -182,10 +182,10 @@
     var wb = sumWalletBuckets(lastWalletBatches);
     var parts = [];
     parts.push(tierLabel + " 구독자 질문권 " + lastRemain + "건");
-    if (wb.purchase > 0) parts.push("구매 질문권 " + wb.purchase + "건");
     if (wb.point_convert > 0) parts.push("포인트 전환 질문권 " + wb.point_convert + "건");
     if (wb.compensation > 0) parts.push("보정·복구 질문권 " + wb.compensation + "건");
     if (wb.legacy > 0) parts.push("기타 보유 질문권 " + wb.legacy + "건");
+    if (wb.purchase > 0) parts.push("구매 질문권 " + wb.purchase + "건");
     var total = lastRemain + wb.purchase + wb.point_convert + wb.compensation + wb.legacy;
     var breakdown = parts.join(" + ");
     return (

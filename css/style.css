@@ -8646,6 +8646,95 @@ html[data-theme="light"] #panel-dashboard .dashboard-membership-pill.dashboard-m
   border-color: rgba(59, 130, 246, 0.28);
 }
 
+html[data-theme="light"] #panel-dashboard .dashboard-section__title {
+  color: #0f172a;
+  letter-spacing: 0.04em;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-subheading {
+  color: #1e293b;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-section__lead,
+html[data-theme="light"] #panel-dashboard .dashboard-inquiry-lead {
+  color: #475569;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-points-balance {
+  background: linear-gradient(120deg, rgba(59, 130, 246, 0.14) 0%, rgba(248, 250, 252, 0.98) 100%);
+  border-color: rgba(37, 99, 235, 0.28);
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-points-balance__label {
+  color: #475569;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-my-points-summary {
+  color: #0f172a;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-my-points-summary strong {
+  color: #1d4ed8;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-points-balance__unit {
+  color: #334155;
+  font-weight: 700;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-btn-accent {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border-color: #1e40af;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-btn-accent:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-point-log-toggle {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #0f172a;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-point-log {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-inquiry-tab {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-inquiry-tab__label {
+  color: #0f172a;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-inquiry-tab__hint {
+  color: #475569;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-inquiry-tab__icon {
+  color: #2563eb;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-inquiry-tab__chev {
+  color: #64748b;
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-inquiry-tab--active {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, #ffffff 100%);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.12);
+}
+
+html[data-theme="light"] #panel-dashboard .dashboard-inquiry-tab:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(59, 130, 246, 0.06);
+}
+
 /* —— 앱 전역(다크): 대시보드와 톤·입체감 통일 —— */
 html:not([data-theme="light"]) .card {
   background: linear-gradient(180deg, rgba(36, 38, 48, 0.98) 0%, rgba(26, 28, 36, 0.99) 100%);
