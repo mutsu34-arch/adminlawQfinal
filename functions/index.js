@@ -76,6 +76,9 @@ exports.adminListSupportChatThreads = adminListSupportChatThreads;
 exports.adminGetSupportChatMessages = adminGetSupportChatMessages;
 exports.adminReplySupportChat = adminReplySupportChat;
 
+const { registerUserSession } = require("./sessionControl");
+exports.registerUserSession = registerUserSession;
+
 const {
   createLibraryDocument,
   deleteLibraryDocument,

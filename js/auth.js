@@ -1,6 +1,10 @@
 (function () {
   var auth = null;
   var googleProvider = null;
+  var sessionWatchUnsub = null;
+  var activeSessionId = "";
+  var sessionKickInProgress = false;
+  var DEVICE_ID_KEY = "hanlaw_device_id_v1";
 
   var el = {
     shell: document.getElementById("app-shell"),
@@ -62,6 +66,123 @@
     el.authMsg.textContent = text || "";
     el.authMsg.classList.toggle("auth-message--error", !!isError);
     el.authMsg.hidden = !text;
+  }
+
+  function randomId() {
+    try {
+      if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID().replace(/-/g, "");
+      }
+    } catch (e) {}
+    return String(Date.now()) + String(Math.floor(Math.random() * 1000000000));
+  }
+
+  function getOrCreateDeviceId() {
+    var id = "";
+    try {
+      id = String(localStorage.getItem(DEVICE_ID_KEY) || "").trim();
+    } catch (e) {
+      id = "";
+    }
+    if (!id || !/^[a-zA-Z0-9._:-]{8,128}$/.test(id)) {
+      id = "dev_" + randomId().slice(0, 40);
+      try {
+        localStorage.setItem(DEVICE_ID_KEY, id);
+      } catch (e2) {}
+    }
+    return id;
+  }
+
+  function detectDeviceType() {
+    var ua = "";
+    try {
+      ua = String((navigator && navigator.userAgent) || "").toLowerCase();
+    } catch (e) {
+      ua = "";
+    }
+    var isIpad = ua.indexOf("ipad") >= 0 || (ua.indexOf("macintosh") >= 0 && navigator && navigator.maxTouchPoints > 1);
+    if (isIpad) return "tablet";
+    if (ua.indexOf("tablet") >= 0) return "tablet";
+    if (ua.indexOf("android") >= 0 && ua.indexOf("mobile") < 0) return "tablet";
+    if (
+      ua.indexOf("iphone") >= 0 ||
+      ua.indexOf("ipod") >= 0 ||
+      (ua.indexOf("android") >= 0 && ua.indexOf("mobile") >= 0) ||
+      ua.indexOf("mobile") >= 0
+    ) {
+      return "phone";
+    }
+    return "pc";
+  }
+
+  function stopSessionWatch() {
+    if (sessionWatchUnsub) {
+      try {
+        sessionWatchUnsub();
+      } catch (e) {}
+      sessionWatchUnsub = null;
+    }
+    activeSessionId = "";
+  }
+
+  function forceLogoutByRemoteSession() {
+    if (!auth || sessionKickInProgress) return;
+    sessionKickInProgress = true;
+    stopSessionWatch();
+    window.alert("다른 기기에서 로그인되어 현재 세션이 종료되었습니다.");
+    auth
+      .signOut()
+      .catch(function () {})
+      .then(function () {
+        sessionKickInProgress = false;
+      });
+  }
+
+  function registerAndWatchSession(user) {
+    if (!user || user.isAnonymous || user === window.__hanlawMockUser) return;
+    if (typeof firebase === "undefined" || !firebase.app || !firebase.functions || !firebase.firestore) return;
+
+    var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+    var fn = firebase.app().functions(region).httpsCallable("registerUserSession");
+    activeSessionId = "sess_" + randomId().slice(0, 48);
+    var mySession = activeSessionId;
+    var payload = {
+      sessionId: mySession,
+      deviceId: getOrCreateDeviceId(),
+      deviceType: detectDeviceType()
+    };
+
+    fn(payload)
+      .catch(function (err) {
+        console.warn("registerUserSession:", err && err.message ? err.message : err);
+      })
+      .then(function () {
+        if (!auth || !auth.currentUser || auth.currentUser.uid !== user.uid) return;
+        if (sessionWatchUnsub) {
+          try {
+            sessionWatchUnsub();
+          } catch (e) {}
+          sessionWatchUnsub = null;
+        }
+        sessionWatchUnsub = firebase
+          .firestore()
+          .collection("hanlaw_user_sessions")
+          .doc(user.uid)
+          .onSnapshot(
+            function (snap) {
+              if (!snap || !snap.exists) return;
+              var d = snap.data() || {};
+              var live = String(d.activeSessionId || "").trim();
+              if (!live || !activeSessionId) return;
+              if (live !== activeSessionId) {
+                forceLogoutByRemoteSession();
+              }
+            },
+            function (err2) {
+              console.warn("session watch:", err2 && err2.message ? err2.message : err2);
+            }
+          );
+      });
   }
 
   /** 저장된 닉네임만 사용. 없으면 호칭은 「사용자」(이메일·displayName으로 대체하지 않음) */
@@ -154,6 +275,7 @@
     if (user && typeof window.loadRemoteQuestions === "function") {
       window.loadRemoteQuestions();
     }
+    registerAndWatchSession(user);
   }
 
   /** 익명 세션은 게스트 UI 유지, 실제 계정만 로그인 상태 표시 */
@@ -186,6 +308,7 @@
   }
 
   function showGuestShell() {
+    stopSessionWatch();
     window.__hanlawMockUser = null;
     closeAuthOverlay();
     el.shell.hidden = false;
@@ -377,6 +500,7 @@
       return;
     }
     if (!auth) return;
+    stopSessionWatch();
     window.__hanlawLoggingOut = true;
     auth.signOut().catch(function () {
       window.__hanlawLoggingOut = false;

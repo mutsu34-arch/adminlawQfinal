@@ -70,6 +70,12 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // 계정별 활성 세션/디바이스 슬롯(phone·tablet·pc 각 1개). 쓰기는 Callable(registerUserSession)만.
+    match /hanlaw_user_sessions/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update, delete: if false;
+    }
+
     // 엘리(AI) 질문 내역(대시보드). 쓰기는 Functions만, 본인 읽기.
     match /hanlaw_quiz_ai_asks/{askId} {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
