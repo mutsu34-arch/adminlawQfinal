@@ -69,7 +69,7 @@
       return;
     }
     if (typeof window.openHanlawTicketModal === "function") {
-      window.openHanlawTicketModal("report");
+      window.openHanlawTicketModal("refund");
       window.setTimeout(function () {
         var body = $("ticket-modal-body");
         if (body && !String(body.value || "").trim()) {

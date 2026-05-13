@@ -29,6 +29,7 @@
     currentType = "report";
     if (type === "promotion") currentType = "promotion";
     if (type === "suggestion") currentType = "suggestion";
+    if (type === "refund") currentType = "refund";
     if (promoNavBtn) {
       promoNavBtn.classList.toggle("nav-main__btn--active", currentType === "promotion");
       promoNavBtn.setAttribute("aria-current", currentType === "promotion" ? "page" : "false");
@@ -40,7 +41,9 @@
           ? "홍보 인증 신청"
           : currentType === "suggestion"
             ? "개선 의견 보내기"
-            : "오류 신고하기";
+            : currentType === "refund"
+              ? "환불 요청"
+              : "오류 신고하기";
     }
     var body = $("ticket-modal-body");
     if (body) body.value = "";
@@ -61,6 +64,12 @@
           "블로그·SNS 등 어디에 어떻게 이 앱을 소개했는지 적어 주세요. (글 제목·날짜를 쓰면 검토에 도움이 됩니다.)";
         if (linksLabel) linksLabel.textContent = "홍보 게시글 URL (선택, 줄바꿈으로 여러 개)";
         if (links) links.placeholder = "공개된 게시글·포스트 주소를 한 줄에 하나씩 입력하세요.";
+      } else if (currentType === "refund") {
+        if (bodyLabel) bodyLabel.textContent = "요청 내용";
+        body.placeholder =
+          "상품명, 결제일·금액, 환불 사유, 연락 가능한 이메일을 적어 주세요. 영수증·캡처가 있으면 이미지로 첨부해 주세요.";
+        if (linksLabel) linksLabel.textContent = "참고 링크 (선택, 줄바꿈으로 여러 개)";
+        if (links) links.placeholder = "관련 URL이 있으면 한 줄에 하나씩 입력하세요.";
       } else {
         if (bodyLabel) bodyLabel.textContent = "내용";
         body.placeholder =
@@ -74,7 +83,7 @@
     });
     var ctx = $("ticket-modal-context");
     if (ctx) {
-      if (currentType === "promotion" || currentType === "suggestion") {
+      if (currentType === "promotion" || currentType === "suggestion" || currentType === "refund") {
         ctx.textContent = "";
         ctx.hidden = true;
       } else {
@@ -114,6 +123,10 @@
           "<strong>로그인한 회원</strong>만 접수할 수 있습니다. 검토 후 답변이 알림으로 전달됩니다. " +
           "의견이 <strong>채택</strong>된 경우 포인트가 지급될 수 있습니다(기본 <strong>3,000점</strong>, 운영 정책·관리자 판단에 따름). " +
           "질문권 차감 없이 보낼 수 있습니다.";
+        qHint.hidden = false;
+      } else if (currentType === "refund") {
+        qHint.innerHTML =
+          "<strong>환불정책</strong>에 따라 검토되며, 처리 결과는 알림으로 안내드립니다. 결제 증빙이 있으면 이미지 첨부를 권장합니다.";
         qHint.hidden = false;
       } else {
         qHint.hidden = true;
@@ -179,7 +192,9 @@
           ? "홍보 활동 요약을 입력해 주세요."
           : currentType === "suggestion"
             ? "개선 내용을 입력해 주세요."
-            : "내용을 입력하세요."
+            : currentType === "refund"
+              ? "환불 요청 내용을 입력해 주세요."
+              : "내용을 입력하세요."
       );
       return;
     }
@@ -192,7 +207,7 @@
     Promise.resolve()
       .then(function () {
         var opts = {
-          type: currentType,
+          type: currentType === "refund" ? "report" : currentType,
           message: body.trim(),
           links: links,
           files: files,
