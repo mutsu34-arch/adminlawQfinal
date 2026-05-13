@@ -318,7 +318,8 @@ exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3"
     batches.push({
       amount: count,
       expiresAt: exp,
-      purchasedAt: Timestamp.now()
+      purchasedAt: Timestamp.now(),
+      batchSource: "point_convert"
     });
 
     t.set(

@@ -686,7 +686,8 @@ const payappQuestionFeedback = functionsV1.region(REGION).https.onRequest(async 
           batches.push({
             amount,
             expiresAt: exp,
-            purchasedAt: Timestamp.now()
+            purchasedAt: Timestamp.now(),
+            batchSource: "purchase"
           });
 
           t.set(dedupRef, {

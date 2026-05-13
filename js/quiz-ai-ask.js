@@ -3,17 +3,6 @@
   var HANLAW_ELLIE_AI_LABEL = "엘리(AI)에게 질문하기";
   window.HANLAW_ELLIE_AI_LABEL = HANLAW_ELLIE_AI_LABEL;
 
-  /** 엘리 질문 패널 상단 안내 — 띄어쓰기: 「질문을 보내면」 */
-  var HANLAW_ELLY_CREDIT_NOTICE =
-    "질문을 보내면 질문권이 차감됩니다. 진행할까요? 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요.";
-  window.HANLAW_ELLY_CREDIT_NOTICE = HANLAW_ELLY_CREDIT_NOTICE;
-
-  function syncEllyCreditNoticeText(root) {
-    var nodes = root && root.querySelectorAll ? root.querySelectorAll(".quiz-ai-panel__credit-notice") : document.querySelectorAll(".quiz-ai-panel__credit-notice");
-    for (var i = 0; i < nodes.length; i++) nodes[i].textContent = HANLAW_ELLY_CREDIT_NOTICE;
-  }
-  window.syncHanlawEllyCreditNoticeText = syncEllyCreditNoticeText;
-
   var usageUnsub = null;
   var ellyWalletUnsub = null;
   var memberUnsub = null;
@@ -21,6 +10,8 @@
   var lastPaidDailyCap = 5;
   var lastEllyCredits = 0;
   var lastEllyUnlimitedUntilMs = 0;
+  var lastWalletBatches = [];
+  var lastEllyDailyTierStr = "basic";
 
   function capFromEllyDailyTier(raw) {
     var t = String(raw || "basic").toLowerCase();
@@ -84,6 +75,92 @@
   function hasEllyAccess() {
     return hasEllyUnlimited() || lastRemain > 0 || lastEllyCredits > 0;
   }
+
+  function pickDisplayNickname() {
+    if (typeof window.getHanlawNickname === "function") {
+      var n = String(window.getHanlawNickname() || "").trim();
+      if (n) return n;
+    }
+    return "사용자";
+  }
+
+  function ellySubLabelKo(tier) {
+    var s = String(tier || "basic").toLowerCase();
+    if (s === "super") return "슈퍼";
+    if (s === "ultra") return "울트라";
+    return "베이직";
+  }
+
+  function sumWalletBuckets(batches) {
+    var now = Date.now();
+    var o = { purchase: 0, point_convert: 0, compensation: 0, legacy: 0 };
+    if (!batches || !batches.length) return o;
+    for (var i = 0; i < batches.length; i++) {
+      var b = batches[i];
+      var exp = b && b.expiresAt;
+      var expMs = exp && typeof exp.toMillis === "function" ? exp.toMillis() : 0;
+      if (expMs < now) continue;
+      var amt = Math.max(0, parseInt(b.amount, 10) || 0);
+      if (!amt) continue;
+      var src = String(b.batchSource || b.ellyBatchSource || "").toLowerCase();
+      if (src === "point_convert") o.point_convert += amt;
+      else if (src === "purchase") o.purchase += amt;
+      else if (src === "compensation") o.compensation += amt;
+      else o.legacy += amt;
+    }
+    return o;
+  }
+
+  function buildEllyCreditNoticeText() {
+    var logged = false;
+    try {
+      logged = !!(typeof firebase !== "undefined" && firebase.auth && firebase.auth().currentUser);
+    } catch (e0) {
+      logged = false;
+    }
+    if (!logged) {
+      return "로그인 후 이용할 수 있습니다. 질문을 보내면 질문권이 차감됩니다. 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요.";
+    }
+    var paidOk = typeof window.isPaidMember === "function" && window.isPaidMember();
+    if (!paidOk) {
+      return "엘리(AI) 질문은 유료 구독 회원에 한해 이용할 수 있습니다.";
+    }
+    var nick = pickDisplayNickname();
+    if (hasEllyUnlimited()) {
+      return (
+        "현재 " +
+        nick +
+        " 님은 엘리(AI) 질문 무제한 이용 기간입니다(일일 질문권 차감 없음). 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요."
+      );
+    }
+    var tierLabel = ellySubLabelKo(lastEllyDailyTierStr);
+    var wb = sumWalletBuckets(lastWalletBatches);
+    var parts = [];
+    parts.push(tierLabel + " 구독자 질문권 " + lastRemain + "건");
+    if (wb.purchase > 0) parts.push("구매 질문권 " + wb.purchase + "건");
+    if (wb.point_convert > 0) parts.push("포인트 전환 질문권 " + wb.point_convert + "건");
+    if (wb.compensation > 0) parts.push("보정·복구 질문권 " + wb.compensation + "건");
+    if (wb.legacy > 0) parts.push("기타 보유 질문권 " + wb.legacy + "건");
+    var total = lastRemain + wb.purchase + wb.point_convert + wb.compensation + wb.legacy;
+    var breakdown = parts.join(" + ");
+    return (
+      "현재 " +
+      nick +
+      " 님의 질문권은 총 " +
+      total +
+      "건(" +
+      breakdown +
+      ") 입니다. 질문을 보내면 질문권이 차감됩니다. 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요."
+    );
+  }
+
+  function syncEllyCreditNoticeText(root) {
+    var msg = buildEllyCreditNoticeText();
+    window.HANLAW_ELLY_CREDIT_NOTICE = msg;
+    var nodes = root && root.querySelectorAll ? root.querySelectorAll(".quiz-ai-panel__credit-notice") : document.querySelectorAll(".quiz-ai-panel__credit-notice");
+    for (var i = 0; i < nodes.length; i++) nodes[i].textContent = msg;
+  }
+  window.syncHanlawEllyCreditNoticeText = syncEllyCreditNoticeText;
 
   var ellyLimitModalBound = false;
   function hideEllyLimitModal() {
@@ -280,6 +357,7 @@
       .forEach(function (bs) {
         if (!bs.dataset.aiSending) bs.disabled = disSend;
       });
+    syncEllyCreditNoticeText();
   }
 
   function subscribeUsage(uid) {
@@ -312,6 +390,7 @@
     }
     if (!uid || typeof firebase === "undefined" || !firebase.firestore) {
       lastEllyCredits = 0;
+      lastWalletBatches = [];
       updateRemainTexts();
       return;
     }
@@ -319,11 +398,13 @@
     ellyWalletUnsub = wref.onSnapshot(
       function (snap) {
         var b = snap && snap.exists && snap.data().batches ? snap.data().batches : [];
+        lastWalletBatches = Array.isArray(b) ? b.slice() : [];
         lastEllyCredits = sumEllyBatches(b);
         updateRemainTexts();
       },
       function () {
         lastEllyCredits = 0;
+        lastWalletBatches = [];
         updateRemainTexts();
       }
     );
@@ -336,6 +417,7 @@
     }
     if (!uid || typeof firebase === "undefined" || !firebase.firestore) {
       lastEllyUnlimitedUntilMs = 0;
+      lastEllyDailyTierStr = "basic";
       updateRemainTexts();
       return;
     }
@@ -344,6 +426,7 @@
       function (snap) {
         lastEllyUnlimitedUntilMs = 0;
         lastPaidDailyCap = 5;
+        lastEllyDailyTierStr = "basic";
         if (snap && snap.exists) {
           var dd = snap.data();
           var eu = dd.ellyUnlimitedUntil;
@@ -352,11 +435,13 @@
           }
           if (dd.membershipTier === "paid") {
             lastPaidDailyCap = capFromEllyDailyTier(dd.ellyDailyTier);
+            lastEllyDailyTierStr = String(dd.ellyDailyTier || "basic").toLowerCase();
           }
         } else {
           var am = window.APP_MEMBERSHIP || {};
           if (am.tier === "paid" && am.ellyDailyTier) {
             lastPaidDailyCap = capFromEllyDailyTier(am.ellyDailyTier);
+            lastEllyDailyTierStr = String(am.ellyDailyTier).toLowerCase();
           }
         }
         updateRemainTexts();
@@ -364,6 +449,7 @@
       function () {
         lastEllyUnlimitedUntilMs = 0;
         lastPaidDailyCap = 5;
+        lastEllyDailyTierStr = "basic";
         updateRemainTexts();
       }
     );
@@ -849,10 +935,15 @@
       var m = window.APP_MEMBERSHIP || {};
       if (m.tier === "paid" && m.ellyDailyTier) {
         lastPaidDailyCap = capFromEllyDailyTier(m.ellyDailyTier);
+        lastEllyDailyTierStr = String(m.ellyDailyTier).toLowerCase();
       } else {
         lastPaidDailyCap = 5;
+        lastEllyDailyTierStr = "basic";
       }
       updateRemainTexts();
+    });
+    window.addEventListener("hanlaw-nickname-updated", function () {
+      syncEllyCreditNoticeText();
     });
   }
 

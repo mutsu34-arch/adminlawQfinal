@@ -38,7 +38,8 @@ function pushCompensatingBatch(batches, expiresAtTs) {
   const next = Array.isArray(batches) ? batches.slice() : [];
   next.push({
     amount: 1,
-    expiresAt: expiresAtTs
+    expiresAt: expiresAtTs,
+    batchSource: "compensation"
   });
   return next;
 }

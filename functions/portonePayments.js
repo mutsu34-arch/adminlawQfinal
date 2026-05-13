@@ -496,7 +496,8 @@ async function finalizePortOnePaymentById(paymentId, options) {
       batches.push({
         amount,
         expiresAt: exp,
-        purchasedAt: Timestamp.now()
+        purchasedAt: Timestamp.now(),
+        batchSource: "purchase"
       });
 
       t.set(dedupRef, {
