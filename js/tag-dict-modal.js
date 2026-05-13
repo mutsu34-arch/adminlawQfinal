@@ -513,7 +513,19 @@
     var btn = e.target.closest(".feedback-tag--link");
     if (!btn) return;
     var t = btn.getAttribute("data-tag");
-    if (t) window.openTagDictionaryLookup(t);
+    if (!t) return;
+    var linkedAttr = btn.getAttribute("data-tag-linked");
+    var isLinked;
+    if (linkedAttr === "1") isLinked = true;
+    else if (linkedAttr === "0") isLinked = false;
+    else if (typeof window.getTagDictionaryState === "function") {
+      var st = window.getTagDictionaryState(t);
+      isLinked = !!(st && st.active);
+    } else {
+      isLinked = false;
+    }
+    if (!isLinked && !isAdminViewer()) return;
+    window.openTagDictionaryLookup(t);
   });
 
   document.addEventListener("DOMContentLoaded", function () {

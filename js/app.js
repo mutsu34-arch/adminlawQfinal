@@ -2413,7 +2413,7 @@
       var state =
         typeof window.getTagDictionaryState === "function"
           ? window.getTagDictionaryState(label)
-          : { active: true, kind: "unknown" };
+          : { active: false, kind: "unknown" };
       var linked = !!(state && state.active);
       var btn = document.createElement("button");
       btn.type = "button";
@@ -2437,7 +2437,7 @@
       var state =
         typeof window.getTagDictionaryState === "function"
           ? window.getTagDictionaryState(label)
-          : { active: true, kind: "unknown" };
+          : { active: false, kind: "unknown" };
       var linked = !!(state && state.active);
       btn.classList.remove("feedback-tag--active", "feedback-tag--inactive");
       btn.classList.add(linked ? "feedback-tag--active" : "feedback-tag--inactive");

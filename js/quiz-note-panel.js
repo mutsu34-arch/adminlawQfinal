@@ -218,14 +218,39 @@
     for (var i = 0; i < tags.length; i++) {
       var label = String(tags[i] || "").trim();
       if (!label) continue;
+      var state =
+        typeof window.getTagDictionaryState === "function"
+          ? window.getTagDictionaryState(label)
+          : { active: false, kind: "unknown" };
+      var linked = !!(state && state.active);
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "feedback-tag feedback-tag--link";
+      btn.classList.add(linked ? "feedback-tag--active" : "feedback-tag--inactive");
       btn.setAttribute("data-tag", label);
-      btn.setAttribute("aria-label", label + " 사전에서 보기");
+      btn.setAttribute("data-tag-linked", linked ? "1" : "0");
+      btn.setAttribute("aria-label", label + " 사전에서 보기 (" + (linked ? "연결됨" : "미연결") + ")");
       btn.textContent = "#" + label;
       container.appendChild(btn);
     }
+  }
+
+  function refreshNotePanelFeedbackTagStates() {
+    document
+      .querySelectorAll(".note-card__feedback .feedback__tags .feedback-tag--link[data-tag]")
+      .forEach(function (btn) {
+        var label = String(btn.getAttribute("data-tag") || "").trim();
+        if (!label) return;
+        var state =
+          typeof window.getTagDictionaryState === "function"
+            ? window.getTagDictionaryState(label)
+            : { active: false, kind: "unknown" };
+        var linked = !!(state && state.active);
+        btn.classList.remove("feedback-tag--active", "feedback-tag--inactive");
+        btn.classList.add(linked ? "feedback-tag--active" : "feedback-tag--inactive");
+        btn.setAttribute("data-tag-linked", linked ? "1" : "0");
+        btn.setAttribute("aria-label", label + " 사전에서 보기 (" + (linked ? "연결됨" : "미연결") + ")");
+      });
   }
 
   function fillExplainParts(parts, q) {
@@ -692,6 +717,9 @@
   }
   window.addEventListener("hanlaw-detail-unlocked", refreshAnsweredNoteCardsDetail);
   window.addEventListener("membership-updated", refreshAnsweredNoteCardsDetail);
+
+  window.addEventListener("dict-remote-updated", refreshNotePanelFeedbackTagStates);
+  window.addEventListener("app-auth", refreshNotePanelFeedbackTagStates);
 
   window.HanlawNoteQuizUi = {
     DISPLAY_FREE: DISPLAY_FREE,
