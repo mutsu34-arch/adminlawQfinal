@@ -34,7 +34,7 @@
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/css/style.css?v=20260513-dashboard-points-inquiry" />
+  <link rel="stylesheet" href="/css/style.css?v=20260513-header-quote-box" />
 </head>
 <body>
   <div class="app">
@@ -3716,11 +3716,31 @@
         </div>
         <p class="support-chat-modal__hint">
           AI가 먼저 짧게 안내할 수 있으며, 필요하면 운영팀이 직접 답합니다. 로그인하면 계정에 연결되고, 비회원은 이 브라우저에만 대화가 이어집니다. 급한 환불·결제 문의는 이메일 또는 전화를 병행해 주세요.
+          JPEG·PNG·WebP·GIF 이미지를 최대 3장(각 1MB 이하)까지 첨부할 수 있습니다.
         </p>
       </div>
       <div id="support-chat-log" class="support-chat-log" role="log" aria-relevant="additions"></div>
       <div class="support-chat-composer">
+        <div id="support-chat-pending" class="support-chat-pending" hidden aria-live="polite"></div>
         <div class="support-chat-composer__row">
+          <button
+            type="button"
+            class="support-chat-attach-btn"
+            id="support-chat-attach"
+            aria-label="이미지 첨부"
+            title="이미지 첨부"
+          >
+            이미지
+          </button>
+          <input
+            type="file"
+            id="support-chat-file"
+            class="support-chat-file-input"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            hidden
+            aria-hidden="true"
+          />
           <textarea
             id="support-chat-input"
             class="support-chat-input"
@@ -3769,7 +3789,7 @@
   <script src="/js/portone-checkout.js?v=9"></script>
   <script src="/js/auth.js?v=5"></script>
   <script src="/js/pricing-dev-visibility.js?v=1"></script>
-  <script src="/js/support-chat.js?v=3"></script>
+  <script src="/js/support-chat.js?v=4"></script>
   <script src="/js/user-profile.js?v=20260419"></script>
   <script src="/js/dict-remote.js?v=6"></script>
   <script src="/js/statute-tag.js"></script>
@@ -3816,7 +3836,7 @@
   <script src="/js/admin-library.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/admin-excel.js?v=11"></script>
-  <script src="/js/admin-support-chat.js?v=2"></script>
+  <script src="/js/admin-support-chat.js?v=3"></script>
   <script src="/js/admin-tickets.js?v=13"></script>
   <script src="/js/admin-quotes.js?v=8"></script>
 </body>

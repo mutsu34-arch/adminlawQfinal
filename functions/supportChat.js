@@ -1,12 +1,16 @@
 "use strict";
 
+const crypto = require("crypto");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { uniqueGeminiModelCandidates } = require("./geminiModel");
 
 const MAX_MSG = 2000;
 const ANON_PREFIX = "anon_";
+const MAX_SUPPORT_CHAT_IMAGES = 3;
+const MAX_SUPPORT_CHAT_IMAGE_BYTES = 1024 * 1024;
 
 function isUuidV4Lower(s) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(String(s || ""));
@@ -68,6 +72,98 @@ function toMillis(ts) {
   return null;
 }
 
+function sniffImageContentType(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return "image/gif";
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 && buf.length >= 12) {
+    const webp = buf.slice(8, 12).toString("ascii");
+    if (webp === "WEBP") return "image/webp";
+  }
+  return null;
+}
+
+function extForContentType(ct) {
+  if (ct === "image/png") return "png";
+  if (ct === "image/webp") return "webp";
+  if (ct === "image/gif") return "gif";
+  return "jpg";
+}
+
+/**
+ * @param {string} threadId
+ * @param {string} messageId
+ * @param {Buffer[]} buffers
+ * @param {string[]} contentTypes
+ * @returns {Promise<string[]>} download URLs with token
+ */
+async function uploadSupportChatImages(threadId, messageId, buffers, contentTypes) {
+  if (!buffers || !buffers.length) return [];
+  const bucket = getStorage().bucket();
+  const urls = [];
+  for (let i = 0; i < buffers.length; i++) {
+    const buf = buffers[i];
+    const ct = contentTypes[i];
+    const ext = extForContentType(ct);
+    const safeThread = String(threadId || "").replace(/[^a-zA-Z0-9_\-]/g, "_").slice(0, 200);
+    const path = `support_chat/${safeThread}/${messageId}_${i}.${ext}`;
+    const token = crypto.randomBytes(32).toString("hex");
+    const file = bucket.file(path);
+    await file.save(buf, {
+      resumable: false,
+      metadata: {
+        contentType: ct,
+        metadata: { firebaseStorageDownloadTokens: token }
+      }
+    });
+    const enc = encodeURIComponent(path);
+    urls.push(`https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${enc}?alt=media&token=${token}`);
+  }
+  return urls;
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {{ buffers: Buffer[], contentTypes: string[] }}
+ */
+function parseIncomingChatImages(raw) {
+  const buffers = [];
+  const contentTypes = [];
+  if (!raw) return { buffers, contentTypes };
+  const arr = Array.isArray(raw) ? raw : [];
+  for (let i = 0; i < arr.length && buffers.length < MAX_SUPPORT_CHAT_IMAGES; i++) {
+    const item = arr[i];
+    const b64 =
+      item && typeof item === "object" && item.base64 != null
+        ? String(item.base64).trim()
+        : typeof item === "string"
+          ? String(item).trim()
+          : "";
+    if (!b64) continue;
+    const cleaned = b64.replace(/^data:image\/\w+;base64,/, "").replace(/\s/g, "");
+    let buf;
+    try {
+      buf = Buffer.from(cleaned, "base64");
+    } catch (_) {
+      throw new HttpsError("invalid-argument", "이미지 데이터 형식이 올바르지 않습니다.");
+    }
+    if (!buf.length || buf.length > MAX_SUPPORT_CHAT_IMAGE_BYTES) {
+      throw new HttpsError(
+        "invalid-argument",
+        `이미지는 각각 ${Math.floor(MAX_SUPPORT_CHAT_IMAGE_BYTES / (1024 * 1024))}MB 이하만 첨부할 수 있습니다.`
+      );
+    }
+    const sniffed = sniffImageContentType(buf);
+    if (!sniffed) {
+      throw new HttpsError("invalid-argument", "JPEG, PNG, GIF, WebP 이미지만 첨부할 수 있습니다.");
+    }
+    buffers.push(buf);
+    contentTypes.push(sniffed);
+  }
+  return { buffers, contentTypes };
+}
+
 async function generateSupportChatAssistantText(latestUserText, recentLines) {
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) return "";
@@ -127,7 +223,9 @@ async function appendAssistantReplyIfPossible(threadId, latestUserText) {
       .map((doc) => {
         const x = doc.data() || {};
         const role = x.sender === "staff" ? "운영" : x.sender === "assistant" ? "AI" : "고객";
-        return role + ": " + String(x.text || "").replace(/\s+/g, " ").trim();
+        const urls = Array.isArray(x.imageUrls) ? x.imageUrls : [];
+        const imgNote = urls.length ? " [첨부 이미지 " + urls.length + "장]" : "";
+        return role + ": " + String(x.text || "").replace(/\s+/g, " ").trim() + imgNote;
       })
       .filter(Boolean)
       .join("\n");
@@ -162,8 +260,9 @@ async function appendAssistantReplyIfPossible(threadId, latestUserText) {
 const submitSupportChatMessage = onCall({ region: "asia-northeast3", timeoutSeconds: 120 }, async (request) => {
   const data = request.data || {};
   let text = String(data.message == null ? "" : data.message).trim();
-  if (!text) {
-    throw new HttpsError("invalid-argument", "메시지를 입력해 주세요.");
+  const { buffers, contentTypes } = parseIncomingChatImages(data.images);
+  if (!text && !buffers.length) {
+    throw new HttpsError("invalid-argument", "메시지 또는 이미지를 보내 주세요.");
   }
   if (text.length > MAX_MSG) {
     text = text.slice(0, MAX_MSG);
@@ -171,12 +270,36 @@ const submitSupportChatMessage = onCall({ region: "asia-northeast3", timeoutSeco
   const threadId = resolveThreadId(request, data);
   const threadRef = getFirestore().collection("hanlaw_support_chat").doc(threadId);
   const msgRef = threadRef.collection("messages").doc();
+  const messageId = msgRef.id;
+
+  let imageUrls = [];
+  if (buffers.length) {
+    try {
+      imageUrls = await uploadSupportChatImages(threadId, messageId, buffers, contentTypes);
+    } catch (e) {
+      console.error("uploadSupportChatImages", e);
+      throw new HttpsError("internal", "이미지 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+  }
+
   const email =
     request.auth && request.auth.token && request.auth.token.email
       ? String(request.auth.token.email).trim().slice(0, 200)
       : null;
   const uid = request.auth && request.auth.uid ? request.auth.uid : null;
-  const preview = text.length > 160 ? text.slice(0, 157) + "…" : text;
+  const previewBase = text || (imageUrls.length ? "[이미지 " + imageUrls.length + "장]" : "");
+  const preview = previewBase.length > 160 ? previewBase.slice(0, 157) + "…" : previewBase;
+
+  const msgPayload = {
+    text: text || "",
+    createdAt: FieldValue.serverTimestamp(),
+    sender: "user",
+    uid: uid || null,
+    userEmail: email || null
+  };
+  if (imageUrls.length) {
+    msgPayload.imageUrls = imageUrls;
+  }
 
   const batch = getFirestore().batch();
   batch.set(
@@ -191,17 +314,16 @@ const submitSupportChatMessage = onCall({ region: "asia-northeast3", timeoutSeco
     },
     { merge: true }
   );
-  batch.set(msgRef, {
-    text,
-    createdAt: FieldValue.serverTimestamp(),
-    sender: "user",
-    uid: uid || null,
-    userEmail: email || null
-  });
+  batch.set(msgRef, msgPayload);
   await batch.commit();
 
   try {
-    await appendAssistantReplyIfPossible(threadId, text);
+    const forAi =
+      (text || "(텍스트 없음)") +
+      (imageUrls.length
+        ? "\n[고객이 이미지 " + imageUrls.length + "장을 첨부했습니다. 운영팀이 화면을 확인할 수 있습니다.]"
+        : "");
+    await appendAssistantReplyIfPossible(threadId, forAi);
   } catch (e) {
     console.warn("appendAssistantReplyIfPossible:", e && e.message ? e.message : e);
   }
@@ -248,11 +370,13 @@ const adminGetSupportChatMessages = onCall({ region: "asia-northeast3" }, async 
 
   const messages = snap.docs.map((d) => {
     const x = d.data() || {};
+    const urls = Array.isArray(x.imageUrls) ? x.imageUrls.map((u) => String(u || "").trim()).filter(Boolean) : [];
     return {
       id: d.id,
       text: String(x.text || ""),
       sender: String(x.sender || "user"),
-      createdAtMs: toMillis(x.createdAt)
+      createdAtMs: toMillis(x.createdAt),
+      imageUrls: urls
     };
   });
   return { threadId, messages };

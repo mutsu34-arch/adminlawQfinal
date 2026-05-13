@@ -76,7 +76,46 @@
     });
   }
 
-  function buildMessageRow(sender, text, tsMs, viewMode) {
+  function isOurFirebaseStorageImageUrl(url) {
+    try {
+      var cfg = window.FIREBASE_CONFIG || {};
+      var b = String(cfg.storageBucket || "");
+      if (!b) return false;
+      var u = String(url || "");
+      return u.indexOf("https://firebasestorage.googleapis.com/v0/b/" + b + "/o/") === 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function fillMessageBody(body, text, imageUrls) {
+    body.innerHTML = "";
+    var t = String(text || "").trim();
+    if (t) {
+      var span = document.createElement("span");
+      span.className = "support-chat-msg__text";
+      span.textContent = t;
+      body.appendChild(span);
+    }
+    if (imageUrls && imageUrls.length) {
+      for (var i = 0; i < imageUrls.length; i++) {
+        var url = imageUrls[i];
+        if (!isOurFirebaseStorageImageUrl(url)) continue;
+        var img = document.createElement("img");
+        img.src = url;
+        img.alt = "첨부 이미지";
+        img.className = "support-chat-msg__image";
+        img.loading = "lazy";
+        img.decoding = "async";
+        body.appendChild(img);
+      }
+    }
+    if (!body.childNodes.length) {
+      body.textContent = "(내용 없음)";
+    }
+  }
+
+  function buildMessageRow(sender, text, tsMs, viewMode, imageUrls) {
     var isMine =
       viewMode === "customer"
         ? sender === "user"
@@ -115,7 +154,7 @@
 
     var body = document.createElement("div");
     body.className = "support-chat-msg__body";
-    body.textContent = String(text || "");
+    fillMessageBody(body, text, imageUrls || []);
     msg.appendChild(body);
     wrap.appendChild(msg);
 
@@ -134,7 +173,8 @@
     logEl.innerHTML = "";
     (messages || []).forEach(function (m) {
       var sender = m.sender || "user";
-      logEl.appendChild(buildMessageRow(sender, String(m.text || ""), m.createdAtMs, "admin"));
+      var urls = Array.isArray(m.imageUrls) ? m.imageUrls.map(String) : [];
+      logEl.appendChild(buildMessageRow(sender, String(m.text || ""), m.createdAtMs, "admin", urls));
     });
     logEl.scrollTop = logEl.scrollHeight;
   }
