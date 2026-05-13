@@ -3,6 +3,17 @@
   var HANLAW_ELLIE_AI_LABEL = "엘리(AI)에게 질문하기";
   window.HANLAW_ELLIE_AI_LABEL = HANLAW_ELLIE_AI_LABEL;
 
+  /** 엘리 질문 패널 상단 안내 — 띄어쓰기: 「질문을 보내면」 */
+  var HANLAW_ELLY_CREDIT_NOTICE =
+    "질문을 보내면 질문권이 차감됩니다. 진행할까요? 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요.";
+  window.HANLAW_ELLY_CREDIT_NOTICE = HANLAW_ELLY_CREDIT_NOTICE;
+
+  function syncEllyCreditNoticeText(root) {
+    var nodes = root && root.querySelectorAll ? root.querySelectorAll(".quiz-ai-panel__credit-notice") : document.querySelectorAll(".quiz-ai-panel__credit-notice");
+    for (var i = 0; i < nodes.length; i++) nodes[i].textContent = HANLAW_ELLY_CREDIT_NOTICE;
+  }
+  window.syncHanlawEllyCreditNoticeText = syncEllyCreditNoticeText;
+
   var usageUnsub = null;
   var ellyWalletUnsub = null;
   var memberUnsub = null;
@@ -158,8 +169,7 @@
     loadingQuote: "quiz-ai-loading-quote",
     error: "quiz-ai-error",
     toggle: "btn-quiz-ai-toggle",
-    send: "btn-quiz-ai-send",
-    remain: "quiz-ai-remain"
+    send: "btn-quiz-ai-send"
   };
 
   var MAIN_ELLY_FILE_IDS = ["quiz-ai-file-1", "quiz-ai-file-2", "quiz-ai-file-3"];
@@ -257,44 +267,6 @@
   }
 
   function updateRemainTexts() {
-    var el = document.getElementById(IDS.remain);
-    var msg;
-    if (!isRealFirebaseUser()) {
-      msg =
-        "로그인 후 이용 · 유료 구독 회원 한정 · 플랜별 일일 한도(베이직 5·슈퍼 10·울트라 20회, 한국시간)";
-    } else if (typeof window.isPaidMember === "function" && !window.isPaidMember()) {
-      msg = HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.";
-    } else if (hasEllyUnlimited()) {
-      var end = new Date(lastEllyUnlimitedUntilMs);
-      var ds = end.toLocaleDateString("ko-KR", {
-        timeZone: "Asia/Seoul",
-        year: "numeric",
-        month: "numeric",
-        day: "numeric"
-      });
-      msg =
-        HANLAW_ELLIE_AI_LABEL +
-        " 무제한 이용 중 (~ " +
-        ds +
-        "까지 · 한국시간 기준, Google Gemini)";
-    } else {
-      var credPart = lastEllyCredits > 0 ? " · 보유 엘리 질문권 " + lastEllyCredits + "건" : "";
-      var cap = lastPaidDailyCap;
-      msg =
-        "오늘 " +
-        lastRemain +
-        "/" +
-        cap +
-        "회(구독 일일 한도)" +
-        credPart +
-        " · " +
-        HANLAW_ELLIE_AI_LABEL +
-        "(한국시간, Google Gemini)";
-    }
-    if (el) el.textContent = msg;
-    document.querySelectorAll(".dict-panel-ai-remain").forEach(function (sub) {
-      sub.textContent = msg;
-    });
     var paidOk = typeof window.isPaidMember === "function" && window.isPaidMember();
     /** 한도 소진 시에도 버튼으로 안내 모달을 띄우기 위해, 유료·로그인만으로 활성화 */
     var disSend = !paidOk || !isRealFirebaseUser();
@@ -308,9 +280,6 @@
       .forEach(function (bs) {
         if (!bs.dataset.aiSending) bs.disabled = disSend;
       });
-    if (typeof window.HanlawNoteQuizChromeSyncAiRemain === "function") {
-      window.HanlawNoteQuizChromeSyncAiRemain();
-    }
   }
 
   function subscribeUsage(uid) {
@@ -892,10 +861,12 @@
       bind();
       bindAuth();
       syncUser();
+      syncEllyCreditNoticeText();
     });
   } else {
     bind();
     bindAuth();
     syncUser();
+    syncEllyCreditNoticeText();
   }
 })();

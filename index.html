@@ -747,7 +747,6 @@
                     </div>
                   </div>
                   <div class="quiz-ai-ask" id="quiz-ai-ask-block">
-                    <p class="quiz-ai-ask__remain" id="quiz-ai-remain" aria-live="polite"></p>
                     <div class="quiz-post-actions__toolbar" role="group" aria-label="문항 관련 동작">
                       <button
                         type="button"
@@ -785,6 +784,9 @@
                       </button>
                     </div>
                     <div id="quiz-ai-panel" class="quiz-ai-panel" hidden>
+                      <p class="quiz-ai-panel__credit-notice" role="note">
+                        질문을 보내면 질문권이 차감됩니다. 진행할까요? 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요.
+                      </p>
                       <label class="field">
                         <span class="field__label">엘리(AI)에게 질문 (문항·해설 맥락이 함께 전달됩니다)</span>
                         <textarea
@@ -966,7 +968,6 @@
               </div>
               <div id="dict-term-results" class="dict-results" aria-live="polite"></div>
               <div class="dict-panel-foot quiz-ai-ask" id="dict-term-panel-foot">
-                <p class="quiz-ai-ask__remain dict-panel-ai-remain" id="dict-term-ai-remain" aria-live="polite"></p>
                 <div class="quiz-post-actions__toolbar dict-post-toolbar" role="group" aria-label="용어사전 항목 동작">
                   <button
                     type="button"
@@ -994,6 +995,9 @@
                   </button>
                 </div>
                 <div id="dict-term-eli-panel" class="quiz-ai-panel dict-ai-panel" hidden>
+                  <p class="quiz-ai-panel__credit-notice" role="note">
+                    질문을 보내면 질문권이 차감됩니다. 진행할까요? 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요.
+                  </p>
                   <label class="field">
                     <span class="field__label">엘리(AI)에게 질문 (현재 표시된 사전 항목 맥락이 함께 전달됩니다)</span>
                     <textarea
@@ -1146,7 +1150,6 @@
               </div>
               <div id="statute-search-results" class="dict-results dict-results--statutes" aria-live="polite"></div>
               <div class="dict-panel-foot quiz-ai-ask" id="dict-statute-panel-foot">
-                <p class="quiz-ai-ask__remain dict-panel-ai-remain" id="dict-statute-ai-remain" aria-live="polite"></p>
                 <div class="quiz-post-actions__toolbar dict-post-toolbar" role="group" aria-label="조문사전 항목 동작">
                   <button
                     type="button"
@@ -1174,6 +1177,9 @@
                   </button>
                 </div>
                 <div id="dict-statute-eli-panel" class="quiz-ai-panel dict-ai-panel" hidden>
+                  <p class="quiz-ai-panel__credit-notice" role="note">
+                    질문을 보내면 질문권이 차감됩니다. 진행할까요? 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요.
+                  </p>
                   <label class="field">
                     <span class="field__label">엘리(AI)에게 질문 (현재 표시된 조문 맥락이 함께 전달됩니다)</span>
                     <textarea
@@ -1316,7 +1322,6 @@
               </div>
               <div id="case-search-results" class="dict-results dict-results--cases" aria-live="polite"></div>
               <div class="dict-panel-foot quiz-ai-ask" id="dict-case-panel-foot">
-                <p class="quiz-ai-ask__remain dict-panel-ai-remain" id="dict-case-ai-remain" aria-live="polite"></p>
                 <div class="quiz-post-actions__toolbar dict-post-toolbar" role="group" aria-label="판례사전 항목 동작">
                   <button
                     type="button"
@@ -1344,6 +1349,9 @@
                   </button>
                 </div>
                 <div id="dict-case-eli-panel" class="quiz-ai-panel dict-ai-panel" hidden>
+                  <p class="quiz-ai-panel__credit-notice" role="note">
+                    질문을 보내면 질문권이 차감됩니다. 진행할까요? 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요.
+                  </p>
                   <label class="field">
                     <span class="field__label">엘리(AI)에게 질문 (현재 표시된 판례 요지 맥락이 함께 전달됩니다)</span>
                     <textarea
@@ -1725,6 +1733,10 @@
                 유료 결제는 <strong>포트원</strong>을 통해 진행되며, 아래에서 사용할 PG를 선택할 수 있습니다.
                 Firebase Functions 환경에 포트원 스토어 ID·채널 키·V2 API 시크릿(PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN, PORTONE_CHANNEL_KEY_GALAXIA, PORTONE_API_SECRET)을 넣어야 결제가 열립니다.
               </p>
+              <p class="pricing-lead">
+                <strong>서비스 제공 기간 안내:</strong> 온라인상품 특성상 결제 승인 완료 후 <strong>즉시 사용 가능</strong>합니다.
+                단, 결제/통신 환경에 따라 반영까지 최대 수 분 내 지연될 수 있습니다.
+              </p>
               <div class="pricing-pg-select" role="group" aria-label="결제 PG 선택">
                 <span class="pricing-pg-select__label">결제 PG</span>
                 <label class="pricing-pg-select__option">
@@ -1735,12 +1747,32 @@
                   <input type="radio" name="pricing-pg" value="galaxia" />
                   <span>갤럭시아머니트리</span>
                 </label>
+                <label class="pricing-pg-select__option">
+                  <input type="radio" name="pricing-pg" value="kakaopay" />
+                  <span>카카오페이</span>
+                </label>
+                <label class="pricing-pg-select__option">
+                  <input type="radio" name="pricing-pg" value="danal" />
+                  <span>다날</span>
+                </label>
+              </div>
+              <div class="pricing-pg-select" role="group" aria-label="다날 결제수단 선택">
+                <span class="pricing-pg-select__label">다날 결제수단</span>
+                <label class="pricing-pg-select__option">
+                  <input type="radio" name="pricing-danal-paymethod" value="CARD" checked />
+                  <span>신용카드</span>
+                </label>
+                <label class="pricing-pg-select__option">
+                  <input type="radio" name="pricing-danal-paymethod" value="MOBILE" />
+                  <span>휴대폰 소액결제</span>
+                </label>
               </div>
             </div>
 
             <div class="card card--pricing-intro" id="pricing-block-onemonth">
               <h2 class="card__title">1개월 구독권</h2>
               <p class="pricing-lead">한 번 결제로 <strong>달력 1개월</strong> 해당 플랜 혜택이 적용됩니다(한국시간 기준, 월말·윤년 등 반영).</p>
+              <p class="pricing-lead">이용 시작 시점은 결제 승인 완료 시점이며, 승인 직후 바로 사용 가능합니다.</p>
             </div>
             <div class="pricing-grid">
               <article class="pricing-card">
@@ -1781,6 +1813,7 @@
                 <strong>참고:</strong> 월 정기 요금제도 현재는 포트원 일반 결제로 <strong>달력 1개월</strong> 이용이 연장됩니다.
                 매월 자동 청구(빌링)는 포트원·KPN 정기 채널 설정 후 순차 지원 예정입니다.
               </p>
+              <p class="pricing-lead">매 회차 결제 승인 시점부터 다음 1개월 이용기간이 즉시 연장됩니다.</p>
             </div>
             <div class="pricing-grid">
               <article class="pricing-card">
@@ -1827,6 +1860,7 @@
                 구독의 <strong>일일 한도</strong>를 모두 쓴 뒤에는 엘리(AI) 질문권이 추가로 차감됩니다.
                 팩은 결제 시점부터 각각 <strong>1개월간 유효</strong>하며, 동일 건당 단가로 충전할 수 있습니다.
               </p>
+              <p class="pricing-lead">질문권 팩도 결제 승인 후 즉시 사용 가능합니다.</p>
             </div>
             <div class="pricing-grid" role="list" aria-label="엘리(AI) 질문권 팩">
               <article class="pricing-card" role="listitem">

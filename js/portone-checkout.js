@@ -56,7 +56,16 @@
     var checked = document.querySelector('input[name="pricing-pg"]:checked');
     var v = checked ? String(checked.value || "").trim().toLowerCase() : "";
     if (v === "galaxia") return "galaxia";
+    if (v === "kakaopay") return "kakaopay";
+    if (v === "danal") return "danal";
     return "kpn";
+  }
+
+  function selectedDanalPayMethod() {
+    var checked = document.querySelector('input[name="pricing-danal-paymethod"]:checked');
+    var v = checked ? String(checked.value || "").trim().toUpperCase() : "";
+    if (v === "MOBILE") return "MOBILE";
+    return "CARD";
   }
 
   function buildReturnUrl() {
@@ -285,7 +294,95 @@
     if (!requireLoginAndFirebase()) return;
     var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
     var prepare = firebase.app().functions(region).httpsCallable("preparePortOnePayment");
-    prepare({ product: product, pgProvider: selectedPgProvider() })
+    // 정기 구독권(recurring_*)은 빌링키 발급 -> 첫 결제(서버) 흐름으로 처리합니다.
+    if (String(product || "").indexOf("recurring_") === 0) {
+      var prepRecurring = firebase.app().functions(region).httpsCallable("preparePortOneRecurringBillingKey");
+      var completeRecurring = firebase.app().functions(region).httpsCallable("completePortOneRecurringFirstPayment");
+      var selectedPg = selectedPgProvider();
+      if (selectedPg === "danal") {
+        window.alert("다날은 현재 정기결제(자동결제)를 지원하지 않습니다. 단건 결제를 이용해 주세요.");
+        return;
+      }
+      var recurringPayload = { product: product, pgProvider: selectedPg };
+      if (selectedPg === "danal") {
+        recurringPayload.payMethod = selectedDanalPayMethod();
+      }
+      prepRecurring(recurringPayload)
+        .then(function (res) {
+          var d = res && res.data;
+          if (!d || !d.storeId || !d.channelKey || !d.issueId) throw new Error("서버에서 정기결제 정보를 받지 못했습니다.");
+          return loadPortOneSdk().then(function (PortOne) {
+            var issuePayload = {
+              storeId: d.storeId,
+              channelKey: d.channelKey,
+              billingKeyMethod: d.billingKeyMethod || "CARD",
+              issueId: d.issueId,
+              issueName: d.issueName || "정기결제 카드 등록",
+              customer: d.customer || {}
+            };
+            if (Number.isFinite(Number(d.displayAmount)) && Number(d.displayAmount) > 0) {
+              issuePayload.displayAmount = Number(d.displayAmount);
+            }
+            if (d.currency) {
+              issuePayload.currency = String(d.currency);
+            }
+            if (String(issuePayload.billingKeyMethod || "").toUpperCase() === "EASY_PAY") {
+              var easyProvider = String(d.easyPayProvider || "KAKAOPAY").trim().toUpperCase();
+              issuePayload.easyPay = { easyPayProvider: easyProvider || "KAKAOPAY" };
+            }
+            if (d.bypass) {
+              issuePayload.bypass = d.bypass;
+            }
+            if (String(d.pgProvider || "").toLowerCase() === "galaxia") {
+              issuePayload.redirectUrl = buildReturnUrl();
+            }
+            var isGalaxia = String(d.pgProvider || "").toLowerCase() === "galaxia";
+            if (!isGalaxia && d.offerPeriod && d.offerPeriod.range && d.offerPeriod.range.from && d.offerPeriod.range.to) {
+              issuePayload.offerPeriod = {
+                range: {
+                  from: String(d.offerPeriod.range.from),
+                  to: String(d.offerPeriod.range.to)
+                }
+              };
+            } else if (!isGalaxia && d.offerPeriod && d.offerPeriod.from && d.offerPeriod.to) {
+              // 하위호환: 구 포맷 수신 시 range로 변환
+              issuePayload.offerPeriod = {
+                range: {
+                  from: String(d.offerPeriod.from),
+                  to: String(d.offerPeriod.to)
+                }
+              };
+            }
+            return PortOne.requestIssueBillingKey(issuePayload).then(function (rsp) {
+              if (rsp && rsp.code != null) {
+                throw new Error(String(rsp.message || rsp.code || "카드 등록이 취소되었습니다."));
+              }
+              var billingKey = rsp && rsp.billingKey ? String(rsp.billingKey) : "";
+              if (!billingKey) throw new Error("빌링키를 발급받지 못했습니다.");
+              return completeRecurring({ intentId: d.intentId, billingKey: billingKey });
+            });
+          });
+        })
+        .then(function () {
+          return handlePaymentSuccess(product);
+        })
+        .catch(function (e) {
+          try {
+            console.error("[PortOne] recurring flow failed:", e);
+          } catch (_) {}
+          var msg = e && e.message ? String(e.message) : "정기결제를 완료할 수 없습니다.";
+          if (e && e.code === "functions/failed-precondition") msg = e.message || msg;
+          window.alert(msg);
+        });
+      return;
+    }
+
+    var selectedPg = selectedPgProvider();
+    var preparePayload = { product: product, pgProvider: selectedPg };
+    if (selectedPg === "danal") {
+      preparePayload.payMethod = selectedDanalPayMethod();
+    }
+    prepare(preparePayload)
       .then(function (res) {
         var d = res && res.data;
         if (!d || !d.paymentId || !d.storeId || !d.channelKey) {
@@ -303,6 +400,28 @@
             currency: d.currency || "CURRENCY_KRW",
             payMethod: d.payMethod || "CARD"
           };
+          if (d.customer && typeof d.customer === "object") {
+            payload.customer = Object.assign({}, d.customer);
+          }
+          if (d.bypass) {
+            payload.bypass = d.bypass;
+          }
+          if (d.offerPeriod && d.offerPeriod.range && d.offerPeriod.range.from && d.offerPeriod.range.to) {
+            payload.offerPeriod = {
+              range: {
+                from: String(d.offerPeriod.range.from),
+                to: String(d.offerPeriod.range.to)
+              }
+            };
+          } else if (d.offerPeriod && d.offerPeriod.from && d.offerPeriod.to) {
+            // 하위호환: 구 포맷 수신 시 range로 변환
+            payload.offerPeriod = {
+              range: {
+                from: String(d.offerPeriod.from),
+                to: String(d.offerPeriod.to)
+              }
+            };
+          }
           if (payload.payMethod === "EASY_PAY") {
             var provider = String(d.easyPayProvider || "KAKAOPAY").trim().toUpperCase();
             payload.easyPay = { easyPayProvider: provider || "KAKAOPAY" };
@@ -312,7 +431,10 @@
             payload.forceRedirect = true;
           }
           if (email) {
-            payload.customer = { email: email };
+            payload.customer = Object.assign({}, payload.customer || {}, { email: email });
+          }
+          if (String(d.pgProvider || "").toLowerCase() === "galaxia") {
+            payload.redirectUrl = buildReturnUrl();
           }
           return PortOne.requestPayment(payload).then(function (rsp) {
             // redirectUrl 모드에서는 이 then이 실행되지 않을 수 있습니다.

@@ -87,14 +87,20 @@ exports.onLibraryPdfUploaded = onLibraryPdfUploaded;
 
 const {
   preparePortOnePayment,
+  preparePortOneRecurringBillingKey,
+  completePortOneRecurringFirstPayment,
   completePortOnePayment,
   cancelPortOneRecurring,
   runPortOneRecurringBilling
 } = require("./portonePayments");
+const { portoneWebhook } = require("./portoneWebhook");
 exports.preparePortOnePayment = preparePortOnePayment;
+exports.preparePortOneRecurringBillingKey = preparePortOneRecurringBillingKey;
+exports.completePortOneRecurringFirstPayment = completePortOneRecurringFirstPayment;
 exports.completePortOnePayment = completePortOnePayment;
 exports.cancelPortOneRecurring = cancelPortOneRecurring;
 exports.runPortOneRecurringBilling = runPortOneRecurringBilling;
+exports.portoneWebhook = portoneWebhook;
 
 const {
   revealLawyerQaAnswer,

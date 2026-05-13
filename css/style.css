@@ -5044,15 +5044,15 @@ html[data-theme="light"] .btn--quiz-master--on {
   border-top: 1px solid var(--border, rgba(0, 0, 0, 0.08));
 }
 
-.quiz-ai-ask__remain {
-  margin: 0 0 0.5rem;
-  font-size: 0.82rem;
-  color: var(--muted, #5c6570);
-  line-height: 1.45;
-}
-
 .quiz-ai-panel {
   margin-top: 0.65rem;
+}
+
+.quiz-ai-panel__credit-notice {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+  color: var(--muted, #5c6570);
+  line-height: 1.5;
 }
 
 .quiz-ai-panel .field {
@@ -8019,13 +8019,6 @@ html[data-theme="light"] .public-qa-item__stem-kicker {
   margin-top: 1.25rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
-}
-
-.dict-panel-foot .dict-panel-ai-remain {
-  margin: 0 0 0.65rem;
-  font-size: 0.82rem;
-  color: var(--muted);
-  line-height: 1.45;
 }
 
 .dict-post-toolbar {

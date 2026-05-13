@@ -468,9 +468,6 @@
     loadMemoIntoCard(article, q);
     refreshFavMasterOnCard(article, q);
     resetAiPanelInCard(article);
-    if (typeof window.HanlawNoteQuizChromeSyncAiRemain === "function") {
-      window.HanlawNoteQuizChromeSyncAiRemain();
-    }
   }
 
   function refreshAllAnsweredCards() {
@@ -552,7 +549,6 @@
     var chrome = document.createElement("div");
     chrome.className = "quiz-ai-ask note-quiz-chrome";
     chrome.innerHTML =
-      '<p class="quiz-ai-ask__remain note-quiz-chrome__remain" aria-live="polite"></p>' +
       '<div class="quiz-post-actions__toolbar" role="group" aria-label="문항 관련 동작">' +
       '<button type="button" class="btn btn--outline btn--quiz-fav note-quiz-chrome__fav" hidden aria-pressed="false">찜하기</button>' +
       '<button type="button" class="btn btn--outline btn--quiz-master note-quiz-chrome__master" hidden aria-pressed="false" title="이 문항을 일반 퀴즈 범위에서 제외합니다">마스터</button>' +
@@ -561,6 +557,7 @@
       '<button type="button" class="btn btn--secondary note-quiz-chrome__ai-toggle" aria-expanded="false">엘리(AI)에게 질문하기</button>' +
       "</div>" +
       '<div class="quiz-ai-panel note-quiz-chrome__ai-panel" hidden>' +
+      '<p class="quiz-ai-panel__credit-notice" role="note"></p>' +
       '<label class="field"><span class="field__label">엘리(AI)에게 질문 (문항·해설 맥락이 함께 전달됩니다)</span>' +
       '<textarea class="input textarea note-quiz-chrome__ai-question" rows="3" maxlength="800" placeholder="비우면 ‘핵심만 다시 정리’ 요청으로 보냅니다. 예: 왜 이 경우 O인가요?"></textarea></label>' +
       '<div class="field">' +
@@ -578,6 +575,12 @@
 
     postEl.appendChild(memoWrap);
     postEl.appendChild(chrome);
+    if (typeof window.syncHanlawEllyCreditNoticeText === "function") {
+      window.syncHanlawEllyCreditNoticeText(chrome);
+    } else if (typeof window.HANLAW_ELLY_CREDIT_NOTICE === "string") {
+      var cn = chrome.querySelector(".quiz-ai-panel__credit-notice");
+      if (cn) cn.textContent = window.HANLAW_ELLY_CREDIT_NOTICE;
+    }
   }
 
   function ensureContextsForArticle(article) {
@@ -681,11 +684,4 @@
     refreshMemosOnAnsweredCards: refreshMemosOnAnsweredCards
   };
 
-  window.HanlawNoteQuizChromeSyncAiRemain = function () {
-    var main = document.getElementById("quiz-ai-remain");
-    var txt = main ? main.textContent : "";
-    document.querySelectorAll(".note-quiz-chrome__remain").forEach(function (el) {
-      el.textContent = txt;
-    });
-  };
 })();
