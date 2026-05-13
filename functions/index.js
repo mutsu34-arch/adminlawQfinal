@@ -102,6 +102,9 @@ exports.cancelPortOneRecurring = cancelPortOneRecurring;
 exports.runPortOneRecurringBilling = runPortOneRecurringBilling;
 exports.portoneWebhook = portoneWebhook;
 
+const { cancelPayAppRebill } = require("./payappPayments");
+exports.cancelPayAppRebill = cancelPayAppRebill;
+
 const {
   revealLawyerQaAnswer,
   publishLawyerQaPublic,

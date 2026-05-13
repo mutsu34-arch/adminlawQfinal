@@ -63,7 +63,9 @@
   function openRefundRequest() {
     var m = window.APP_MEMBERSHIP || {};
     if (!m || m.tier !== "paid" || !m.canRefundOneMonth) {
-      goPricingPanel();
+      window.alert(
+        "환불 요청은 1개월 구독권(자동 정기 결제가 아닌 경우)으로 결제한 회원에게 표시됩니다. 정기 결제 해지는 대시보드의 「정기결제 해지」를 이용해 주세요. 그 외 문의는 하단 고객 채팅으로 남겨 주세요."
+      );
       return;
     }
     if (typeof window.openHanlawTicketModal === "function") {
@@ -164,13 +166,16 @@
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var rebillActive = !!(d && d.payappRebillNo);
     var portoneRecurringActive = !!(d && d.portoneAutoRenewEnabled === true && d.portoneBillingKey);
-    var canCancelRecurring = tier === "paid" && portoneRecurringActive;
-    var product = String((d && d.portoneProduct) || "").trim();
+    var canCancelRecurring = tier === "paid" && (portoneRecurringActive || rebillActive);
+    var product = String((d && d.portoneProduct) || (d && d.portoneRecurringProduct) || "").trim();
     var planLabel = String((d && d.portonePlanLabel) || "").trim();
+    var lastPlan = String((d && d.lastPortonePlanKey) || "").trim();
     var canRefundOneMonth =
       tier === "paid" &&
       !canCancelRecurring &&
-      (product.indexOf("one_month_") === 0 || planLabel === "portone_1m");
+      (product.indexOf("one_month_") === 0 ||
+        planLabel === "portone_1m" ||
+        lastPlan === "portone_1m");
     var ellyTier = "basic";
     if (d && tier === "paid") {
       ellyTier = normalizeEllyDailyTier(d.ellyDailyTier);

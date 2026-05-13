@@ -208,10 +208,13 @@
     if (!requireLoginAndFirebase()) return;
     if (!window.confirm("정기결제를 해지하시겠습니까? 다음 결제일부터 자동청구가 중단됩니다.")) return;
     var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
-    var fn = firebase.app().functions(region).httpsCallable("cancelPortOneRecurring");
+    var m = window.APP_MEMBERSHIP || {};
+    var usePayapp = !!(m && m.payappRebillActive);
+    var fnName = usePayapp ? "cancelPayAppRebill" : "cancelPortOneRecurring";
+    var fn = firebase.app().functions(region).httpsCallable(fnName);
     fn({})
       .then(function () {
-        window.alert("정기결제가 해지되었습니다.");
+        window.alert(usePayapp ? "페이앱 정기결제가 해지되었습니다." : "정기결제가 해지되었습니다.");
       })
       .catch(function (e) {
         var msg = e && e.message ? String(e.message) : "정기결제 해지에 실패했습니다.";

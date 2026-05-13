@@ -8350,6 +8350,11 @@ html[data-theme="light"] .public-qa-item__stem-kicker {
   margin: 0.5rem 0 0.25rem;
 }
 
+/* #id + .class 가 [hidden] 기본 display:none 보다 우선해 비활성 행이 남는 문제 방지 */
+#panel-dashboard .dashboard-membership-actions[hidden] {
+  display: none !important;
+}
+
 #panel-dashboard .dashboard-btn-soft {
   border-radius: 8px;
   border-color: rgba(255, 255, 255, 0.12);
