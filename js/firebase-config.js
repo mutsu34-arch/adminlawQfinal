@@ -59,4 +59,19 @@ if (window.USE_MOCK_ADMIN_LOGIN && window.MOCK_ADMIN_EMAIL) {
   if (window.ADMIN_EMAILS.indexOf(_m) < 0) window.ADMIN_EMAILS.push(_m);
 }
 
+/**
+ * 본인인증 게이트 우회
+ *
+ * - HANLAW_BYPASS_IDENTITY_GATE_ON_LOCALHOST (기본 true): 호스트가 localhost / 127.0.0.1 일 때
+ *   로그인만 되면 본인인증 없이 앱 사용(로컬 개발용). 운영 URL에서는 적용되지 않습니다.
+ * - HANLAW_ADMIN_BYPASS_IDENTITY_GATE (기본 true): ADMIN_EMAILS 에 포함된 계정은 어떤 호스트에서도 게이트 생략.
+ * - HANLAW_IDENTITY_GATE_BYPASS_EMAILS: 위 관리자 외에 우회할 일반 테스트 계정 이메일(소문자 권장).
+ * - HANLAW_BYPASS_IDENTITY_GATE (기본 false): true 면 모든 계정·모든 호스트에서 게이트 비활성(비상·내부용만).
+ */
+window.HANLAW_BYPASS_IDENTITY_GATE_ON_LOCALHOST = true;
+window.HANLAW_BYPASS_IDENTITY_GATE = false;
+window.HANLAW_ADMIN_BYPASS_IDENTITY_GATE = true;
+/** 본인인증 게이트 우회(일반 테스트 계정). 비밀번호는 여기에 두지 않습니다. Firebase Authentication 에 동일 이메일 계정이 있어야 로그인됩니다(콘솔에서 추가하거나 앱에서 회원가입). */
+window.HANLAW_IDENTITY_GATE_BYPASS_EMAILS = ["test@ellution.co.kr"];
+
 /** 문의·신고: Firestore(hanlaw_tickets, hanlaw_notifications) + Storage(ticket_images/) + 질문권(hanlaw_question_wallet, Functions) + AI 초안은 Gemini */

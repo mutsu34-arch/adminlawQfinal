@@ -34,6 +34,7 @@ if (_envProjectId) {
  * Storage 자료실 트리거 버킷: HANLAW_STORAGE_BUCKET — PDF·xlsx 업로드 시 청크·임베딩 (libraryPipeline)
  * 관리자 이메일: ADMIN_EMAILS (쉼표 구분, createLibraryDocument 등)
  * 닉네임: setUserNickname — Firestore hanlaw_user_profiles (클라이언트 직접 쓰기 불가, AI·티켓 호칭용)
+ * 본인인증: HANLAW_IDENTITY_MOCK=1 이면 모의 완료만 허용(다날 계약·포트원 본인확인 연동 전). 비밀번호 재설정은 본인인증 후 generatePasswordResetLink
  */
 
 const { initializeApp } = require("firebase-admin/app");
@@ -64,6 +65,11 @@ exports.adminDraftTicketAi = adminDraftTicketAi;
 
 const { setUserNickname } = require("./userProfileServer");
 exports.setUserNickname = setUserNickname;
+
+/** 본인인증: startIdentityChallenge, finishIdentityChallenge — 모의 완료는 HANLAW_IDENTITY_MOCK=1 (운영·실연동 시 다날/포트원 응답으로 대체) */
+const { startIdentityChallenge, finishIdentityChallenge } = require("./identityVerification");
+exports.startIdentityChallenge = startIdentityChallenge;
+exports.finishIdentityChallenge = finishIdentityChallenge;
 
 const {
   submitSupportChatMessage,

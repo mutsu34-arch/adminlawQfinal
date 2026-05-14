@@ -88,6 +88,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // 본인인증 챌린지(일회용). 읽기·쓰기는 Cloud Functions만.
+    match /hanlaw_identity_challenges/{challengeId} {
+      allow read, write: if false;
+    }
+
     // 결제 피드백 멱등 처리(Functions 전용, 예: PayApp)
     match /hanlaw_webhook_events/{eventId} {
       allow read, write: if false;

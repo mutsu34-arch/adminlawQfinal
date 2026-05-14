@@ -471,6 +471,16 @@
       setAuthMessage("Firebase 설정(js/firebase-config.js)을 먼저 완료해 주세요.", true);
       return;
     }
+    if (typeof window.hanlawRunPasswordResetWithIdentity === "function") {
+      window.hanlawRunPasswordResetWithIdentity({
+        getLoginEmail: function () {
+          return el.loginEmail.value.trim();
+        },
+        setAuthMessage: setAuthMessage,
+        setLoading: setLoading
+      });
+      return;
+    }
     var email = el.loginEmail.value.trim();
     if (!email) {
       setAuthMessage("비밀번호를 받을 이메일을 위 칸에 입력하세요.", true);
