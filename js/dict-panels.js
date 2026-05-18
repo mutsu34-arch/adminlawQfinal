@@ -1014,6 +1014,7 @@
     m.hidden = true;
     m.setAttribute("aria-hidden", "true");
     delete m.dataset.docId;
+    delete m._hanlawEditTerm;
     setDictTermEditMsg("", false);
   }
 
@@ -1034,6 +1035,7 @@
       window.CaseOxForm.fill("dict-term-edit-ox-editor", Array.isArray(term.oxQuizzes) ? term.oxQuizzes : []);
     }
     m.dataset.docId = term._docId ? String(term._docId) : "";
+    m._hanlawEditTerm = term;
     setDictTermEditMsg("", false);
     var delTerm = $("dict-term-edit-delete");
     if (delTerm) {
@@ -2174,17 +2176,28 @@
               resolvedDocId = window.normalizeHanlawTermDocId(nextTerm);
             }
             if (typeof window.upsertLegalTermRemote === "function") {
+              var prevTerm =
+                modal && modal._hanlawEditTerm && typeof modal._hanlawEditTerm === "object"
+                  ? modal._hanlawEditTerm
+                  : {};
               window.upsertLegalTermRemote({
                 _docId: resolvedDocId,
                 term: nextTerm,
                 aliases: nextAliases,
                 definition: nextDef,
-                source: "",
-                sourceTag: "",
-                normSourceTag: "",
-                tagAliases: [],
+                source: prevTerm.source != null ? String(prevTerm.source) : "",
+                sourceTag: prevTerm.sourceTag != null ? String(prevTerm.sourceTag) : "",
+                normSourceTag:
+                  prevTerm.normSourceTag != null ? String(prevTerm.normSourceTag) : "",
+                tagAliases: Array.isArray(prevTerm.tagAliases) ? prevTerm.tagAliases.slice() : [],
                 oxQuizzes: oxList
               });
+            }
+            if (typeof window.invalidateTagDictCache === "function") {
+              window.invalidateTagDictCache();
+            }
+            if (typeof window.refreshTagDictionaryModal === "function") {
+              window.refreshTagDictionaryModal();
             }
             closeDictTermEditModal();
             runTermSearch();

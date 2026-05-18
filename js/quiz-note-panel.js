@@ -500,6 +500,17 @@
     post.hidden = false;
     setOxDisabledIn(actions, true);
     article.setAttribute("data-answered", "1");
+
+    if (
+      window.HanlawExplainHighlighter &&
+      typeof window.HanlawExplainHighlighter.mountOnCard === "function"
+    ) {
+      window.setTimeout(function () {
+        try {
+          window.HanlawExplainHighlighter.mountOnCard(article, q);
+        } catch (hlErr) {}
+      }, 0);
+    }
   }
 
   function getDisplayLimit() {
@@ -713,6 +724,25 @@
           q
         );
       } catch (err) {}
+      if (
+        window.HanlawExplainHighlighter &&
+        typeof window.HanlawExplainHighlighter.remountDetailOnCard === "function"
+      ) {
+        try {
+          var qFresh =
+            typeof window.QUESTION_BANK !== "undefined"
+              ? (function () {
+                  var want = normalizeId(article.getAttribute("data-qid"));
+                  var bank = window.QUESTION_BANK || [];
+                  for (var bi = 0; bi < bank.length; bi++) {
+                    if (bank[bi] && normalizeId(bank[bi].id) === want) return bank[bi];
+                  }
+                  return q;
+                })()
+              : q;
+          window.HanlawExplainHighlighter.remountDetailOnCard(article, qFresh);
+        } catch (hlErr) {}
+      }
     });
   }
   window.addEventListener("hanlaw-detail-unlocked", refreshAnsweredNoteCardsDetail);

@@ -177,12 +177,98 @@
     mergeBanks();
   }
 
+  function normalizeExplainFingerprintText(s) {
+    return String(s || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function basicExplainForFingerprint(q) {
+    if (!q) return "";
+    if (q.explanationBasic != null && String(q.explanationBasic).trim() !== "") {
+      return q.explanationBasic;
+    }
+    return q.explanation != null ? q.explanation : "";
+  }
+
+  function detailExplainFingerprint(q) {
+    if (!q) return "";
+    var parts = [];
+    var exp = normalizeExplainFingerprintText(q.explanation);
+    var bas = normalizeExplainFingerprintText(q.explanationBasic);
+    if (exp && (!bas || exp !== bas)) parts.push(exp);
+    var d = q.detail;
+    if (!d) return parts.join("\n");
+    if (typeof d === "string") {
+      parts.push(normalizeExplainFingerprintText(d));
+      return parts.join("\n");
+    }
+    if (d.body != null && String(d.body).trim()) {
+      parts.push(normalizeExplainFingerprintText(d.body));
+    } else {
+      ["legal", "trap", "precedent", "memoTip"].forEach(function (k) {
+        if (d[k] != null && String(d[k]).trim()) {
+          parts.push(normalizeExplainFingerprintText(d[k]));
+        }
+      });
+    }
+    return parts.join("\n");
+  }
+
+  function readExplainVersion(q, field) {
+    var v = q && q[field];
+    return typeof v === "number" && isFinite(v) && v >= 1 ? Math.floor(v) : 1;
+  }
+
+  function findQuestionInBank(id) {
+    var want = String(id == null ? "" : id).trim();
+    if (!want) return null;
+    var bank = window.QUESTION_BANK || [];
+    for (var i = 0; i < bank.length; i++) {
+      if (bank[i] && String(bank[i].id).trim() === want) return bank[i];
+    }
+    return null;
+  }
+
+  /** 해설 본문 변경 시 explainVerBasic / explainVerDetail 을 올립니다. */
+  function applyExplainVersionsOnSave(next, prev) {
+    var out = Object.assign({}, next);
+    var verBasic = 1;
+    var verDetail = 1;
+    if (prev) {
+      verBasic = readExplainVersion(prev, "explainVerBasic");
+      verDetail = readExplainVersion(prev, "explainVerDetail");
+      if (
+        normalizeExplainFingerprintText(basicExplainForFingerprint(prev)) !==
+        normalizeExplainFingerprintText(basicExplainForFingerprint(out))
+      ) {
+        verBasic += 1;
+      }
+      if (detailExplainFingerprint(prev) !== detailExplainFingerprint(out)) {
+        verDetail += 1;
+      }
+    }
+    out.explainVerBasic = verBasic;
+    out.explainVerDetail = verDetail;
+    return out;
+  }
+
+  window.getHanlawExplainVersions = function (q) {
+    return {
+      basic: readExplainVersion(q, "explainVerBasic"),
+      detail: readExplainVersion(q, "explainVerDetail")
+    };
+  };
+
   window.saveQuestionToFirestore = function (question, opts) {
     opts = opts || {};
     var db = getDb();
     if (!db) return Promise.reject(new Error(ERR_NO_FIRESTORE));
     var fv = firebase.firestore.FieldValue;
-    var payload = stripForFirestore(question);
+    var prev = findQuestionInBank(question && question.id);
+    var versioned = applyExplainVersionsOnSave(question, prev);
+    var payload = stripForFirestore(versioned);
     if (opts.clearDetail) {
       payload.detail = fv.delete();
     } else if (payload.detail && typeof payload.detail.body === "string" && payload.detail.body.trim()) {
@@ -203,7 +289,7 @@
         { merge: true }
       )
       .then(function () {
-        upsertRemoteQuestionLocal(question, opts);
+        upsertRemoteQuestionLocal(versioned, opts);
         return window.loadRemoteQuestions();
       });
   };
@@ -211,7 +297,9 @@
   function commitBatch(db, chunk) {
     var batch = db.batch();
     chunk.forEach(function (q) {
-      var payload = stripForFirestore(q);
+      var prev = findQuestionInBank(q && q.id);
+      var versioned = applyExplainVersionsOnSave(q, prev);
+      var payload = stripForFirestore(versioned);
       var ref = db.collection(COLLECTION).doc(payload.id);
       batch.set(
         ref,

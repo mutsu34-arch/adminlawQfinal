@@ -138,6 +138,21 @@
     TAG_DICT_CACHE[k] = value;
   }
 
+  function invalidateTagDictCache(rawTag) {
+    var key = normTagKey(rawTag);
+    if (key) {
+      delete TAG_DICT_CACHE[key];
+      return;
+    }
+    TAG_DICT_CACHE = {};
+  }
+
+  function refreshTagDictionaryModal() {
+    var m = $("tag-dict-modal");
+    if (!m || m.hidden || !CURRENT_ENTRY || !CURRENT_ENTRY.tag) return;
+    openTagDictionaryLookup(CURRENT_ENTRY.tag, { force: true });
+  }
+
   function renderAiLoading(body, statusText) {
     if (!body) return;
     body.innerHTML = "";
@@ -379,7 +394,11 @@
   };
   window.getTagDictionaryState = getTagDictionaryState;
 
-  window.openTagDictionaryLookup = function (rawTag) {
+  window.invalidateTagDictCache = invalidateTagDictCache;
+  window.refreshTagDictionaryModal = refreshTagDictionaryModal;
+
+  window.openTagDictionaryLookup = function (rawTag, opts) {
+    opts = opts && typeof opts === "object" ? opts : {};
     var tag = String(rawTag || "")
       .replace(/^#/, "")
       .trim();
@@ -433,7 +452,7 @@
     }
 
     var asCase = UI.isLikelyCaseTag(tag);
-    var cached = cacheGet(tag);
+    var cached = opts.force ? null : cacheGet(tag);
     if (cached && cached.kind && cached.record) {
       body.innerHTML = "";
       if (cached.kind === "case") UI.renderCaseResults(body, [cached.record]);
@@ -593,5 +612,13 @@
     }
     window.addEventListener("app-auth", syncAdminActionsVisibility);
     window.addEventListener("membership-updated", syncAdminActionsVisibility);
+    window.addEventListener("dict-remote-updated", function () {
+      var m = $("tag-dict-modal");
+      if (m && !m.hidden && CURRENT_ENTRY && CURRENT_ENTRY.tag) {
+        refreshTagDictionaryModal();
+        return;
+      }
+      invalidateTagDictCache();
+    });
   });
 })();

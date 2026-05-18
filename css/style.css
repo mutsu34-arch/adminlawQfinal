@@ -3913,6 +3913,156 @@ html[data-theme="light"] #q-text .quiz-ai-answer__accent {
   border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
 }
 
+/* 노트 해설 형광펜 (web-highlighter) */
+.quiz-explain-hl-root {
+  position: relative;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+.hanlaw-explain-highlight {
+  background: rgba(255, 235, 59, 0.42);
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.hanlaw-explain-highlight--yellow {
+  background: rgba(255, 235, 59, 0.48);
+}
+
+.hanlaw-explain-highlight--green {
+  background: rgba(134, 239, 172, 0.55);
+}
+
+.hanlaw-explain-highlight--pink {
+  background: rgba(249, 168, 212, 0.55);
+}
+
+.hanlaw-explain-highlight--blue {
+  background: rgba(125, 211, 252, 0.55);
+}
+
+.hanlaw-explain-highlight--orange {
+  background: rgba(253, 186, 116, 0.58);
+}
+
+html[data-theme="light"] .hanlaw-explain-highlight {
+  background: rgba(255, 213, 0, 0.48);
+}
+
+html[data-theme="light"] .hanlaw-explain-highlight--yellow {
+  background: rgba(255, 213, 0, 0.52);
+}
+
+html[data-theme="light"] .hanlaw-explain-highlight--green {
+  background: rgba(134, 239, 172, 0.5);
+}
+
+html[data-theme="light"] .hanlaw-explain-highlight--pink {
+  background: rgba(249, 168, 212, 0.5);
+}
+
+html[data-theme="light"] .hanlaw-explain-highlight--blue {
+  background: rgba(125, 211, 252, 0.5);
+}
+
+html[data-theme="light"] .hanlaw-explain-highlight--orange {
+  background: rgba(253, 186, 116, 0.52);
+}
+
+.quiz-explain-hl-stale {
+  margin: 0.45rem 0 0;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  border-radius: 8px;
+  color: var(--muted, #94a3b8);
+  background: color-mix(in srgb, #fbbf24 18%, transparent);
+  border: 1px solid color-mix(in srgb, #fbbf24 42%, var(--border));
+}
+
+.quiz-explain-hl-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0.45rem;
+}
+
+.quiz-explain-hl-colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin-bottom: 0.1rem;
+}
+
+.quiz-explain-hl-colors__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted, #94a3b8);
+  cursor: pointer;
+  user-select: none;
+}
+
+.quiz-explain-hl-colors__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.quiz-explain-hl-colors__swatch {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+}
+
+.quiz-explain-hl-colors__input:checked + .quiz-explain-hl-colors__swatch {
+  border-color: var(--accent, #38bdf8);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #38bdf8) 40%, transparent);
+}
+
+.quiz-explain-hl-colors__swatch--yellow {
+  background: rgba(255, 235, 59, 0.95);
+}
+
+.quiz-explain-hl-colors__swatch--green {
+  background: rgba(134, 239, 172, 0.95);
+}
+
+.quiz-explain-hl-colors__swatch--pink {
+  background: rgba(249, 168, 212, 0.95);
+}
+
+.quiz-explain-hl-colors__swatch--blue {
+  background: rgba(125, 211, 252, 0.95);
+}
+
+.quiz-explain-hl-colors__swatch--orange {
+  background: rgba(253, 186, 116, 0.95);
+}
+
+.quiz-explain-hl-inline__hint {
+  flex: 1 1 12rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted, #94a3b8);
+}
+
+.quiz-explain-hl-inline__hint--warn {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
 .quiz-memo__panel-toggle {
   width: 100%;
   box-sizing: border-box;
