@@ -6,6 +6,14 @@
   var LS_PREFIX = "hanlaw_explain_hl_";
   var COLOR_LS_KEY = "hanlaw_explain_hl_color_v1";
   var STALE_MSG = "해설이 수정되어 이전 하이라이트를 불러올 수 없습니다.";
+  var DICT_STALE_MSG = "내용이 수정되어 이전 하이라이트를 불러올 수 없습니다.";
+
+  var CASE_LABEL_TO_FIELD = {
+    사실관계: "facts",
+    쟁점: "issues",
+    "법적 판단": "judgment",
+    "판결문 전문": "fulltext"
+  };
 
   var HIGHLIGHT_COLORS = [
     { id: "yellow", label: "노랑" },
@@ -25,7 +33,11 @@
     ".note-quiz-chrome",
     ".note-quiz-memo",
     ".quiz-explain-hl-inline",
-    ".quiz-explain-hl-stale"
+    ".quiz-explain-hl-stale",
+    ".dict-card-nav",
+    ".dict-result-card__fav-row",
+    ".btn--dict-fav",
+    ".case-result-card__fulltext-toggle"
   ];
 
   function normalizeId(id) {
@@ -113,6 +125,28 @@
     return String(s || "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function contentFingerprintVersion(root) {
+    var t = normalizeCompareText(root ? root.textContent : "");
+    if (!t) return 1;
+    var h = 0;
+    for (var i = 0; i < t.length; i++) {
+      h = ((h << 5) - h + t.charCodeAt(i)) | 0;
+    }
+    var v = Math.abs(h);
+    return v > 0 ? v : 1;
+  }
+
+  function dictFavStorageId(kind, favId) {
+    return (
+      "dict:" +
+      String(kind || "").trim() +
+      ":" +
+      String(favId == null ? "" : favId)
+        .trim()
+        .replace(/:/g, "_")
+    );
   }
 
   function textSimilarEnough(saved, actual) {
@@ -277,7 +311,7 @@
     if (stale) stale.remove();
   }
 
-  function showStaleNotice(root, field) {
+  function showStaleNotice(root, field, message) {
     if (!root || !root.parentElement) return;
     removeStaleNotice(root);
     var p = root.parentElement;
@@ -285,7 +319,7 @@
     el.className = "quiz-explain-hl-stale";
     el.setAttribute("data-hl-field", field);
     el.setAttribute("role", "status");
-    el.textContent = STALE_MSG;
+    el.textContent = message || STALE_MSG;
     if (root.nextSibling) p.insertBefore(el, root.nextSibling);
     else p.appendChild(el);
   }
@@ -330,7 +364,8 @@
     colorsWrap.setAttribute("role", "group");
     colorsWrap.setAttribute("aria-label", "형광펜 색");
 
-    var colorName = "hanlaw-hl-color-" + field + "-" + String(inst.qid || "").replace(/[^\w-]/g, "_");
+    var colorName =
+      "hanlaw-hl-color-" + field + "-" + String(inst.storageId || "").replace(/[^\w-]/g, "_");
     var selectedColor = getSelectedColor();
 
     HIGHLIGHT_COLORS.forEach(function (c) {
@@ -357,7 +392,10 @@
 
     var hint = document.createElement("span");
     hint.className = "quiz-explain-hl-inline__hint";
-    hint.textContent = "색을 고른 뒤 해설에서 문장을 드래그하고 「형광펜」을 누르세요.";
+    hint.textContent = inst.sectionLabel
+      ? inst.sectionLabel +
+        ": 색을 고른 뒤 본문에서 문장을 드래그하고 「형광펜」을 누르세요."
+      : "색을 고른 뒤 해설에서 문장을 드래그하고 「형광펜」을 누르세요.";
 
     bar.appendChild(colorsWrap);
     bar.appendChild(btnMark);
@@ -468,11 +506,20 @@
     article._hanlawExplainHl = null;
   }
 
-  function persistItems(qid, field, version, items) {
-    saveEntry(qid, field, version, items);
+  function persistItems(storageId, field, version, items) {
+    saveEntry(storageId, field, version, items);
   }
 
-  function restoreItems(hl, qid, field, savedVersion, currentVersion, items, root) {
+  function restoreItems(
+    hl,
+    storageId,
+    field,
+    savedVersion,
+    currentVersion,
+    items,
+    root,
+    staleMessage
+  ) {
     removeStaleNotice(root);
     if (!items || !items.length) return;
 
@@ -509,14 +556,14 @@
       try {
         hl.removeAll();
       } catch (e3) {}
-      persistItems(qid, field, currentVersion, []);
-      showStaleNotice(root, field);
+      persistItems(storageId, field, currentVersion, []);
+      showStaleNotice(root, field, staleMessage);
       return;
     }
-    persistItems(qid, field, currentVersion, items);
+    persistItems(storageId, field, currentVersion, items);
   }
 
-  function bindHighlighterEvents(hl, qid, field, currentVersion) {
+  function bindHighlighterEvents(hl, storageId, field, currentVersion) {
     var Ctor = getHighlighterCtor();
     if (!Ctor) return;
 
@@ -524,7 +571,7 @@
       var list = (data && (data.sources || data.source)) || [];
       if (!Array.isArray(list)) list = [list];
       var colorId = getSelectedColor();
-      var entry = loadEntry(qid, field) || { version: currentVersion, items: [] };
+      var entry = loadEntry(storageId, field) || { version: currentVersion, items: [] };
       var items = entry.items.slice();
       list.forEach(function (src) {
         if (!src || src.type === "from-store") return;
@@ -541,13 +588,13 @@
         }
         if (!exists) items.push(it);
       });
-      persistItems(qid, field, currentVersion, items);
+      persistItems(storageId, field, currentVersion, items);
     });
 
     hl.on(Ctor.event.REMOVE, function (data) {
       var ids = (data && data.ids) || [];
       if (!ids.length) return;
-      var entry = loadEntry(qid, field);
+      var entry = loadEntry(storageId, field);
       if (!entry) return;
       var idSet = {};
       ids.forEach(function (id) {
@@ -556,13 +603,13 @@
       var next = entry.items.filter(function (it) {
         return !idSet[it.id];
       });
-      persistItems(qid, field, entry.version, next);
+      persistItems(storageId, field, entry.version, next);
     });
   }
 
-  function mountRegion(article, q, field, root) {
+  function mountRegion(article, storageId, field, root, currentVersion, sectionLabel, staleMessage) {
     var Ctor = getHighlighterCtor();
-    if (!Ctor || !root || !q) {
+    if (!Ctor || !root || !storageId) {
       if (!Ctor) {
         console.warn(
           "[HanlawExplainHighlighter] web-highlighter를 불러오지 못했습니다. /js/vendor/web-highlighter.min.js 로드를 확인하세요."
@@ -571,8 +618,8 @@
       return;
     }
 
-    var qid = normalizeId(q.id);
-    if (!qid) return;
+    var sid = normalizeId(storageId);
+    if (!sid) return;
 
     if (!article._hanlawExplainHl) article._hanlawExplainHl = {};
     if (article._hanlawExplainHl[field]) disposeRegion(article._hanlawExplainHl[field]);
@@ -580,8 +627,10 @@
     root.classList.add("quiz-explain-hl-root");
     root.setAttribute("data-explain-hl-field", field);
 
-    var versions = getVersions(q);
-    var currentVersion = field === "basic" ? versions.basic : versions.detail;
+    var ver =
+      typeof currentVersion === "number" && currentVersion >= 1
+        ? Math.floor(currentVersion)
+        : 1;
 
     var hl;
     try {
@@ -595,18 +644,19 @@
       return;
     }
 
-    bindHighlighterEvents(hl, qid, field, currentVersion);
+    bindHighlighterEvents(hl, sid, field, ver);
 
-    var entry = loadEntry(qid, field);
-    var savedVersion = entry ? entry.version : currentVersion;
+    var entry = loadEntry(sid, field);
+    var savedVersion = entry ? entry.version : ver;
     var items = entry ? entry.items : [];
-    restoreItems(hl, qid, field, savedVersion, currentVersion, items, root);
+    restoreItems(hl, sid, field, savedVersion, ver, items, root, staleMessage);
 
     var inst = {
       highlighter: hl,
       root: root,
-      qid: qid,
-      field: field
+      storageId: sid,
+      field: field,
+      sectionLabel: sectionLabel || ""
     };
     article._hanlawExplainHl[field] = inst;
     ensureInlineToolbar(root, field, inst);
@@ -646,12 +696,14 @@
 
     disposeOnCard(article);
 
+    var versions = getVersions(latest);
+    var qid = normalizeId(latest.id);
     var roots = pickExplainRoots(article);
     if (roots.basic && normalizeCompareText(roots.basic.textContent)) {
-      mountRegion(article, latest, "basic", roots.basic);
+      mountRegion(article, qid, "basic", roots.basic, versions.basic);
     }
     if (roots.detail && normalizeCompareText(roots.detail.textContent)) {
-      mountRegion(article, latest, "detail", roots.detail);
+      mountRegion(article, qid, "detail", roots.detail, versions.detail);
     }
   }
 
@@ -665,8 +717,64 @@
     var latest = findQuestionById(article.getAttribute("data-qid")) || q;
     var roots = pickExplainRoots(article);
     if (latest && roots.detail && normalizeCompareText(roots.detail.textContent)) {
-      mountRegion(article, latest, "detail", roots.detail);
+      var versions = getVersions(latest);
+      mountRegion(article, normalizeId(latest.id), "detail", roots.detail, versions.detail);
     }
+  }
+
+  function pickDictFavHighlightRoots(previewEl, kind) {
+    var out = [];
+    if (!previewEl) return out;
+    if (kind === "term" || kind === "statute") {
+      var field = kind === "term" ? "definition" : "body";
+      var label = kind === "term" ? "정의" : "본문";
+      previewEl.querySelectorAll(".dict-result-card__body.quiz-ai-answer").forEach(function (root) {
+        if (normalizeCompareText(root.textContent)) {
+          out.push({ field: field, root: root, label: label });
+        }
+      });
+      return out;
+    }
+    if (kind === "case") {
+      previewEl
+        .querySelectorAll(".case-result-card__section:not(.dict-ox-section)")
+        .forEach(function (sec) {
+          var labelEl = sec.querySelector(".case-result-card__label");
+          var labelText = labelEl ? labelEl.textContent.trim() : "";
+          var fieldKey = CASE_LABEL_TO_FIELD[labelText] || "sec-" + labelText.replace(/\s+/g, "_");
+          var root = sec.querySelector(".case-result-card__text.quiz-ai-answer");
+          if (root && normalizeCompareText(root.textContent)) {
+            out.push({ field: fieldKey, root: root, label: labelText || fieldKey });
+          }
+        });
+    }
+    return out;
+  }
+
+  function mountOnDictFavCard(card, kind, favId, previewEl) {
+    if (!card || !previewEl || !kind || !favId) return;
+    if (!getHighlighterCtor()) return;
+
+    var storageId = dictFavStorageId(kind, favId);
+    disposeOnCard(card);
+
+    var regions = pickDictFavHighlightRoots(previewEl, kind);
+    regions.forEach(function (r) {
+      var ver = contentFingerprintVersion(r.root);
+      mountRegion(
+        card,
+        storageId,
+        r.field,
+        r.root,
+        ver,
+        r.label,
+        DICT_STALE_MSG
+      );
+    });
+  }
+
+  function disposeOnDictFavCard(card) {
+    disposeOnCard(card);
   }
 
   function remountAllAnsweredCards() {
@@ -689,6 +797,8 @@
   window.HanlawExplainHighlighter = {
     mountOnCard: mountOnCard,
     disposeOnCard: disposeOnCard,
+    mountOnDictFavCard: mountOnDictFavCard,
+    disposeOnDictFavCard: disposeOnDictFavCard,
     remountDetailOnCard: remountDetailOnCard,
     remountAllAnsweredCards: remountAllAnsweredCards,
     isAvailable: function () {

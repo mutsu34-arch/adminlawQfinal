@@ -75,6 +75,12 @@
       var prev = card.querySelector(".dict-fav-card__preview");
       var btn = card.querySelector("[data-dict-fav-preview-toggle]");
       if (prev) {
+        if (
+          window.HanlawExplainHighlighter &&
+          typeof window.HanlawExplainHighlighter.disposeOnDictFavCard === "function"
+        ) {
+          window.HanlawExplainHighlighter.disposeOnDictFavCard(card);
+        }
         prev.hidden = true;
         prev.innerHTML = "";
       }
@@ -263,6 +269,12 @@
           var expanded = toggleB.getAttribute("aria-expanded") === "true";
           var listEl = card && card.parentElement;
           if (expanded) {
+            if (
+              window.HanlawExplainHighlighter &&
+              typeof window.HanlawExplainHighlighter.disposeOnDictFavCard === "function"
+            ) {
+              window.HanlawExplainHighlighter.disposeOnDictFavCard(card);
+            }
             preview.hidden = true;
             preview.innerHTML = "";
             toggleB.setAttribute("aria-expanded", "false");
@@ -275,6 +287,12 @@
             preview.hidden = false;
             toggleB.setAttribute("aria-expanded", "true");
             toggleB.textContent = "접기";
+            if (
+              window.HanlawExplainHighlighter &&
+              typeof window.HanlawExplainHighlighter.mountOnDictFavCard === "function"
+            ) {
+              window.HanlawExplainHighlighter.mountOnDictFavCard(card, k, fid, preview);
+            }
           }
           return;
         }

@@ -4772,6 +4772,10 @@ html[data-theme="light"] .btn--quiz-master--on {
   margin: 0;
 }
 
+.dict-fav-card__preview .quiz-explain-hl-inline {
+  margin: 0.35rem 0 0.25rem;
+}
+
 .dict-result-card__fav-row {
   margin-top: 0.65rem;
 }
