@@ -25,12 +25,14 @@
  * 1개월·정기 요금제: UI 가격과 맞춘 기본값 + PORTONE_KRW_* 오버라이드.
  *
  * @see https://help.portone.io/content/kpn
+ * KPN 실연동: PORTONE_CHANNEL_KEY_KPN_ONETIME / _RECURRING (functions/.env)
  */
 
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { addCalendarMonthsKst } = require("./kstCalendar");
+const { computeStackedPaidUntilMs, buildRecurringTransitionPreview } = require("./portoneMembershipPeriod");
 
 let _db;
 function db() {
@@ -533,11 +535,7 @@ async function finalizePortOnePaymentById(paymentId, options) {
       const msnap = await t.get(memRef);
       const mdata = msnap.exists ? msnap.data() : {};
       const now = Date.now();
-      let base = now;
-      if (mdata.membershipTier === "paid" && mdata.paidUntil && typeof mdata.paidUntil.toMillis === "function") {
-        base = Math.max(now, mdata.paidUntil.toMillis());
-      }
-      const newUntilMs = addCalendarMonthsKst(base, 1);
+      const newUntilMs = computeStackedPaidUntilMs(mdata, now, 1);
       const newUntil = Timestamp.fromMillis(newUntilMs);
 
       t.set(dedupRef, {
@@ -554,8 +552,12 @@ async function finalizePortOnePaymentById(paymentId, options) {
         paidUntil: newUntil,
         ellyDailyTier,
         updatedAt: FieldValue.serverTimestamp(),
-        lastPortonePlanKey: planLabel
+        lastPortonePlanKey: planLabel,
+        lastPortoneProduct: String(prep.product || "")
       };
+      if (prep.kind === "sub_one_month") {
+        memPatch.portoneOneMonthPurchase = true;
+      }
       if (prep.kind === "sub_recurring_month") {
         memPatch.portoneAutoRenewEnabled = !!billingKey;
         memPatch.portoneRecurringTier = ellyDailyTier;
@@ -692,6 +694,10 @@ const preparePortOneRecurringBillingKey = onCall({ region: REGION }, async (requ
   const channelKey = resolved.channelKey;
 
   const intentId = `rci${Date.now().toString(36)}${Math.random().toString(36).replace(/[^A-Za-z0-9]/g, "").slice(2, 8)}`;
+  const memSnap = await db().collection("hanlaw_members").doc(uid).get();
+  const memData = memSnap.exists ? memSnap.data() : {};
+  const recurringTransition = buildRecurringTransitionPreview(memData, Date.now());
+
   const intentRef = db().collection("hanlaw_portone_recurring_intents").doc(intentId);
   await intentRef.set({
     uid,
@@ -747,7 +753,8 @@ const preparePortOneRecurringBillingKey = onCall({ region: REGION }, async (requ
             fullName: fullName
           },
     offerPeriod: offerPeriod,
-    bypass: bypass
+    bypass: bypass,
+    recurringTransition: recurringTransition
   };
 });
 
@@ -820,13 +827,17 @@ const completePortOneRecurringFirstPayment = onCall({ region: REGION }, async (r
   const tier = String(intent.tier || tierFromProduct(intent.product) || "basic").toLowerCase();
   const ellyDailyTier = tier === "super" || tier === "ultra" ? tier : "basic";
   const memRef = db().collection("hanlaw_members").doc(uid);
-  const now = Date.now();
-  const newUntil = Timestamp.fromMillis(addCalendarMonthsKst(now, 1));
 
   await db().runTransaction(async (t) => {
     const isnap = await t.get(intentRef);
     const idata = isnap.exists ? isnap.data() : null;
     if (!idata || idata.consumed) return;
+
+    const msnap = await t.get(memRef);
+    const mdata = msnap.exists ? msnap.data() : {};
+    const now = Date.now();
+    const newUntilMs = computeStackedPaidUntilMs(mdata, now, 1);
+    const newUntil = Timestamp.fromMillis(newUntilMs);
 
     t.set(
       memRef,
@@ -836,6 +847,7 @@ const completePortOneRecurringFirstPayment = onCall({ region: REGION }, async (r
         ellyDailyTier,
         updatedAt: FieldValue.serverTimestamp(),
         lastPortonePlanKey: "portone_recurring_1m",
+        lastPortoneProduct: String(intent.product || ""),
         portoneAutoRenewEnabled: true,
         portoneRecurringTier: ellyDailyTier,
         portoneRecurringProduct: String(intent.product || ""),
@@ -935,8 +947,8 @@ const runPortOneRecurringBilling = onSchedule(
         if (status !== "PAID" || !Number.isFinite(total) || total !== amount) {
           throw new Error("자동결제 승인/금액 검증 실패");
         }
-        const base = now;
-        const newUntil = Timestamp.fromMillis(addCalendarMonthsKst(base, 1));
+        const newUntilMs = computeStackedPaidUntilMs(m, now);
+        const newUntil = Timestamp.fromMillis(newUntilMs);
         await memRef.set(
           {
             membershipTier: "paid",

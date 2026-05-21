@@ -3,7 +3,9 @@
  */
 (function () {
   var selectedThreadId = null;
+  var selectedThreadMeta = null;
   var threadsCache = [];
+  var messagesCache = [];
 
   function $(id) {
     return document.getElementById(id);
@@ -69,6 +71,7 @@
         "</span>";
       btn.addEventListener("click", function () {
         selectedThreadId = t.threadId;
+        selectedThreadMeta = t;
         renderThreadList();
         loadMessagesForThread(t.threadId);
       });
@@ -196,7 +199,8 @@
       .then(function (res) {
         setMsg("", false);
         var data = (res && res.data) || {};
-        renderMessages(data.messages || []);
+        messagesCache = data.messages || [];
+        renderMessages(messagesCache);
       })
       .catch(function (e) {
         setMsg((e && e.message) || String(e), true);
@@ -236,6 +240,63 @@
         threadsCache = [];
         renderThreadList();
         setMsg((e && e.message) || String(e), true);
+      });
+  }
+
+  function collectUserMessagesForRefund() {
+    var lines = [];
+    (messagesCache || []).forEach(function (m) {
+      if (m && m.sender === "user" && String(m.text || "").trim()) {
+        lines.push(String(m.text).trim());
+      }
+    });
+    if (lines.length) return lines.join("\n");
+    return "환불 요청 (채팅 내용 없음)";
+  }
+
+  function generateRefundDraft() {
+    if (!selectedThreadId) {
+      setMsg("스레드를 먼저 선택하세요.", true);
+      return;
+    }
+    var fn = callable("adminDraftRefundReply");
+    if (!fn) {
+      setMsg("Firebase Functions를 불러오지 못했습니다.", true);
+      return;
+    }
+    var channelEl = $("admin-refund-draft-channel");
+    var channel = channelEl ? String(channelEl.value || "email") : "chat";
+    var preview = $("admin-support-chat-refund-draft-preview");
+    var replyTa = $("admin-support-chat-reply");
+    var btn = $("admin-support-chat-refund-draft");
+    var uid = selectedThreadMeta && selectedThreadMeta.uid ? String(selectedThreadMeta.uid) : "";
+    var email =
+      selectedThreadMeta && selectedThreadMeta.userEmail ? String(selectedThreadMeta.userEmail) : "";
+    if (btn) btn.disabled = true;
+    setMsg("환불 초안 생성 중…", false);
+    fn({
+      channel: channel,
+      userMessage: collectUserMessagesForRefund(),
+      uid: uid,
+      email: email
+    })
+      .then(function (res) {
+        var d = (res && res.data) || {};
+        var customer = String(d.customerReply || "").trim();
+        var adminNotes = String(d.adminNotes || "").trim();
+        var block = customer;
+        if (adminNotes) {
+          block += "\n\n──────── 관리자 메모(내부·복사용) ────────\n" + adminNotes;
+        }
+        if (preview) preview.value = block;
+        if (replyTa && customer) replyTa.value = customer;
+        setMsg("환불 답변 초안을 생성했습니다. 고객용 문구를 확인·수정한 뒤 답장하세요.", false);
+      })
+      .catch(function (e) {
+        setMsg((e && e.message) || String(e), true);
+      })
+      .finally(function () {
+        if (btn) btn.disabled = false;
       });
   }
 
@@ -280,6 +341,8 @@
       });
     }
     if (send) send.addEventListener("click", sendStaffReply);
+    var refundDraft = $("admin-support-chat-refund-draft");
+    if (refundDraft) refundDraft.addEventListener("click", generateRefundDraft);
   }
 
   window.loadAdminSupportChatList = loadAdminSupportChatList;

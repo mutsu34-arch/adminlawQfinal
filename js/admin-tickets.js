@@ -133,9 +133,14 @@
     var map = {
       pending: "접수",
       ai_drafted: "AI초안",
-      approved: "승인완료"
+      approved: "승인완료",
+      rejected: "불승인·보완"
     };
     return map[s] || s || "-";
+  }
+
+  function isPromotionTicketFinal(t) {
+    return !!(t && (t.status === "approved" || t.status === "rejected"));
   }
 
   function renderList() {
@@ -204,6 +209,12 @@
             ? " · 지급 " + t.suggestionPointsAwarded + "점"
             : "");
       }
+      if (t.type === "promotion" && t.status === "approved" && typeof t.promotionPointsAwarded === "number") {
+        metaLine += " · 지급 " + t.promotionPointsAwarded + "점";
+      }
+      if (t.type === "promotion" && t.status === "rejected") {
+        metaLine += " · 포인트 미지급";
+      }
       meta.textContent = metaLine;
     }
     if (msg) {
@@ -245,7 +256,26 @@
     promoDraftPartsCache =
       typeof window.getPromotionDraftParts === "function" ? window.getPromotionDraftParts(t) : null;
     var promoPicks = $("admin-inbox-promo-reply-picks");
-    if (promoPicks) promoPicks.hidden = !promoDraftPartsCache;
+    if (promoPicks) promoPicks.hidden = t.type !== "promotion";
+    var promoActions = $("admin-inbox-promo-actions");
+    var btnApproveGeneric = $("admin-btn-approve-ticket");
+    if (promoActions) promoActions.hidden = t.type !== "promotion";
+    if (btnApproveGeneric) btnApproveGeneric.hidden = t.type === "promotion";
+    var promoFinal = t.type === "promotion" && isPromotionTicketFinal(t);
+    var btnPromoApprove = $("admin-btn-approve-promo-ticket");
+    var btnPromoReject = $("admin-btn-reject-promo-ticket");
+    if (btnPromoApprove) btnPromoApprove.disabled = promoFinal;
+    if (btnPromoReject) btnPromoReject.disabled = promoFinal;
+    var promoPtsIn = $("admin-inbox-promo-points");
+    if (promoPtsIn) {
+      if (t.type === "promotion" && typeof t.promotionPointsAwarded === "number" && t.status === "approved") {
+        promoPtsIn.value = String(t.promotionPointsAwarded);
+        promoPtsIn.disabled = true;
+      } else {
+        promoPtsIn.disabled = promoFinal;
+        if (!promoPtsIn.disabled) promoPtsIn.value = "9000";
+      }
+    }
 
     var sugOpts = $("admin-inbox-suggestion-opts");
     if (sugOpts) {
@@ -569,20 +599,121 @@
       });
     }
 
+    function getSelectedTicket() {
+      return ticketsCache.filter(function (x) {
+        return x.id === selectedId;
+      })[0];
+    }
+
+    function getAdminReplyText() {
+      var replyTa = $("admin-inbox-reply");
+      return replyTa ? replyTa.value.trim() : "";
+    }
+
+    function parsePromoPoints() {
+      var promoPtsRaw = $("admin-inbox-promo-points") && $("admin-inbox-promo-points").value;
+      var promoPts = parseInt(promoPtsRaw, 10);
+      if (!Number.isFinite(promoPts)) promoPts = 9000;
+      if (promoPts < 5000) promoPts = 5000;
+      if (promoPts > 15000) promoPts = 15000;
+      return promoPts;
+    }
+
+    function closeInboxDetailAfterAction() {
+      loadTickets();
+      var det = $("admin-inbox-detail");
+      if (det) det.hidden = true;
+      selectedId = null;
+    }
+
+    var btnPromoApprove = $("admin-btn-approve-promo-ticket");
+    if (btnPromoApprove) {
+      btnPromoApprove.addEventListener("click", function () {
+        var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+        if (!isAdminUser(user) || !selectedId) return;
+        var text = getAdminReplyText();
+        if (!text) {
+          window.alert("사용자에게 전달할 답변을 입력하세요.");
+          return;
+        }
+        var tSel = getSelectedTicket();
+        if (!tSel || tSel.type !== "promotion") return;
+        if (isPromotionTicketFinal(tSel)) {
+          window.alert("이미 처리된 홍보 인증 티켓입니다.");
+          return;
+        }
+        window
+          .adminApproveTicket(selectedId, text, user.email || "", parsePromoPoints())
+          .then(function (res) {
+            window.dispatchEvent(new CustomEvent("notifications-updated"));
+            var ptsMsg =
+              res && res.pointsAwarded
+                ? " (지급 " + res.pointsAwarded.toLocaleString("ko-KR") + "점)"
+                : "";
+            window.alert("승인·포인트 지급이 완료되었습니다." + ptsMsg);
+            closeInboxDetailAfterAction();
+          })
+          .catch(function (e) {
+            window.alert((e && e.message) || "승인 처리 실패");
+          });
+      });
+    }
+
+    var btnPromoReject = $("admin-btn-reject-promo-ticket");
+    if (btnPromoReject) {
+      btnPromoReject.addEventListener("click", function () {
+        var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+        if (!isAdminUser(user) || !selectedId) return;
+        var text = getAdminReplyText();
+        if (!text) {
+          window.alert("사용자에게 보낼 안내를 입력하세요.");
+          return;
+        }
+        var tSel = getSelectedTicket();
+        if (!tSel || tSel.type !== "promotion") return;
+        if (isPromotionTicketFinal(tSel)) {
+          window.alert("이미 처리된 홍보 인증 티켓입니다.");
+          return;
+        }
+        if (typeof window.adminRejectPromotionTicketCallable !== "function") {
+          window.alert("티켓 모듈을 불러오지 못했습니다.");
+          return;
+        }
+        if (
+          !window.confirm(
+            "포인트 없이 불승인·보완 안내를 발송합니다. 계속할까요?"
+          )
+        ) {
+          return;
+        }
+        window
+          .adminRejectPromotionTicketCallable(selectedId, text, user.email || "")
+          .then(function () {
+            window.dispatchEvent(new CustomEvent("notifications-updated"));
+            window.alert("불승인·보완 안내가 발송되었습니다. (포인트 미지급)");
+            closeInboxDetailAfterAction();
+          })
+          .catch(function (e) {
+            window.alert((e && e.message) || "처리 실패");
+          });
+      });
+    }
+
     var btnApprove = $("admin-btn-approve-ticket");
     if (btnApprove) {
       btnApprove.addEventListener("click", function () {
         var user = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
         if (!isAdminUser(user) || !selectedId) return;
-        var replyTa = $("admin-inbox-reply");
-        var text = replyTa ? replyTa.value.trim() : "";
+        var text = getAdminReplyText();
         if (!text) {
           window.alert("사용자에게 전달할 답변을 입력하세요.");
           return;
         }
-        var tSel = ticketsCache.filter(function (x) {
-          return x.id === selectedId;
-        })[0];
+        var tSel = getSelectedTicket();
+        if (tSel && tSel.type === "promotion") {
+          window.alert("홍보 인증은 「승인·포인트 지급」 또는 「불승인·보완 안내 발송」 버튼을 사용하세요.");
+          return;
+        }
         if (tSel && tSel.type === "suggestion") {
           if (typeof window.adminApproveSuggestionTicketCallable !== "function") {
             window.alert("티켓 모듈을 불러오지 못했습니다.");
@@ -615,10 +746,7 @@
             window.dispatchEvent(new CustomEvent("notifications-updated"));
             window.dispatchEvent(new CustomEvent("hanlaw-public-qa-refresh"));
             window.alert("승인되었으며 사용자 알림이 발송되었습니다.");
-            loadTickets();
-            var det = $("admin-inbox-detail");
-            if (det) det.hidden = true;
-            selectedId = null;
+            closeInboxDetailAfterAction();
           })
           .catch(function (e) {
             window.alert((e && e.message) || "승인 처리 실패");

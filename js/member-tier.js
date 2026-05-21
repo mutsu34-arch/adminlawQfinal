@@ -16,7 +16,10 @@
     payappRebillActive: false,
     portoneRecurringActive: false,
     canCancelRecurring: false,
-    canRefundOneMonth: false
+    canRefundOneMonth: false,
+    isAdmin: false,
+    recurringCancelled: false,
+    recurringCancelledAt: null
   };
 
   function getDb() {
@@ -92,7 +95,9 @@
   function updateDom() {
     var m = window.APP_MEMBERSHIP;
     var tier = m.tier || "free";
-    var label = membershipLabel(tier);
+    var isAdmin = !!m.isAdmin;
+    var label = isAdmin ? "관리자" : membershipLabel(tier);
+    var dashLabel = isAdmin ? "관리자 · 유료권한" : membershipLabel(tier);
 
     var badge = $("user-membership");
     if (badge) {
@@ -104,14 +109,23 @@
 
     var dash = $("dashboard-membership");
     if (dash) {
-      dash.textContent = label;
-      dash.classList.remove("dashboard-membership--free", "dashboard-membership--paid");
-      dash.classList.add(tier === "paid" ? "dashboard-membership--paid" : "dashboard-membership--free");
+      dash.textContent = dashLabel;
+      dash.classList.remove("dashboard-membership--free", "dashboard-membership--paid", "dashboard-membership--admin");
+      if (isAdmin) {
+        dash.classList.add("dashboard-membership--admin");
+      } else {
+        dash.classList.add(tier === "paid" ? "dashboard-membership--paid" : "dashboard-membership--free");
+      }
+    }
+
+    var adminNote = $("dashboard-membership-admin-note");
+    if (adminNote) {
+      adminNote.hidden = !isAdmin;
     }
 
     var hint = $("dashboard-membership-hint");
     if (hint) {
-      hint.hidden = tier === "paid";
+      hint.hidden = isAdmin || tier === "paid";
     }
 
     var untilEl = $("dashboard-membership-until");
@@ -133,15 +147,42 @@
 
     var rebillWrap = $("dashboard-portone-recurring-cancel-wrap");
     var rebillBtn = $("dashboard-portone-recurring-cancel-btn");
+    var cancelledWrap = $("dashboard-recurring-cancelled-wrap");
+    var cancelledAtEl = $("dashboard-recurring-cancelled-at");
+    var pricingWrap = $("dashboard-goto-pricing-wrap");
     var refundWrap = $("dashboard-one-month-refund-wrap");
     var refundBtn = $("dashboard-one-month-refund-btn");
     var showCancel = tier === "paid" && !!m.canCancelRecurring;
-    var showRefund = tier === "paid" && !showCancel && !!m.canRefundOneMonth;
+    var showRecurringCancelled = tier === "paid" && !!m.recurringCancelled;
+    var showGotoPricing = showRecurringCancelled;
+    var showRefund = tier === "paid" && !!m.canRefundOneMonth;
     if (rebillWrap) {
       rebillWrap.hidden = !showCancel;
     }
     if (rebillBtn) {
       rebillBtn.disabled = !showCancel;
+    }
+    if (cancelledWrap) {
+      cancelledWrap.hidden = !showRecurringCancelled;
+    }
+    if (cancelledAtEl) {
+      if (showRecurringCancelled && m.recurringCancelledAt) {
+        cancelledAtEl.textContent =
+          "해지 신청일: " +
+          m.recurringCancelledAt.toLocaleDateString("ko-KR", {
+            year: "numeric",
+            month: "long",
+            day: "numeric"
+          }) +
+          " · 다음 결제일부터 자동 청구되지 않습니다.";
+        cancelledAtEl.hidden = false;
+      } else {
+        cancelledAtEl.textContent = "다음 결제일부터 자동 청구되지 않습니다.";
+        cancelledAtEl.hidden = !showRecurringCancelled;
+      }
+    }
+    if (pricingWrap) {
+      pricingWrap.hidden = !showGotoPricing;
     }
     if (refundWrap) {
       refundWrap.hidden = !showRefund;
@@ -149,6 +190,29 @@
     if (refundBtn) {
       refundBtn.disabled = !showRefund;
     }
+  }
+
+  function parseCancelledAt(d) {
+    if (!d) return null;
+    var ts =
+      d.portoneRecurringCancelledAt ||
+      d.payappRebillCancelledAt ||
+      null;
+    if (ts && typeof ts.toDate === "function") return ts.toDate();
+    return null;
+  }
+
+  function hadRecurringHistory(d) {
+    if (!d) return false;
+    var recurringProduct = String(d.portoneRecurringProduct || "").trim();
+    var lastPlan = String(d.lastPortonePlanKey || "").trim();
+    return (
+      recurringProduct.indexOf("recurring_") === 0 ||
+      lastPlan === "portone_recurring_1m" ||
+      !!String(d.portoneBillingKey || "").trim() ||
+      !!String(d.payappRebillCancelledNo || "").trim() ||
+      !!(d.payappRebillCancelledAt && typeof d.payappRebillCancelledAt.toDate === "function")
+    );
   }
 
   function applySnapshot(docSnap) {
@@ -165,28 +229,49 @@
     // 관리자 계정은 항상 유료 권한으로 처리
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     var rebillActive = !!(d && d.payappRebillNo);
-    var portoneRecurringActive = !!(d && d.portoneAutoRenewEnabled === true && d.portoneBillingKey);
+    var recurringStatus = String((d && d.portoneRecurringStatus) || "").trim().toLowerCase();
+    var autoRenewEnabled = !!(d && d.portoneAutoRenewEnabled === true);
+    var portoneRecurringActive =
+      tier === "paid" &&
+      autoRenewEnabled &&
+      recurringStatus !== "cancelled";
     var canCancelRecurring = tier === "paid" && (portoneRecurringActive || rebillActive);
-    var product = String((d && d.portoneProduct) || (d && d.portoneRecurringProduct) || "").trim();
-    var planLabel = String((d && d.portonePlanLabel) || "").trim();
-    var lastPlan = String((d && d.lastPortonePlanKey) || "").trim();
-    var canRefundOneMonth =
+    var recurringCancelled =
       tier === "paid" &&
       !canCancelRecurring &&
-      (product.indexOf("one_month_") === 0 ||
+      (recurringStatus === "cancelled" ||
+        !!(d && d.payappRebillCancelledAt) ||
+        (hadRecurringHistory(d) && !autoRenewEnabled && !rebillActive));
+    var recurringCancelledAt = recurringCancelled ? parseCancelledAt(d) : null;
+    var product = String(
+      (d && d.lastPortoneProduct) ||
+        (d && d.portoneProduct) ||
+        (d && d.portoneRecurringProduct) ||
+        ""
+    ).trim();
+    var planLabel = String((d && d.portonePlanLabel) || "").trim();
+    var lastPlan = String((d && d.lastPortonePlanKey) || "").trim();
+    var hadOneMonth = !!(d && d.portoneOneMonthPurchase === true);
+    var canRefundOneMonth =
+      tier === "paid" &&
+      (hadOneMonth ||
+        product.indexOf("one_month_") === 0 ||
         planLabel === "portone_1m" ||
         lastPlan === "portone_1m");
     var ellyTier = "basic";
     if (d && tier === "paid") {
       ellyTier = normalizeEllyDailyTier(d.ellyDailyTier);
     }
-    if (isAdminEmail(u)) {
+    var isAdmin = isAdminEmail(u);
+    if (isAdmin) {
       tier = "paid";
       paidUntil = null;
       rebillActive = false;
       portoneRecurringActive = false;
       canCancelRecurring = false;
       canRefundOneMonth = false;
+      recurringCancelled = false;
+      recurringCancelledAt = null;
       ellyTier = "ultra";
     }
     window.APP_MEMBERSHIP = {
@@ -197,7 +282,10 @@
       payappRebillActive: rebillActive,
       portoneRecurringActive: portoneRecurringActive,
       canCancelRecurring: canCancelRecurring,
-      canRefundOneMonth: canRefundOneMonth
+      canRefundOneMonth: canRefundOneMonth,
+      isAdmin: isAdmin,
+      recurringCancelled: recurringCancelled,
+      recurringCancelledAt: recurringCancelledAt
     };
     updateDom();
     window.dispatchEvent(
@@ -214,7 +302,10 @@
       payappRebillActive: false,
       portoneRecurringActive: false,
       canCancelRecurring: false,
-      canRefundOneMonth: false
+      canRefundOneMonth: false,
+      isAdmin: false,
+      recurringCancelled: false,
+      recurringCancelledAt: null
     };
     var badge = $("user-membership");
     if (badge) {
@@ -237,10 +328,16 @@
     if (rebillWrapReset) rebillWrapReset.hidden = true;
     var rebillBtnReset = $("dashboard-portone-recurring-cancel-btn");
     if (rebillBtnReset) rebillBtnReset.disabled = true;
+    var cancelledWrapReset = $("dashboard-recurring-cancelled-wrap");
+    if (cancelledWrapReset) cancelledWrapReset.hidden = true;
+    var pricingWrapReset = $("dashboard-goto-pricing-wrap");
+    if (pricingWrapReset) pricingWrapReset.hidden = true;
     var refundWrapReset = $("dashboard-one-month-refund-wrap");
     if (refundWrapReset) refundWrapReset.hidden = true;
     var refundBtnReset = $("dashboard-one-month-refund-btn");
     if (refundBtnReset) refundBtnReset.disabled = true;
+    var adminNoteReset = $("dashboard-membership-admin-note");
+    if (adminNoteReset) adminNoteReset.hidden = true;
     window.dispatchEvent(
       new CustomEvent("membership-updated", { detail: window.APP_MEMBERSHIP })
     );
@@ -270,7 +367,10 @@
         payappRebillActive: false,
         portoneRecurringActive: false,
         canCancelRecurring: false,
-        canRefundOneMonth: false
+        canRefundOneMonth: false,
+        isAdmin: true,
+        recurringCancelled: false,
+        recurringCancelledAt: null
       };
       updateDom();
       window.dispatchEvent(
@@ -343,6 +443,8 @@
   document.addEventListener("DOMContentLoaded", function () {
     var b = $("dashboard-goto-pricing");
     if (b) b.addEventListener("click", goPricingPanel);
+    var pricingBtn = $("dashboard-goto-pricing-btn");
+    if (pricingBtn) pricingBtn.addEventListener("click", goPricingPanel);
     var refundBtn = $("dashboard-one-month-refund-btn");
     if (refundBtn) refundBtn.addEventListener("click", openRefundRequest);
   });

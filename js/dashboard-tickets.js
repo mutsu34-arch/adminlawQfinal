@@ -22,6 +22,7 @@
 
   function statusLabel(status) {
     if (status === "approved") return "답변 등록됨";
+    if (status === "rejected") return "보완·재신청 안내";
     if (status === "ai_drafted") return "검토 중";
     return "접수됨";
   }

@@ -115,7 +115,7 @@
       if (currentType === "promotion") {
         qHint.innerHTML =
           "이 학습 앱을 <strong>직접 소개한 공개 글·게시물</strong>이 있으면 아래에 요약하고, 링크나 화면 캡처를 함께 올려 주세요. " +
-          "관리자 확인 후 승인된 경우에만 <strong>9,000 포인트</strong>가 지급됩니다. " +
+          "관리자의 확인을 거쳐 승인된 경우 <strong>5,000~15,000점</strong>의 포인트가 지급됩니다(홍보 품질·범위에 따라 운영 정책·관리자 판단). 불승인·보완 시에는 포인트가 지급되지 않습니다. " +
           "타인의 얼굴·연락처 등 <strong>개인정보는 가림 처리</strong>해 주세요. 허위·무관한 증빙은 승인되지 않을 수 있습니다.";
         qHint.hidden = false;
       } else if (currentType === "suggestion") {
@@ -208,6 +208,7 @@
       .then(function () {
         var opts = {
           type: currentType === "refund" ? "report" : currentType,
+          requestKind: currentType === "refund" ? "refund" : "",
           message: body.trim(),
           links: links,
           files: files,

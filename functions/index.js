@@ -43,6 +43,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { consumeOneFromBatches } = require("./walletBatches");
 const { appendPointLog, REASON } = require("./attendancePointLedger");
+const { normalizeAppBrandInText } = require("./appBrandNormalize");
 
 initializeApp();
 const db = getFirestore();
@@ -62,6 +63,9 @@ exports.quizAskGemini = quizAskGemini;
 
 const { adminDraftTicketAi } = require("./ticketDraftGemini");
 exports.adminDraftTicketAi = adminDraftTicketAi;
+
+const { adminDraftRefundReply } = require("./refundReplyGemini");
+exports.adminDraftRefundReply = adminDraftRefundReply;
 
 const { setUserNickname } = require("./userProfileServer");
 exports.setUserNickname = setUserNickname;
@@ -149,8 +153,16 @@ const ATTENDANCE_POINTS_PER_CREDIT = 5000;
 const ATTENDANCE_POINTS_PER_ELLY_CREDIT = 500;
 /** 대시보드에서 한 번에 전환 가능한 엘리 질문권 건수 */
 const ALLOWED_ELLY_CONVERT_COUNTS = [1, 5, 10, 20, 30];
-/** 앱 홍보 인증(관리자 승인 시) 지급 포인트 */
-const PROMOTION_REWARD_POINTS = 9000;
+/** 앱 홍보 인증(관리자 승인 시) 지급 포인트 범위 */
+const PROMOTION_POINTS_MIN = 5000;
+const PROMOTION_POINTS_MAX = 15000;
+const PROMOTION_POINTS_DEFAULT = 9000;
+
+function normalizePromotionAwardPoints(raw) {
+  let pts = parseInt(raw, 10);
+  if (!Number.isFinite(pts)) pts = PROMOTION_POINTS_DEFAULT;
+  return Math.max(PROMOTION_POINTS_MIN, Math.min(PROMOTION_POINTS_MAX, pts));
+}
 /** 개선의견 채택 시 기본 지급 포인트(관리자가 Callable에서 가감 가능) */
 const IMPROVEMENT_DEFAULT_POINTS = 3000;
 
@@ -366,7 +378,7 @@ exports.convertAttendancePointsToEllyCredit = onCall({ region: "asia-northeast3"
 });
 
 /**
- * 관리자 승인 시 홍보 인증 티켓(promotion)에 9000 포인트 지급.
+ * 관리자 승인 시 홍보 인증 티켓(promotion)에 포인트 지급(5,000~15,000, 관리자 지정).
  * 질문권 전환은 사용자가 대시보드에서 직접 수행.
  */
 exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, async (request) => {
@@ -379,7 +391,8 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
 
   const data = request.data || {};
   const ticketId = String(data.ticketId || "").trim();
-  const adminReply = String(data.adminReply || "").trim();
+  const adminReply = normalizeAppBrandInText(String(data.adminReply || "").trim());
+  const awardPts = normalizePromotionAwardPoints(data.points);
   const adminEmail = String(data.adminEmail || request.auth.token.email || "").trim();
   if (!ticketId) throw new HttpsError("invalid-argument", "ticketId가 필요합니다.");
   if (!adminReply) throw new HttpsError("invalid-argument", "사용자에게 보낼 답변을 입력하세요.");
@@ -394,6 +407,12 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
     if (ticket.type !== "promotion") {
       throw new HttpsError("failed-precondition", "홍보 인증 티켓이 아닙니다.");
     }
+    if (ticket.status === "rejected") {
+      throw new HttpsError(
+        "failed-precondition",
+        "불승인·보완 처리된 티켓입니다. 회원이 새로 신청한 건만 승인할 수 있습니다."
+      );
+    }
     if (ticket.promotionGranted === true || ticket.status === "approved") {
       return { ok: true, alreadyApproved: true, pointsAwarded: 0, creditsGranted: 0 };
     }
@@ -405,7 +424,8 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
     const attSnap = await t.get(attRef);
 
     let points = Math.max(0, parseInt((attSnap.exists && attSnap.data().attendancePoints) || 0, 10) || 0);
-    points += PROMOTION_REWARD_POINTS;
+    points += awardPts;
+    const ptsLabel = awardPts.toLocaleString("ko-KR");
 
     t.set(
       attRef,
@@ -416,10 +436,10 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
       { merge: true }
     );
     appendPointLog(t, attRef, {
-      delta: PROMOTION_REWARD_POINTS,
+      delta: awardPts,
       reason: REASON.PROMOTION,
       balanceAfter: points,
-      meta: { ticketId }
+      meta: { ticketId, pointsAwarded: awardPts }
     });
 
     t.update(ticketRef, {
@@ -427,7 +447,7 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
       status: "approved",
       reviewedBy: adminEmail,
       promotionGranted: true,
-      promotionPointsAwarded: PROMOTION_REWARD_POINTS,
+      promotionPointsAwarded: awardPts,
       updatedAt: FieldValue.serverTimestamp()
     });
 
@@ -435,10 +455,10 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
       userId: uid,
       ticketId: ticketId,
       type: "홍보 인증 보상",
-      title: "홍보 인증이 승인되어 9,000 포인트가 지급되었습니다",
+      title: `홍보 인증이 승인되어 ${ptsLabel} 포인트가 지급되었습니다`,
       body:
         adminReply +
-        " (지급 포인트 9,000점. 대시보드에서 포인트를 질문권으로 전환할 수 있습니다.)",
+        ` (지급 포인트 ${ptsLabel}점. 대시보드에서 포인트를 질문권으로 전환할 수 있습니다.)`,
       read: false,
       createdAt: FieldValue.serverTimestamp()
     });
@@ -446,10 +466,73 @@ exports.adminApprovePromotionTicket = onCall({ region: "asia-northeast3" }, asyn
     return {
       ok: true,
       alreadyApproved: false,
-      pointsAwarded: PROMOTION_REWARD_POINTS,
+      pointsAwarded: awardPts,
       attendancePoints: points,
       creditsGranted: 0
     };
+  });
+
+  return result;
+});
+
+/**
+ * 홍보 인증 불승인·보완 안내: 포인트 없이 답변·알림만 발송.
+ */
+exports.adminRejectPromotionTicket = onCall({ region: "asia-northeast3" }, async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  if (!isAdminEmailFromAuth(request.auth)) {
+    throw new HttpsError("permission-denied", "관리자만 처리할 수 있습니다.");
+  }
+
+  const data = request.data || {};
+  const ticketId = String(data.ticketId || "").trim();
+  const adminReply = normalizeAppBrandInText(String(data.adminReply || "").trim());
+  const adminEmail = String(data.adminEmail || request.auth.token.email || "").trim();
+  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId가 필요합니다.");
+  if (!adminReply) throw new HttpsError("invalid-argument", "사용자에게 보낼 안내를 입력하세요.");
+
+  const ticketRef = db.collection("hanlaw_tickets").doc(ticketId);
+  const notifRef = db.collection("hanlaw_notifications").doc();
+
+  const result = await db.runTransaction(async (t) => {
+    const ts = await t.get(ticketRef);
+    if (!ts.exists) throw new HttpsError("not-found", "티켓을 찾을 수 없습니다.");
+    const ticket = ts.data() || {};
+    if (ticket.type !== "promotion") {
+      throw new HttpsError("failed-precondition", "홍보 인증 티켓이 아닙니다.");
+    }
+    if (ticket.promotionGranted === true || ticket.status === "approved") {
+      throw new HttpsError("failed-precondition", "이미 승인·포인트 지급이 완료된 티켓입니다.");
+    }
+    if (ticket.status === "rejected") {
+      return { ok: true, alreadyRejected: true, pointsAwarded: 0 };
+    }
+
+    const uid = ticket.userId;
+    if (!uid) throw new HttpsError("failed-precondition", "티켓 사용자 정보가 없습니다.");
+
+    t.update(ticketRef, {
+      adminReply,
+      status: "rejected",
+      reviewedBy: adminEmail,
+      promotionGranted: false,
+      promotionPointsAwarded: 0,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    t.set(notifRef, {
+      userId: uid,
+      ticketId: ticketId,
+      type: "홍보 인증 안내",
+      title: "홍보 인증 검토 결과 안내",
+      body: adminReply,
+      read: false,
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    return { ok: true, alreadyRejected: false, pointsAwarded: 0 };
   });
 
   return result;
@@ -468,7 +551,7 @@ exports.adminApproveSuggestionTicket = onCall({ region: "asia-northeast3" }, asy
 
   const data = request.data || {};
   const ticketId = String(data.ticketId || "").trim();
-  const adminReply = String(data.adminReply || "").trim();
+  const adminReply = normalizeAppBrandInText(String(data.adminReply || "").trim());
   const adopted = data.adopted === true;
   let awardPts = parseInt(data.points, 10);
   if (adopted) {

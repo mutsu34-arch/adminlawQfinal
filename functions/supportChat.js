@@ -6,6 +6,7 @@ const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { uniqueGeminiModelCandidates } = require("./geminiModel");
+const { looksLikeRefundIntent, loadRefundEstimatesForUid, formatEstimatesForAi } = require("./refundEstimate");
 
 const MAX_MSG = 2000;
 const ANON_PREFIX = "anon_";
@@ -164,13 +165,16 @@ function parseIncomingChatImages(raw) {
   return { buffers, contentTypes };
 }
 
-async function generateSupportChatAssistantText(latestUserText, recentLines) {
+async function generateSupportChatAssistantText(latestUserText, recentLines, extraContext) {
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) return "";
 
+  const isRefund = looksLikeRefundIntent(latestUserText);
   const systemInstruction = [
     "당신은 한국어로 고객 응대를 돕는 '행정법Q' 학습 앱의 안내 도우미입니다.",
-    "사용자 질문에 2~5문장으로 짧고 정중하게 답합니다.",
+    isRefund
+      ? "이번 메시지는 환불·환급 문의입니다. 아래 [환불 산정 참고]가 있으면 예상 환불액·산식·근거(1개월권 정가 일할, 위약금 10%)를 고객이 이해하기 쉽게 설명하세요. 최종 금액은 운영팀 확인 후 확정된다고 반드시 밝히세요."
+      : "사용자 질문에 2~5문장으로 짧고 정중하게 답합니다.",
     "개별 사건의 법률 자문·시험 정답·판례 적부를 단정하지 마세요. 필요하면 전문가 상담·공식 자료를 이용하라고 안내하세요.",
     "결제·환불·계정·앱 오류는 운영팀이 확인할 수 있다고 말하고, 급하면 ellutionsoft@gmail.com 또는 앱에 표시된 전화(070-7954-2912)를 안내해도 됩니다.",
     "마크다운·목록 기호 없이 평문만 사용하세요."
@@ -180,7 +184,8 @@ async function generateSupportChatAssistantText(latestUserText, recentLines) {
     "최근 대화:\n" +
     String(recentLines || "").slice(0, 3500) +
     "\n\n방금 고객 메시지:\n" +
-    String(latestUserText || "").slice(0, MAX_MSG);
+    String(latestUserText || "").slice(0, MAX_MSG) +
+    (extraContext ? "\n\n" + String(extraContext).slice(0, 5000) : "");
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const candidates = uniqueGeminiModelCandidates();
@@ -233,7 +238,26 @@ async function appendAssistantReplyIfPossible(threadId, latestUserText) {
     recentLines = "";
   }
 
-  const aiText = await generateSupportChatAssistantText(latestUserText, recentLines);
+  let extraContext = "";
+  if (looksLikeRefundIntent(latestUserText)) {
+    try {
+      const threadSnap = await threadRef.get();
+      const tdata = threadSnap.exists ? threadSnap.data() || {} : {};
+      const uid = tdata.uid ? String(tdata.uid).trim() : "";
+      if (uid) {
+        const loaded = await loadRefundEstimatesForUid(uid, Date.now());
+        if (loaded.ok) extraContext = "[환불 산정 참고]\n" + loaded.aiContext;
+        else extraContext = "[환불 산정 참고]\n결제·회원 정보를 찾지 못했습니다. 결제일·금액·상품을 알려 주시면 운영팀이 산정합니다.";
+      } else {
+        extraContext =
+          "[환불 산정 참고]\n로그인 후 환불 요청 시 자동 산정이 가능합니다. 결제일·금액·이메일을 알려 주세요.";
+      }
+    } catch (e) {
+      console.warn("refund context for chat:", e && e.message ? e.message : e);
+    }
+  }
+
+  const aiText = await generateSupportChatAssistantText(latestUserText, recentLines, extraContext);
   if (!aiText) return;
 
   const preview = aiText.length > 160 ? aiText.slice(0, 157) + "…" : aiText;

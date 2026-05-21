@@ -147,6 +147,9 @@
         if (type === "question") {
           doc.qaAllowFutureCommunity = opts.qaAllowFutureCommunity === true;
         }
+        if (opts.requestKind === "refund") {
+          doc.requestKind = "refund";
+        }
         return ticketRef.set(doc);
       })
       .then(function () {
@@ -260,6 +263,23 @@
     });
   };
 
+  window.adminRejectPromotionTicketCallable = function (ticketId, adminReply, adminEmail) {
+    if (typeof firebase === "undefined" || !firebase.functions) {
+      return Promise.reject(new Error("Cloud Functions를 사용할 수 없습니다."));
+    }
+    var reply = String(adminReply || "").trim();
+    if (!reply) return Promise.reject(new Error("사용자에게 보낼 안내를 입력하세요."));
+    var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+    var fn = firebase.app().functions(region).httpsCallable("adminRejectPromotionTicket");
+    return fn({
+      ticketId: String(ticketId || "").trim(),
+      adminReply: reply,
+      adminEmail: String(adminEmail || "").trim()
+    }).then(function (res) {
+      return res && res.data ? res.data : { ok: true };
+    });
+  };
+
   /**
    * type 필드 누락·대소문자·구버전 문서 대비.
    * 홍보 인증은 보통 quizContext(문항)가 비어 있고, 질문은 questionId/statement 등이 있는 경우가 많음.
@@ -289,6 +309,13 @@
   };
 
   function getDemoDraftForTicket(ticket, kind) {
+    if (kind === "refund") {
+      return (
+        "[데모 초안] 환불 요청 접수 안내입니다. adminDraftRefundReply 배포·GEMINI_API_KEY 설정 후 산식·예상 환불액이 포함된 초안이 생성됩니다.\n\n" +
+        "제출 내용: " +
+        String(ticket.message || "").slice(0, 800)
+      );
+    }
     if (kind === "promotion") {
       return buildPromotionDemoDraft(ticket);
     }
@@ -332,9 +359,43 @@
     return false;
   }
 
+  function isRefundTicket(ticket) {
+    if (!ticket) return false;
+    if (ticket.requestKind === "refund") return true;
+    return /환불|환급|청약\s*철회|결제\s*취소/.test(String(ticket.message || ""));
+  }
+
   window.fetchAIDraftForTicket = function (ticket) {
     var url = (window.AI_DRAFT_ENDPOINT || "").trim();
     var kind = resolveTicketKindForDemo(ticket);
+
+    function callAdminRefundDraftCallable() {
+      if (typeof firebase === "undefined" || !firebase.functions) {
+        return Promise.reject(new Error("no-functions"));
+      }
+      var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+      return firebase
+        .app()
+        .functions(region)
+        .httpsCallable("adminDraftRefundReply")({
+          channel: "email",
+          userMessage: String(ticket.message || ""),
+          uid: ticket.userId || "",
+          email: ticket.userEmail || "",
+          userNickname: ticket.userNickname || ""
+        })
+        .then(function (res) {
+          var d = res && res.data;
+          if (!d) throw new Error("응답이 비어 있습니다.");
+          var out = String(d.customerReply || "").trim();
+          if (d.adminNotes) {
+            out +=
+              "\n\n──────── 관리자 참고(복사·내부용) ────────\n" + String(d.adminNotes).trim();
+          }
+          if (!out) throw new Error("고객용 초안이 비어 있습니다.");
+          return out;
+        });
+    }
 
     function callAdminDraftCallable() {
       if (typeof firebase === "undefined" || !firebase.functions) {
@@ -350,10 +411,21 @@
         .httpsCallable("adminDraftTicketAi")({ ticketId: ticket.id })
         .then(function (res) {
           var d = res && res.data;
-          if (d && d.draft) return String(d.draft);
-          if (d && d.text) return String(d.text);
-          throw new Error("응답에 draft 필드가 없습니다.");
+          var raw = d && d.draft ? String(d.draft) : d && d.text ? String(d.text) : "";
+          if (!raw) throw new Error("응답에 draft 필드가 없습니다.");
+          if (typeof window.normalizeHanlawAppBrandInText === "function") {
+            return window.normalizeHanlawAppBrandInText(raw);
+          }
+          return raw;
         });
+    }
+
+    function normalizeDraftText(raw) {
+      var s = String(raw || "");
+      if (typeof window.normalizeHanlawAppBrandInText === "function") {
+        return window.normalizeHanlawAppBrandInText(s);
+      }
+      return s;
     }
 
     function fetchCustomEndpoint() {
@@ -374,10 +446,17 @@
           return res.json();
         })
         .then(function (data) {
-          if (data && data.draft) return String(data.draft);
-          if (data && data.text) return String(data.text);
-          throw new Error("응답에 draft 필드가 없습니다.");
+          var raw = data && data.draft ? String(data.draft) : data && data.text ? String(data.text) : "";
+          if (!raw) throw new Error("응답에 draft 필드가 없습니다.");
+          return normalizeDraftText(raw);
         });
+    }
+
+    if (isRefundTicket(ticket)) {
+      return callAdminRefundDraftCallable().catch(function (err) {
+        if (draftCallableShouldReject(err)) return Promise.reject(err);
+        return getDemoDraftForTicket(ticket, "refund");
+      });
     }
 
     if (url) {
@@ -408,7 +487,7 @@
       });
   };
 
-  window.adminApproveTicket = function (ticketId, adminReply, adminEmail) {
+  window.adminApproveTicket = function (ticketId, adminReply, adminEmail, promotionPoints) {
     var d = db();
     if (!d) return Promise.reject(new Error("Firestore 오류"));
     var reply = (adminReply || "").trim();
@@ -431,7 +510,8 @@
         return fn({
           ticketId: ticketId,
           adminReply: reply,
-          adminEmail: adminEmail || ""
+          adminEmail: adminEmail || "",
+          points: promotionPoints
         }).then(function (res) {
           return res && res.data ? res.data : { ok: true };
         });

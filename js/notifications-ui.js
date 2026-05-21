@@ -61,6 +61,9 @@
     var b = document.createElement("p");
     b.className = "notif-item__body";
     var bodyRaw = n.body || "";
+    if (typeof window.normalizeHanlawAppBrandInText === "function") {
+      bodyRaw = window.normalizeHanlawAppBrandInText(bodyRaw);
+    }
     if (
       n.type === "질문 답변" &&
       typeof window.stripHanlawReplyListMarkers === "function"

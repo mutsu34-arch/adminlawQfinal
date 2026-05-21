@@ -12,6 +12,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { effectiveGeminiModelId, uniqueGeminiModelCandidates } = require("./geminiModel");
 const { retrieveLibraryContextForQuiz } = require("./libraryRag");
 const { appendLibraryRagBlockToSystemPrompt } = require("./libraryRagPromptAppend");
+const { normalizeAppBrandInText } = require("./appBrandNormalize");
 
 function isAdminFromAuth(auth) {
   const email = auth && auth.token && auth.token.email ? String(auth.token.email).toLowerCase() : "";
@@ -27,17 +28,6 @@ function isAdminFromAuth(auth) {
 function clampStr(v, max) {
   const s = v == null ? "" : String(v);
   return s.length > max ? s.slice(0, max) : s;
-}
-
-/**
- * 모델이 학습 데이터의 구 앱명을 출력하는 경우 서버에서 강제로 정규화합니다.
- */
-function normalizeAppBrandInDraft(text) {
-  let out = String(text || "");
-  if (!out) return out;
-  out = out.replace(/한국\s*행정법\s*퀴즈/g, "행정법Q");
-  out = out.replace(/한국행정법퀴즈/g, "행정법Q");
-  return out;
 }
 
 /**
@@ -91,7 +81,8 @@ function buildPrompt(ticket) {
       "아래는 사용자가 제출한 서비스 개선 의견입니다.",
       "",
       "요구사항:",
-      "- 앱 이름 표기는 반드시 '행정법Q'로 통일합니다. (다른 앱명 금지)",
+      "- 앱 이름 표기는 반드시 '행정법Q'로 통일합니다. ('한국행정법 퀴즈', '웹앱' 등 다른 명칭 금지)",
+      "- 감사 표현 예: \"행정법Q\"에 소중한 의견을 주셔서 진심으로 감사드립니다. ('저희 ○○ 웹앱에' 같은 표현 금지)",
       "- 한국어로 정중하고 따뜻한 톤입니다.",
       "- 의견에 감사를 표하고, 내부 검토 후 검토 결과(반영 가능 여부 등)를 안내하는 문장으로 구성합니다. '반드시 반영' 같은 단정적 약속은 피합니다.",
       "- 2~5개의 짧은 문단. 관리자가 약간 수정해 바로 보낼 수 있게 합니다.",
@@ -254,7 +245,7 @@ const adminDraftTicketAi = onCall({ region: "asia-northeast3" }, async (request)
 
   try {
     const draftRaw = await generateDraftPlain(apiKey, modelId, prompt);
-    const draft = normalizeAppBrandInDraft(draftRaw);
+    const draft = normalizeAppBrandInText(draftRaw);
     return { ok: true, draft, usedLibraryRag: !!ragContext };
   } catch (e) {
     console.error("adminDraftTicketAi", e);
