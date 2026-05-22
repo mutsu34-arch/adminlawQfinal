@@ -98,32 +98,90 @@
     return firebase.app().functions(region);
   }
 
+  function loadPortOneSdk() {
+    if (
+      window.HanlawPortoneCheckout &&
+      typeof window.HanlawPortoneCheckout.loadPortOneSdk === "function"
+    ) {
+      return window.HanlawPortoneCheckout.loadPortOneSdk();
+    }
+    return Promise.reject(new Error("PortOne 결제 모듈을 불러올 수 없습니다."));
+  }
+
   function callStart(purpose, email) {
     var payload = { purpose: purpose };
     if (purpose === "password_reset" && email) payload.email = String(email).trim().toLowerCase();
     return fns().httpsCallable("startIdentityChallenge")(payload);
   }
 
-  function callFinish(challengeId) {
-    return fns().httpsCallable("finishIdentityChallenge")({ challengeId: challengeId });
+  function callFinish(challengeId, identityVerificationId) {
+    var payload = { challengeId: challengeId };
+    if (identityVerificationId) payload.identityVerificationId = String(identityVerificationId).trim();
+    return fns().httpsCallable("finishIdentityChallenge")(payload);
+  }
+
+  function userFacingError(e) {
+    if (e && e.message) return String(e.message);
+    return "본인인증에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+
+  function openPortOneIdentity(portone) {
+    return loadPortOneSdk().then(function (PortOne) {
+      if (!PortOne || typeof PortOne.requestIdentityVerification !== "function") {
+        throw new Error("본인인증 창을 열 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      }
+      var payload = {
+        storeId: portone.storeId,
+        channelKey: portone.channelKey,
+        identityVerificationId: portone.identityVerificationId
+      };
+      if (portone.bypass) payload.bypass = portone.bypass;
+      var user = null;
+      try {
+        user = firebase.auth().currentUser;
+      } catch (e0) {}
+      if (user && user.uid) {
+        payload.customer = { customerId: String(user.uid).slice(0, 20) };
+      }
+      return PortOne.requestIdentityVerification(payload).then(function (rsp) {
+        if (rsp && rsp.code != null) {
+          throw new Error(String(rsp.message || rsp.code || "본인인증이 취소되었습니다."));
+        }
+        return portone.identityVerificationId;
+      });
+    });
   }
 
   /**
-   * 모의 모드: 시작 직후 finish 한 번 호출. 실연동 시 표준창·웹훅 후 finish 호출로 교체.
+   * PortOne 본인인증 창 → 서버 검증(finish). mockClientFinish 이면 개발용 모의 완료.
    */
   function runIdentityChain(purpose, email) {
     return callStart(purpose, email).then(function (res) {
       var d = (res && res.data) || {};
       var challengeId = d.challengeId;
-      if (!challengeId) throw new Error("challengeId 없음");
-      if (!d.mockClientFinish) {
-        throw new Error(
-          "서버에서 모의 본인인증이 비활성입니다. Functions 환경변수 HANLAW_IDENTITY_MOCK=1 후 배포하거나, 다날·포트원 본인확인 연동을 완료하세요."
-        );
+      if (!challengeId) throw new Error("본인인증을 시작할 수 없습니다.");
+
+      if (d.mockClientFinish === true && !d.portone) {
+        return callFinish(challengeId).then(function (r2) {
+          return (r2 && r2.data) || {};
+        });
       }
-      return callFinish(challengeId).then(function (r2) {
-        return (r2 && r2.data) || {};
-      });
+
+      if (d.portone && d.portone.storeId && d.portone.identityVerificationId) {
+        return openPortOneIdentity(d.portone).then(function (ivId) {
+          return callFinish(challengeId, ivId || d.portone.identityVerificationId).then(function (r2) {
+            return (r2 && r2.data) || {};
+          });
+        });
+      }
+
+      if (d.mockClientFinish === true) {
+        return callFinish(challengeId).then(function (r2) {
+          return (r2 && r2.data) || {};
+        });
+      }
+
+      throw new Error("본인인증을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.");
     });
   }
 
@@ -216,15 +274,16 @@
     var btn = document.getElementById("btn-identity-gate-start");
     if (btn) btn.disabled = true;
     setGateMsg("");
+    setGateLoading(true);
     runIdentityChain("onboarding", null)
       .then(function () {
         setGateMsg("본인인증이 완료되었습니다.", false);
       })
       .catch(function (e) {
-        var msg = e && e.message ? String(e.message) : "본인인증에 실패했습니다.";
-        setGateMsg(msg, true);
+        setGateMsg(userFacingError(e), true);
       })
       .then(function () {
+        setGateLoading(false);
         if (btn) btn.disabled = false;
       });
   }
@@ -248,7 +307,7 @@
         }
       })
       .catch(function (e) {
-        var m = e && e.message ? String(e.message) : "본인인증에 실패했습니다.";
+        var m = userFacingError(e);
         if (msg) {
           msg.textContent = m;
           msg.hidden = false;
@@ -289,7 +348,7 @@
         }
       })
       .catch(function (e) {
-        var msg = e && e.message ? String(e.message) : "요청에 실패했습니다.";
+        var msg = userFacingError(e);
         if (msg.indexOf("permission-denied") >= 0 || msg.indexOf("완료할 수 없습니다") >= 0) {
           api.setAuthMessage("해당 이메일로 가입된 계정이 없거나 요청을 완료할 수 없습니다.", true);
         } else {

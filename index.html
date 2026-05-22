@@ -128,12 +128,7 @@
       <div class="card card--auth identity-gate-card">
         <h2 class="card__title">휴대폰 본인인증</h2>
         <p class="identity-gate-lead">
-          회원가입 및 서비스 이용을 위해 본인 확인이 필요합니다. 다날·포트원 연동 전에는 서버에
-          <strong>HANLAW_IDENTITY_MOCK=1</strong>이 설정된 경우에만 모의 인증으로 통과할 수 있습니다.
-          <br /><br />
-          <strong>로컬</strong>(<code>localhost</code> / <code>127.0.0.1</code>)에서는 기본적으로 본인인증 없이 이용할 수 있으며,
-          <strong>관리자 이메일</strong>(<code>firebase-config.js</code>의 <code>ADMIN_EMAILS</code>)과
-          <code>HANLAW_IDENTITY_GATE_BYPASS_EMAILS</code>에 넣은 계정은 배포 주소에서도 게이트가 적용되지 않습니다.
+          휴대폰 본인인증이 필요합니다. 회원가입 및 서비스 이용을 위해 아래 버튼으로 본인 확인을 진행해 주세요.
         </p>
         <p id="identity-gate-msg" class="auth-message" role="status" aria-live="polite" hidden></p>
         <button type="button" id="btn-identity-gate-start" class="btn btn--primary">본인인증 진행</button>
@@ -3904,7 +3899,7 @@
   <script src="/js/portone-config.js?v=3"></script>
   <script src="/js/portone-checkout.js?v=13"></script>
   <script src="/js/auth.js?v=7"></script>
-  <script src="/js/identity-verification.js?v=2"></script>
+  <script src="/js/identity-verification.js?v=3"></script>
   <script src="/js/pricing-dev-visibility.js?v=1"></script>
   <script src="/js/support-chat.js?v=4"></script>
   <script src="/js/user-profile.js?v=20260419"></script>

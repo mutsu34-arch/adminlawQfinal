@@ -17,7 +17,12 @@
   var portoneScriptPromise = null;
 
   function loadPortOneSdk() {
-    if (typeof window.PortOne !== "undefined" && window.PortOne && typeof window.PortOne.requestPayment === "function") {
+    if (
+      typeof window.PortOne !== "undefined" &&
+      window.PortOne &&
+      (typeof window.PortOne.requestPayment === "function" ||
+        typeof window.PortOne.requestIdentityVerification === "function")
+    ) {
       return Promise.resolve(window.PortOne);
     }
     if (portoneScriptPromise) return portoneScriptPromise;
@@ -26,7 +31,11 @@
       s.src = String(cfg().sdkUrl || "https://cdn.portone.io/v2/browser-sdk.js");
       s.async = true;
       s.onload = function () {
-        if (window.PortOne && typeof window.PortOne.requestPayment === "function") {
+        if (
+          window.PortOne &&
+          (typeof window.PortOne.requestPayment === "function" ||
+            typeof window.PortOne.requestIdentityVerification === "function")
+        ) {
           resolve(window.PortOne);
         } else {
           reject(new Error("PortOne SDK를 초기화할 수 없습니다."));
@@ -677,7 +686,8 @@
 
   window.HanlawPortoneCheckout = {
     isEnabled: isEnabled,
-    startPortOneProduct: startPortOneProduct
+    startPortOneProduct: startPortOneProduct,
+    loadPortOneSdk: loadPortOneSdk
   };
 
   function init() {
