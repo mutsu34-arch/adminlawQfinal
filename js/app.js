@@ -1,12 +1,7 @@
 (function () {
   var ALL = "전체";
-  var GUEST_PUBLIC_LIMIT = 5;
   function isAdsenseOpenMode() {
     return !!window.HANLAW_ADSENSE_OPEN_MODE;
-  }
-
-  function guestQuizLimit() {
-    return isAdsenseOpenMode() ? Number.MAX_SAFE_INTEGER : GUEST_PUBLIC_LIMIT;
   }
 
 
@@ -63,10 +58,6 @@
     return !!(u && u.email);
   }
 
-  function isGuestFullQuizPreview() {
-    return !isViewerLoggedIn() && state && typeof state.index === "number" && state.index < guestQuizLimit();
-  }
-
   var el = {
     start: document.getElementById("screen-start"),
     quiz: document.getElementById("screen-quiz"),
@@ -117,6 +108,7 @@
     feedbackMaster: document.getElementById("feedback-master"),
     feedbackAttendanceNotify: document.getElementById("feedback-attendance-notify"),
     feedbackGuestHint: document.getElementById("feedback-guest-hint"),
+    feedbackGuestBlurWrap: document.getElementById("feedback-guest-blur-wrap"),
     feedbackTagsSection: document.getElementById("feedback-tags-section"),
     btnQuizAdminEdit: document.getElementById("btn-quiz-admin-edit"),
     btnQuizAdminDelete: document.getElementById("btn-quiz-admin-delete"),
@@ -1465,6 +1457,21 @@
     revealOpts = revealOpts || {};
     var timeout = revealOpts.timeout === true;
     if (!container) return;
+    /** 비회원: 내 선택이 맞았는지만 표시(정답 O/X는 강조하지 않음) */
+    if (!isViewerLoggedIn()) {
+      container.classList.add("q-actions--revealed");
+      container.querySelectorAll(".btn--ox").forEach(function (b) {
+        var isTrue = oxButtonIsTrue(b);
+        b.classList.remove("btn--ox-reveal-correct", "btn--ox-reveal-wrong", "btn--ox-reveal-dim");
+        var isUserBtn = isTrue === userTrue;
+        if (!timeout && isUserBtn) {
+          b.classList.add(userTrue === correctTrue ? "btn--ox-reveal-correct" : "btn--ox-reveal-wrong");
+        } else {
+          b.classList.add("btn--ox-reveal-dim");
+        }
+      });
+      return;
+    }
     container.classList.add("q-actions--revealed");
     container.querySelectorAll(".btn--ox").forEach(function (b) {
       var isTrue = oxButtonIsTrue(b);
@@ -1546,15 +1553,6 @@
       return;
     }
     if (!isViewerLoggedIn()) {
-      if (isGuestFullQuizPreview()) {
-        buildDetailBlocks(container, q.detail, q);
-      } else {
-        var lockGuest = document.createElement("p");
-        lockGuest.className = "feedback-premium-lock";
-        lockGuest.textContent =
-          "비회원은 퀴즈 상세 해설을 5문항까지 체험할 수 있습니다. 계속 보려면 회원가입 후 이용해 주세요.";
-        container.appendChild(lockGuest);
-      }
       return;
     }
     if (
@@ -1578,34 +1576,56 @@
   function fillExplainPanel(parts, q, opts) {
     opts = opts || {};
     var guest = !isViewerLoggedIn();
-    var guestLocked = guest && !isGuestFullQuizPreview();
     var rootFB = opts.feedbackRoot || el.feedback;
     var hintEl = opts.hintEl !== undefined ? opts.hintEl : el.feedbackGuestHint;
+    var blurWrap = el.feedbackGuestBlurWrap;
     var tagsSec = opts.tagsSection !== undefined ? opts.tagsSection : el.feedbackTagsSection;
-    if (rootFB) rootFB.classList.toggle("feedback--guest-lock", guestLocked);
+    if (rootFB) rootFB.classList.remove("feedback--guest-lock");
+
+    if (guest) {
+      if (blurWrap) blurWrap.hidden = true;
+      if (hintEl) {
+        hintEl.hidden = false;
+        hintEl.textContent =
+          "비회원은 정답·오답 여부만 확인할 수 있습니다. 로그인하면 기본 해설을, 유료 구독 시 상세 해설(법리·함정·판례)을 볼 수 있습니다.";
+      }
+      if (parts.answerKey) {
+        parts.answerKey.textContent = "";
+        parts.answerKey.hidden = true;
+      }
+      if (parts.importanceLine) {
+        parts.importanceLine.hidden = true;
+        parts.importanceLine.textContent = "";
+      }
+      if (parts.difficultyLine) {
+        parts.difficultyLine.hidden = true;
+        parts.difficultyLine.textContent = "";
+      }
+      if (parts.explain) {
+        parts.explain.classList.remove("quiz-ai-answer");
+        parts.explain.textContent = "";
+      }
+      if (parts.detail) parts.detail.innerHTML = "";
+      if (parts.tags) parts.tags.innerHTML = "";
+      if (tagsSec) tagsSec.hidden = true;
+      syncQuizMemoLoginState(true);
+      return;
+    }
+
+    if (blurWrap) blurWrap.hidden = false;
     if (hintEl) {
       hintEl.hidden = true;
       hintEl.textContent = "";
     }
 
     if (parts.answerKey) {
-      if (guestLocked) {
-        parts.answerKey.textContent = "";
-        parts.answerKey.hidden = true;
-      } else {
-        parts.answerKey.textContent = "정답: " + formatOx(q.answer);
-        parts.answerKey.hidden = false;
-      }
+      parts.answerKey.textContent = "정답: " + formatOx(q.answer);
+      parts.answerKey.hidden = false;
     }
-    if (parts.importanceLine) parts.importanceLine.hidden = guestLocked;
-    if (parts.difficultyLine) parts.difficultyLine.hidden = guestLocked;
-    if (!guestLocked) {
-      setImportanceLine(parts.importanceLine, q);
-      setDifficultyLine(parts.difficultyLine, q);
-    } else {
-      if (parts.importanceLine) parts.importanceLine.textContent = "";
-      if (parts.difficultyLine) parts.difficultyLine.textContent = "";
-    }
+    if (parts.importanceLine) parts.importanceLine.hidden = false;
+    if (parts.difficultyLine) parts.difficultyLine.hidden = false;
+    setImportanceLine(parts.importanceLine, q);
+    setDifficultyLine(parts.difficultyLine, q);
     if (parts.explain) {
       var basic = getBasicExplain(q);
       var explainText = basic ? basic : "등록된 기본 해설이 없습니다.";
@@ -1619,21 +1639,17 @@
     populateDetailContainer(parts.detail, q);
     if (parts.tags) {
       parts.tags.innerHTML = "";
-      if (guestLocked) {
-        if (tagsSec) tagsSec.hidden = true;
+      if (tagsSec) tagsSec.hidden = false;
+      if (q.tags && q.tags.length) {
+        renderTags(parts.tags, q.tags);
       } else {
-        if (tagsSec) tagsSec.hidden = false;
-        if (q.tags && q.tags.length) {
-          renderTags(parts.tags, q.tags);
-        } else {
-          var dash = document.createElement("span");
-          dash.className = "feedback__tag-empty";
-          dash.textContent = "—";
-          parts.tags.appendChild(dash);
-        }
+        var dash = document.createElement("span");
+        dash.className = "feedback__tag-empty";
+        dash.textContent = "—";
+        parts.tags.appendChild(dash);
       }
     }
-    syncQuizMemoLoginState(guest);
+    syncQuizMemoLoginState(false);
   }
 
   /** 피드백 영역의 「나의 메모」 — 게스트는 패널만 닫아 두고, 클릭 시 안내는 별도 처리 */
@@ -1660,6 +1676,7 @@
 
   function clearFeedbackExtras() {
     if (el.feedback) el.feedback.classList.remove("feedback--guest-lock");
+    if (el.feedbackGuestBlurWrap) el.feedbackGuestBlurWrap.hidden = false;
     if (el.feedbackGuestHint) el.feedbackGuestHint.hidden = true;
     if (el.feedbackTagsSection) el.feedbackTagsSection.hidden = false;
     if (el.feedbackAnswerKey) {
@@ -2250,16 +2267,8 @@
     if (el.quizGuestHintTop) {
       if (!isViewerLoggedIn() && !isAdsenseOpenMode()) {
         el.quizGuestHintTop.hidden = false;
-        if (state.index < guestQuizLimit()) {
-          var remaining = Math.max(0, guestQuizLimit() - (state.index + 1));
-          el.quizGuestHintTop.textContent =
-            "[무료 체험 중] 비회원은 퀴즈 5문항까지 상세 해설을 포함해 볼 수 있습니다. 현재 " +
-            remaining +
-            "회 남았습니다.";
-        } else {
-          el.quizGuestHintTop.textContent =
-            "[무료 체험 안내] 무료 체험 5회를 모두 사용했습니다. 6번째 문항부터는 상세 해설이 제한됩니다. 회원가입 후 전체 이용이 가능합니다.";
-        }
+        el.quizGuestHintTop.textContent =
+          "비회원은 정답·오답만 확인할 수 있습니다. 로그인 시 기본 해설, 유료 구독 시 상세 해설을 이용할 수 있습니다.";
       } else {
         el.quizGuestHintTop.hidden = true;
         el.quizGuestHintTop.textContent = "";
