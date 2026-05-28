@@ -31,6 +31,7 @@
     var tabLibrary = $("admin-tab-library");
     var tabInbox = $("admin-tab-inbox");
     var tabSupportChat = $("admin-tab-support-chat");
+    var tabPublicContent = $("admin-tab-public-content");
     var tabQuotes = $("admin-tab-quotes");
     var panelSingle = $("admin-panel-single");
     var panelQuizCreate = $("admin-panel-quiz-create");
@@ -44,6 +45,7 @@
     var panelLibrary = $("admin-panel-library");
     var panelInbox = $("admin-panel-inbox");
     var panelSupportChat = $("admin-panel-support-chat");
+    var panelPublicContent = $("admin-panel-public-content");
     var panelQuotes = $("admin-panel-quotes");
     function off() {
       [
@@ -59,6 +61,7 @@
         tabLibrary,
         tabInbox,
         tabSupportChat,
+        tabPublicContent,
         tabQuotes
       ].forEach(function (t) {
         if (t) t.classList.remove("admin-tab--active");
@@ -76,6 +79,7 @@
         panelLibrary,
         panelInbox,
         panelSupportChat,
+        panelPublicContent,
         panelQuotes
       ].forEach(function (p) {
         if (p) p.hidden = true;
@@ -103,6 +107,10 @@
       if (tabSupportChat) tabSupportChat.classList.add("admin-tab--active");
       if (panelSupportChat) panelSupportChat.hidden = false;
       if (typeof window.loadAdminSupportChatList === "function") window.loadAdminSupportChatList();
+    } else if (which === "public-content") {
+      if (tabPublicContent) tabPublicContent.classList.add("admin-tab--active");
+      if (panelPublicContent) panelPublicContent.hidden = false;
+      if (typeof window.loadAdminPublicContentPanel === "function") window.loadAdminPublicContentPanel();
     } else if (which === "quotes") {
       if (tabQuotes) tabQuotes.classList.add("admin-tab--active");
       if (panelQuotes) panelQuotes.hidden = false;
@@ -350,6 +358,7 @@
   function bind() {
     var tabInbox = $("admin-tab-inbox");
     var tabSupportChat = $("admin-tab-support-chat");
+    var tabPublicContent = $("admin-tab-public-content");
     var tabSingle = $("admin-tab-single");
     var tabQuizCreate = $("admin-tab-quiz-create");
     var tabBundledQuiz = $("admin-tab-bundled-quiz");
@@ -420,6 +429,11 @@
     if (tabSupportChat) {
       tabSupportChat.addEventListener("click", function () {
         switchAdminTab("support-chat");
+      });
+    }
+    if (tabPublicContent) {
+      tabPublicContent.addEventListener("click", function () {
+        switchAdminTab("public-content");
       });
     }
     if (tabQuotes) {
@@ -798,6 +812,8 @@
       if ($("admin-panel-inbox") && !$("admin-panel-inbox").hidden) loadTickets();
     });
   }
+
+  window.switchAdminTab = switchAdminTab;
 
   document.addEventListener("DOMContentLoaded", bind);
 })();

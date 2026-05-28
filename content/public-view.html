@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>행정법Q 공개 학습 콘텐츠</title>
+  <meta name="description" content="행정법Q 공개 용어·조문·판례·Q&A 학습 자료" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/public-content.css?v=4" />
+  <style>
+    body.public-content-page {
+      margin: 0;
+    }
+    .public-standalone-wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+    }
+  </style>
+</head>
+<body class="public-content-page" data-theme="light">
+  <main class="public-standalone-wrap">
+    <p><a href="./index.html">← 공개 콘텐츠 목록</a></p>
+    <h1 id="public-standalone-title">공개 학습 콘텐츠</h1>
+    <div id="public-standalone-root" data-kind="terms"></div>
+  </main>
+  <script>
+    (function () {
+      var p = new URLSearchParams(window.location.search);
+      var t = String(p.get("type") || "terms").trim();
+      var root = document.getElementById("public-standalone-root");
+      if (root) root.setAttribute("data-kind", t);
+    })();
+  </script>
+  <script src="/js/ai-answer-format.js?v=12"></script>
+  <script src="/js/legal-dictionary-data.js"></script>
+  <script src="/js/case-dictionary-data.js"></script>
+  <script src="/js/statute-articles-static.js"></script>
+  <script src="/js/dict-panels.js?v=74"></script>
+  <script src="/js/public-content-data.js?v=3"></script>
+  <script src="/js/public-content-ui.js?v=3"></script>
+</body>
+</html>

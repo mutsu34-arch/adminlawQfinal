@@ -70,6 +70,9 @@ exports.adminDraftRefundReply = adminDraftRefundReply;
 const { setUserNickname } = require("./userProfileServer");
 exports.setUserNickname = setUserNickname;
 
+const { deleteMyAccount } = require("./accountDeletion");
+exports.deleteMyAccount = deleteMyAccount;
+
 /** 본인인증: startIdentityChallenge, finishIdentityChallenge — PortOne 본인확인 조회·검증 (모의: HANLAW_IDENTITY_MOCK=1) */
 const { startIdentityChallenge, finishIdentityChallenge } = require("./identityVerification");
 exports.startIdentityChallenge = startIdentityChallenge;
@@ -85,6 +88,17 @@ exports.submitSupportChatMessage = submitSupportChatMessage;
 exports.adminListSupportChatThreads = adminListSupportChatThreads;
 exports.adminGetSupportChatMessages = adminGetSupportChatMessages;
 exports.adminReplySupportChat = adminReplySupportChat;
+
+const {
+  getPublicContentConfig,
+  adminGetPublicContentConfig,
+  adminSavePublicContentConfig,
+  adminResetPublicContentConfig
+} = require("./publicContentAdmin");
+exports.getPublicContentConfig = getPublicContentConfig;
+exports.adminGetPublicContentConfig = adminGetPublicContentConfig;
+exports.adminSavePublicContentConfig = adminSavePublicContentConfig;
+exports.adminResetPublicContentConfig = adminResetPublicContentConfig;
 
 const { registerUserSession } = require("./sessionControl");
 exports.registerUserSession = registerUserSession;

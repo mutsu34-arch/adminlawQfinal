@@ -1,0 +1,211 @@
+/* 공개 콘텐츠 페이지·패널 공통 (라이트/다크 모두 가독) */
+body.public-content-page,
+#panel-public .public-content-root {
+  --public-cta-bg: #1e293b;
+  --public-cta-border: #334155;
+  --public-cta-text: #f1f5f9;
+  --public-cta-link: #93c5fd;
+}
+
+html[data-theme="light"] body.public-content-page,
+html[data-theme="light"] #panel-public .public-content-root {
+  --public-cta-bg: #f1f5f9;
+  --public-cta-border: #cbd5e1;
+  --public-cta-text: #0f172a;
+  --public-cta-link: #1d4ed8;
+}
+
+.public-content-cta {
+  margin-top: 20px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--public-cta-border);
+  background: var(--public-cta-bg);
+  color: var(--public-cta-text);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.public-quiz-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.public-content-hub-hint {
+  margin: 8px 0 0;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+}
+
+.admin-public-content-json {
+  width: 100%;
+  min-height: 360px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.public-content-cta a {
+  color: var(--public-cta-link);
+  font-weight: 700;
+  text-underline-offset: 2px;
+}
+
+.public-content-item {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border, #334155);
+  background: var(--card, #1e293b);
+}
+
+.public-content-item__title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.public-content-item__lead {
+  margin: 0 0 10px;
+  color: var(--muted, #94a3b8);
+  font-size: 0.92rem;
+}
+
+.public-content-section {
+  margin-top: 10px;
+}
+
+.public-content-section h4 {
+  margin: 0 0 4px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--accent, #60a5fa);
+}
+
+.public-content-section p {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.public-content-disclaimer {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent, #60a5fa) 35%, var(--border, #334155));
+  background: color-mix(in srgb, var(--accent, #60a5fa) 8%, transparent);
+  color: var(--text, #e2e8f0);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.public-content-disclaimer--compact {
+  margin-top: 0;
+}
+
+html[data-theme="light"] .public-content-disclaimer {
+  color: #0f172a;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.public-qa-preview-list {
+  display: grid;
+  gap: 12px;
+}
+
+/* 공개 Q&A 미리보기: 앱 Q&A와 동일한 지문 → 질문 → 답변 구조 */
+.public-qa-item--preview .public-qa-item__thread {
+  margin: 1rem 1rem 0;
+}
+
+.public-qa-item--preview .public-qa-item__answer-wrap--open {
+  display: block;
+  margin: 0;
+  padding: 0 1rem 1rem;
+  border-top: 1px solid var(--border, #334155);
+}
+
+.public-qa-item--preview .public-qa-item__answer-body {
+  margin-top: 0.5rem;
+}
+
+.public-qa-item__answer-label {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted, #94a3b8);
+  letter-spacing: 0.02em;
+}
+
+.public-content-list {
+  display: grid;
+  gap: 10px;
+}
+
+.nav-public-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.nav-main {
+  position: relative;
+}
+
+/* 스크롤 영역(overflow-y:hidden) 밖 — fixed로 본문에 가리지 않게 */
+.nav-public-menu {
+  position: fixed;
+  z-index: 500;
+  min-width: 11.5rem;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #334155);
+  background: var(--card, #1e293b);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.nav-public-menu[hidden] {
+  display: none !important;
+}
+
+.nav-public-menu__btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-public-menu__btn:hover {
+  background: rgba(96, 165, 250, 0.15);
+}
+
+.nav-main__btn--public-toggle[aria-expanded="true"] {
+  background: rgba(96, 165, 250, 0.2);
+}
+
+#panel-public .public-content-intro {
+  margin-bottom: 12px;
+}
+
+#panel-public .public-quiz-banner {
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border, #334155);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(30, 41, 59, 0.5));
+}
+
+#panel-public .public-quiz-banner a {
+  font-weight: 700;
+}

@@ -4,6 +4,9 @@
   var sessionWatchUnsub = null;
   var activeSessionId = "";
   var sessionKickInProgress = false;
+  var sessionRegistering = false;
+  var sessionRegisterGen = 0;
+  var lastRegisteredUid = "";
   var DEVICE_ID_KEY = "hanlaw_device_id_v1";
 
   var el = {
@@ -115,18 +118,25 @@
     return "pc";
   }
 
-  function stopSessionWatch() {
+  function unsubscribeSessionWatch() {
     if (sessionWatchUnsub) {
       try {
         sessionWatchUnsub();
       } catch (e) {}
       sessionWatchUnsub = null;
     }
+  }
+
+  function stopSessionWatch() {
+    sessionRegisterGen += 1;
+    sessionRegistering = false;
+    unsubscribeSessionWatch();
     activeSessionId = "";
+    lastRegisteredUid = "";
   }
 
   function forceLogoutByRemoteSession() {
-    if (!auth || sessionKickInProgress) return;
+    if (!auth || sessionKickInProgress || sessionRegistering || window.__hanlawLoggingOut) return;
     sessionKickInProgress = true;
     stopSessionWatch();
     window.alert("다른 기기에서 로그인되어 현재 세션이 종료되었습니다.");
@@ -138,14 +148,53 @@
       });
   }
 
+  function attachSessionWatch(user, watchSession, registerGen) {
+    unsubscribeSessionWatch();
+    sessionWatchUnsub = firebase
+      .firestore()
+      .collection("hanlaw_user_sessions")
+      .doc(user.uid)
+      .onSnapshot(
+        function (snap) {
+          if (registerGen !== sessionRegisterGen) return;
+          if (sessionRegistering) return;
+          if (!snap || !snap.exists) return;
+          var d = snap.data() || {};
+          var live = String(d.activeSessionId || "").trim();
+          if (!live || !watchSession) return;
+          if (live === watchSession) return;
+          if (snap.metadata && snap.metadata.fromCache) return;
+          forceLogoutByRemoteSession();
+        },
+        function (err2) {
+          console.warn("session watch:", err2 && err2.message ? err2.message : err2);
+        }
+      );
+  }
+
   function registerAndWatchSession(user) {
     if (!user || user.isAnonymous || user === window.__hanlawMockUser) return;
     if (typeof firebase === "undefined" || !firebase.app || !firebase.functions || !firebase.firestore) return;
 
+    var uid = String(user.uid || "");
+    if (
+      uid &&
+      uid === lastRegisteredUid &&
+      activeSessionId &&
+      sessionWatchUnsub &&
+      !sessionRegistering
+    ) {
+      return;
+    }
+
     var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
     var fn = firebase.app().functions(region).httpsCallable("registerUserSession");
-    activeSessionId = "sess_" + randomId().slice(0, 48);
-    var mySession = activeSessionId;
+    var registerGen = ++sessionRegisterGen;
+    var mySession = "sess_" + randomId().slice(0, 48);
+    activeSessionId = mySession;
+    sessionRegistering = true;
+    unsubscribeSessionWatch();
+
     var payload = {
       sessionId: mySession,
       deviceId: getOrCreateDeviceId(),
@@ -153,35 +202,18 @@
     };
 
     fn(payload)
+      .then(function () {
+        if (registerGen !== sessionRegisterGen) return;
+        if (!auth || !auth.currentUser || auth.currentUser.uid !== uid) return;
+        sessionRegistering = false;
+        lastRegisteredUid = uid;
+        attachSessionWatch(user, mySession, registerGen);
+      })
       .catch(function (err) {
         console.warn("registerUserSession:", err && err.message ? err.message : err);
-      })
-      .then(function () {
-        if (!auth || !auth.currentUser || auth.currentUser.uid !== user.uid) return;
-        if (sessionWatchUnsub) {
-          try {
-            sessionWatchUnsub();
-          } catch (e) {}
-          sessionWatchUnsub = null;
+        if (registerGen === sessionRegisterGen) {
+          sessionRegistering = false;
         }
-        sessionWatchUnsub = firebase
-          .firestore()
-          .collection("hanlaw_user_sessions")
-          .doc(user.uid)
-          .onSnapshot(
-            function (snap) {
-              if (!snap || !snap.exists) return;
-              var d = snap.data() || {};
-              var live = String(d.activeSessionId || "").trim();
-              if (!live || !activeSessionId) return;
-              if (live !== activeSessionId) {
-                forceLogoutByRemoteSession();
-              }
-            },
-            function (err2) {
-              console.warn("session watch:", err2 && err2.message ? err2.message : err2);
-            }
-          );
       });
   }
 
@@ -263,6 +295,9 @@
     el.shell.hidden = false;
     el.userBar.hidden = false;
     updateFirebaseHeaderHint();
+    var uid = user && user.uid ? String(user.uid) : "";
+    var sameUserAlreadyLive =
+      uid && uid === lastRegisteredUid && activeSessionId && sessionWatchUnsub && !sessionRegistering;
     if (user) {
       el.userBar.classList.remove("user-bar--guest");
       el.userBar.classList.add("user-bar--logged");
@@ -271,11 +306,13 @@
       if (el.btnLogout) el.btnLogout.hidden = false;
       if (el.notifWrap) el.notifWrap.hidden = false;
     }
-    window.dispatchEvent(new CustomEvent("app-auth", { detail: { user: user } }));
-    if (user && typeof window.loadRemoteQuestions === "function") {
-      window.loadRemoteQuestions();
+    if (!sameUserAlreadyLive) {
+      window.dispatchEvent(new CustomEvent("app-auth", { detail: { user: user } }));
+      if (user && typeof window.loadRemoteQuestions === "function") {
+        window.loadRemoteQuestions();
+      }
+      registerAndWatchSession(user);
     }
-    registerAndWatchSession(user);
   }
 
   /** 익명 세션은 게스트 UI 유지, 실제 계정만 로그인 상태 표시 */

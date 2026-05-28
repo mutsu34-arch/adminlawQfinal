@@ -153,8 +153,18 @@
     );
   }
 
+  /** 선고일·판례 표기(1991. 9. 24.)가 문장 분리로 끊기지 않도록 보호 */
+  function protectHanlawDateSpacing(text) {
+    return String(text || "").replace(
+      /(\d{4})\.\s+(\d{1,2})\.\s+(\d{1,2})\./g,
+      function (_, y, m, d) {
+        return y + ".\u00a0" + m + ".\u00a0" + d + ".";
+      }
+    );
+  }
+
   function splitReadableSentences(text) {
-    var src = String(text || "").trim();
+    var src = protectHanlawDateSpacing(String(text || "").trim());
     if (!src) return [];
     if (/\n/.test(src)) {
       return src

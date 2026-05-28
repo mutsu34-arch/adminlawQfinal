@@ -150,7 +150,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // 회원 탈퇴 시 남기는 선택 피드백(Functions만 쓰기). 관리자만 읽기.
+    match /hanlaw_account_withdrawal_feedback/{docId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
     // 고객 문의 채팅(하단 채팅). 쓰기는 submitSupportChatMessage Callable만. 읽기는 본인 스레드 또는 익명 UUID 스레드.
+    // 공개 학습 콘텐츠 — 읽기만 허용(쓰기는 Functions adminSavePublicContentConfig)
+    match /hanlaw_public_content/published {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /hanlaw_support_chat/{threadId} {
       allow read: if isAdmin()
         || (request.auth != null && threadId == "user_" + request.auth.uid)

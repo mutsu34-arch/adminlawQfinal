@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>행정법Q 공개 퀴즈 36문항 (전체 해설)</title>
+  <meta
+    name="description"
+    content="행정법Q 공개 OX 퀴즈 36문항. 로그인 없이 기본·상세 해설(법리·함정·판례)을 모두 열람할 수 있습니다."
+  />
+  <link rel="canonical" href="https://adminlawq.ellution.co.kr/content/quiz-36.html" />
+  <link rel="stylesheet" href="/css/style.css?v=20260521-public-quiz" />
+  <link rel="stylesheet" href="/css/public-content.css?v=3" />
+  <style>
+    body.public-quiz-page {
+      margin: 0;
+    }
+    .public-quiz-wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+    }
+    .public-quiz-header {
+      margin-bottom: 16px;
+    }
+    .public-quiz-header h1 {
+      margin: 0 0 8px;
+      font-size: 1.45rem;
+    }
+    .public-quiz-header .lead {
+      margin: 0 0 12px;
+      color: var(--muted, #475569);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .public-quiz-header .back {
+      font-size: 0.9rem;
+    }
+    .public-quiz-badge {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1e40af;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .public-quiz-progress {
+      margin: 0 0 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .public-quiz-card {
+      margin-bottom: 12px;
+    }
+    .public-quiz-nav {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    #public-quiz-tags .feedback-tag {
+      margin: 0 6px 6px 0;
+    }
+    #public-quiz-error {
+      color: #b91c1c;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="public-quiz-page">
+  <main class="public-quiz-wrap">
+    <header class="public-quiz-header">
+      <p class="back"><a href="./index.html">← 공개 콘텐츠 목록</a></p>
+      <span class="public-quiz-badge">로그인 없이 전체 해설 공개</span>
+      <h1>행정법Q 공개 퀴즈 36문항</h1>
+      <p class="lead">
+        변호사가 직접 만든 핵심 OX 문항입니다. 정답 확인 후 <strong>기본 해설</strong>과
+        <strong>상세 해설(법리·함정·판례)</strong>을 비회원도 끝까지 볼 수 있습니다. 앱 전체
+        문항·기출 풀은 회원가입·유료 구독 후 이용하실 수 있습니다.
+      </p>
+    </header>
+
+    <p id="public-quiz-progress" class="public-quiz-progress" aria-live="polite">1 / 36</p>
+    <p id="public-quiz-error" hidden></p>
+
+    <div class="quiz-admin-edit-toolbar" id="public-quiz-admin-toolbar">
+      <button
+        type="button"
+        id="btn-public-quiz-admin-edit"
+        class="btn btn--small btn--outline btn--quiz-admin-edit"
+        hidden
+      >
+        관리자 수정
+      </button>
+    </div>
+
+    <article class="card card--question public-quiz-card">
+      <p id="public-quiz-source" class="q-source" hidden></p>
+      <p id="public-quiz-meta" class="q-meta"></p>
+      <p id="public-quiz-text" class="q-text"></p>
+      <div id="public-quiz-actions" class="q-actions">
+        <button type="button" class="btn btn--ox btn--o" data-answer="true" aria-label="참(O)">O</button>
+        <button type="button" class="btn btn--ox btn--x" data-answer="false" aria-label="거짓(X)">X</button>
+      </div>
+    </article>
+
+    <div id="public-quiz-feedback" class="feedback" hidden>
+      <p id="public-quiz-feedback-result" class="feedback__result"></p>
+      <p id="public-quiz-answer-key" class="feedback__kv"></p>
+      <p id="public-quiz-importance" class="feedback__kv feedback__kv--stars"></p>
+      <p id="public-quiz-difficulty" class="feedback__kv feedback__kv--stars"></p>
+      <p class="feedback__block-label">기본 해설</p>
+      <div id="public-quiz-explain" class="feedback__block-body"></div>
+      <p class="feedback__block-label">상세 해설</p>
+      <div id="public-quiz-detail" class="feedback-detail feedback__block-body"></div>
+      <div id="public-quiz-tags-section" class="feedback-tags-section">
+        <p class="feedback__block-label">태그</p>
+        <div id="public-quiz-tags" class="feedback__tags feedback__block-body"></div>
+      </div>
+      <div class="quiz-admin-edit-toolbar quiz-admin-edit-toolbar--feedback">
+        <button
+          type="button"
+          id="btn-public-quiz-admin-edit-feedback"
+          class="btn btn--small btn--outline btn--quiz-admin-edit btn--quiz-admin-edit--feedback"
+          hidden
+        >
+          관리자 수정
+        </button>
+      </div>
+    </div>
+
+    <div class="public-quiz-nav">
+      <button type="button" class="btn btn--outline" id="public-quiz-prev">이전</button>
+      <button type="button" class="btn btn--primary" id="public-quiz-next" disabled>다음 문항</button>
+    </div>
+
+    <aside class="public-content-cta">
+      더 많은 기출·예상문항과 AI 질문, 오답노트는
+      <a href="/" rel="noopener">행정법Q 앱</a>에서 이용하실 수 있습니다.
+    </aside>
+  </main>
+
+  <script src="/js/ai-answer-format.js"></script>
+  <script src="/js/questions.js"></script>
+  <script src="/js/public-question-ids.js"></script>
+  <script src="/js/public-question-enrichments.js"></script>
+  <script src="/js/public-question-merge.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js?v=20260514-test-account"></script>
+  <script src="/js/auth-bridge.js"></script>
+  <script src="/js/firestore-db.js?v=25"></script>
+  <script src="/js/quiz-admin-editor-standalone.js?v=3"></script>
+  <script src="/js/public-quiz-page.js?v=4"></script>
+</body>
+</html>

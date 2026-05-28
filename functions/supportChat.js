@@ -6,7 +6,13 @@ const { getStorage } = require("firebase-admin/storage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { uniqueGeminiModelCandidates } = require("./geminiModel");
-const { looksLikeRefundIntent, loadRefundEstimatesForUid, formatEstimatesForAi } = require("./refundEstimate");
+const { looksLikeRefundIntent } = require("./refundEstimate");
+
+const STUDY_REDIRECT_REPLY =
+  "고객님, 문의해 주셔서 감사합니다. 이 채팅은 앱 이용·결제·오류 등 운영 문의용이며, 행정법 학습 내용(개념·시험·판례·문항 해설 등)은 여기서 답변드리기 어렵습니다. 학습 질문은 앱의 「엘리(AI)에게 질문하기」를 이용해 주세요. 퀴즈·용어사전·조문·판례 화면 하단에서 질문하실 수 있으며, 엘리 질문권은 요금제·포인트 전환으로 이용하실 수 있습니다.";
+
+const ADMIN_HANDOFF_REPLY =
+  "고객님, 환불·해지·결제 관련 문의 내용은 관리자(운영팀)님께 전달해 드리겠습니다. 순서대로 확인 후 답변드리겠습니다. 급하시면 ellutionsoft@gmail.com 또는 070-7954-2912로 연락해 주셔도 됩니다. 결제일·상품명·가입 이메일을 함께 알려 주시면 처리가 빠릅니다.";
 
 const MAX_MSG = 2000;
 const ANON_PREFIX = "anon_";
@@ -165,18 +171,51 @@ function parseIncomingChatImages(raw) {
   return { buffers, contentTypes };
 }
 
+/** 행정법·시험 등 학습 질문 — 문의 채팅이 아닌 엘리(AI) 질문으로 유도 */
+function looksLikeStudyIntent(text) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (!s) return false;
+  if (/학습\s*질문|시험\s*질문|엘리.*질문|AI.*질문/.test(s)) return true;
+  if (/너한테\s*.*질문|여기서\s*.*질문\s*해도/.test(s) && /학습|시험|법률|행정|OX|판례|조문/.test(s)) {
+    return true;
+  }
+  const legalTopic =
+    /행정법|행정처분|행정소송|행정심판|재량|기속|법률유보|비례|신뢰보호|처분|소송|판례|조문|용어|OX|기출|해설|정답|무효|취소소송/.test(
+      s
+    );
+  const asksConcept =
+    /(?:이|가)\s*뭐|무엇|뜻|의미|구분|차이|맞나|틀리|설명|알려|인가요|일까|되나|되나요/.test(s);
+  if (legalTopic && asksConcept) return true;
+  if (/판례|조문사전|용어사전/.test(s) && asksConcept) return true;
+  return false;
+}
+
+/** 환불·해지·결제 취소 등 — 관리자 전달 안내(자동 산정·법률 해설 없음) */
+function looksLikeAdminHandoffIntent(text) {
+  if (looksLikeRefundIntent(text)) return true;
+  const s = String(text || "").toLowerCase();
+  return /해지|구독\s*취소|자동\s*결제\s*취소|정기\s*결제\s*취소|탈퇴|결제\s*취소|취소\s*하고|취소\s*해|취소\s*요청|unsubscribe|cancel/.test(
+    s
+  );
+}
+
+function resolveCannedAssistantReply(latestUserText) {
+  if (looksLikeAdminHandoffIntent(latestUserText)) return ADMIN_HANDOFF_REPLY;
+  if (looksLikeStudyIntent(latestUserText)) return STUDY_REDIRECT_REPLY;
+  return "";
+}
+
 async function generateSupportChatAssistantText(latestUserText, recentLines, extraContext) {
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) return "";
 
-  const isRefund = looksLikeRefundIntent(latestUserText);
   const systemInstruction = [
-    "당신은 한국어로 고객 응대를 돕는 '행정법Q' 학습 앱의 안내 도우미입니다.",
-    isRefund
-      ? "이번 메시지는 환불·환급 문의입니다. 아래 [환불 산정 참고]가 있으면 예상 환불액·산식·근거(1개월권 정가 일할, 위약금 10%)를 고객이 이해하기 쉽게 설명하세요. 최종 금액은 운영팀 확인 후 확정된다고 반드시 밝히세요."
-      : "사용자 질문에 2~5문장으로 짧고 정중하게 답합니다.",
-    "개별 사건의 법률 자문·시험 정답·판례 적부를 단정하지 마세요. 필요하면 전문가 상담·공식 자료를 이용하라고 안내하세요.",
-    "결제·환불·계정·앱 오류는 운영팀이 확인할 수 있다고 말하고, 급하면 ellutionsoft@gmail.com 또는 앱에 표시된 전화(070-7954-2912)를 안내해도 됩니다.",
+    "당신은 한국어로 고객 응대를 돕는 '행정법Q' 학습 앱의 운영 안내 도우미입니다.",
+    "사용자 질문에 2~5문장으로 짧고 정중하게 답합니다.",
+    "행정법·시험·판례·조문·문항 해설 등 학습·법률 내용 질문에는 답하지 말고, 앱의 「엘리(AI)에게 질문하기」를 이용하라고 안내하세요.",
+    "환불·해지·결제 취소·구독 해지 문의에는 내용을 관리자(운영팀)에게 전달해 확인·답변드리겠다고 말하세요. 예상 환불액을 임의로 계산·단정하지 마세요.",
+    "개별 사건의 법률 자문·시험 정답·판례 적부를 단정하지 마세요.",
+    "앱 오류·로그인·계정 문제는 운영팀이 확인할 수 있다고 말하고, 급하면 ellutionsoft@gmail.com 또는 070-7954-2912를 안내하세요.",
     "마크다운·목록 기호 없이 평문만 사용하세요."
   ].join("\n");
 
@@ -238,26 +277,10 @@ async function appendAssistantReplyIfPossible(threadId, latestUserText) {
     recentLines = "";
   }
 
-  let extraContext = "";
-  if (looksLikeRefundIntent(latestUserText)) {
-    try {
-      const threadSnap = await threadRef.get();
-      const tdata = threadSnap.exists ? threadSnap.data() || {} : {};
-      const uid = tdata.uid ? String(tdata.uid).trim() : "";
-      if (uid) {
-        const loaded = await loadRefundEstimatesForUid(uid, Date.now());
-        if (loaded.ok) extraContext = "[환불 산정 참고]\n" + loaded.aiContext;
-        else extraContext = "[환불 산정 참고]\n결제·회원 정보를 찾지 못했습니다. 결제일·금액·상품을 알려 주시면 운영팀이 산정합니다.";
-      } else {
-        extraContext =
-          "[환불 산정 참고]\n로그인 후 환불 요청 시 자동 산정이 가능합니다. 결제일·금액·이메일을 알려 주세요.";
-      }
-    } catch (e) {
-      console.warn("refund context for chat:", e && e.message ? e.message : e);
-    }
+  let aiText = resolveCannedAssistantReply(latestUserText);
+  if (!aiText) {
+    aiText = await generateSupportChatAssistantText(latestUserText, recentLines, "");
   }
-
-  const aiText = await generateSupportChatAssistantText(latestUserText, recentLines, extraContext);
   if (!aiText) return;
 
   const preview = aiText.length > 160 ? aiText.slice(0, 157) + "…" : aiText;

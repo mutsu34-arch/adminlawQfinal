@@ -313,7 +313,11 @@
       return;
     }
     var guest = isGuestViewer();
-    var cap = guest ? Math.min(items.length, dictGuestLimit()) : items.length;
+    var cap = opts.publicPreview
+      ? items.length
+      : guest
+        ? Math.min(items.length, dictGuestLimit())
+        : items.length;
     for (var i = 0; i < cap; i++) {
       var s = items[i];
       var article = document.createElement("article");
@@ -404,7 +408,7 @@
       if (!opts.skipNavBack) appendDictNavBack(article, "statute");
       container.appendChild(article);
     }
-    if (guest && items.length > cap) appendDictGuestLockNotice(container, "statute");
+    if (!opts.publicPreview && guest && items.length > cap) appendDictGuestLockNotice(container, "statute");
   }
 
   function runStatuteSearch() {
@@ -1008,12 +1012,68 @@
     el.classList.toggle("admin-msg--error", !!isError);
   }
 
+  function setDictEditModalContext(modalId, context) {
+    var m = $(modalId);
+    if (!m) return;
+    if (context === "public") m.dataset.editContext = "public";
+    else delete m.dataset.editContext;
+  }
+
+  function isPublicEditContext(modalId) {
+    var m = $(modalId);
+    return !!(m && m.dataset.editContext === "public");
+  }
+
+  function refreshPublicContentAfterSave() {
+    var panel = document.getElementById("panel-public");
+    if (!panel || panel.hidden) return;
+    var kind = panel.getAttribute("data-public-tab");
+    if (!kind || kind === "hub") return;
+    if (window.HanlawPublicContentUI && typeof window.HanlawPublicContentUI.setPanelTab === "function") {
+      window.HanlawPublicContentUI.setPanelTab(kind);
+    }
+  }
+
+  function handleAdminDictEditClick(el, opts) {
+    opts = opts || {};
+    if (!el || !isAdminUser()) return false;
+    if (handleAdminDictDeleteClick(el)) return true;
+    var bc = el.closest("[data-admin-edit-case]");
+    if (bc && bc._case) {
+      if (typeof window.saveCaseEntryToFirestore !== "function") {
+        window.alert("저장 함수를 찾지 못했습니다.");
+        return true;
+      }
+      openDictCaseEditModal(bc._case);
+      if (opts.publicContent) setDictEditModalContext("dict-case-edit-modal", "public");
+      return true;
+    }
+    var bt = el.closest("[data-admin-edit-term]");
+    if (bt && bt._term) {
+      openDictTermEditModal(bt._term);
+      if (opts.publicContent) setDictEditModalContext("dict-term-edit-modal", "public");
+      return true;
+    }
+    var bs = el.closest("[data-admin-edit-statute]");
+    if (bs && bs._statute) {
+      if (typeof window.saveStatuteEntryToFirestore !== "function") {
+        window.alert("저장 함수를 찾지 못했습니다.");
+        return true;
+      }
+      openDictStatuteEditModal(bs._statute);
+      if (opts.publicContent) setDictEditModalContext("dict-statute-edit-modal", "public");
+      return true;
+    }
+    return false;
+  }
+
   function closeDictTermEditModal() {
     var m = $("dict-term-edit-modal");
     if (!m) return;
     m.hidden = true;
     m.setAttribute("aria-hidden", "true");
     delete m.dataset.docId;
+    delete m.dataset.editContext;
     delete m._hanlawEditTerm;
     setDictTermEditMsg("", false);
   }
@@ -1071,6 +1131,8 @@
     m.hidden = true;
     m.setAttribute("aria-hidden", "true");
     delete m.dataset.docId;
+    delete m.dataset.editContext;
+    delete m._hanlawEditCase;
     setDictCaseEditMsg("", false);
   }
 
@@ -1100,6 +1162,7 @@
     setVal("dict-case-edit-jis-srno", c.jisCntntsSrno || "");
     setVal("dict-case-edit-scourt-url", c.scourtPortalUrl || "");
     m._oxQuizzes = Array.isArray(c.oxQuizzes) ? c.oxQuizzes.slice(0, 5) : [];
+    m._hanlawEditCase = c;
     m.dataset.docId = c._docId ? String(c._docId) : "";
     setDictCaseEditMsg("", false);
     var delCase = $("dict-case-edit-delete");
@@ -1301,8 +1364,11 @@
             docId
           )
           .then(function () {
+          })
+          .then(function () {
             closeDictCaseEditModal();
             runCaseSearch();
+            refreshPublicContentAfterSave();
           })
           .catch(function (err) {
             setDictCaseEditMsg((err && err.message) || "판례 수정에 실패했습니다.", true);
@@ -2199,8 +2265,11 @@
             if (typeof window.refreshTagDictionaryModal === "function") {
               window.refreshTagDictionaryModal();
             }
+          })
+          .then(function () {
             closeDictTermEditModal();
             runTermSearch();
+            refreshPublicContentAfterSave();
           })
           .catch(function (err) {
             setDictTermEditMsg((err && err.message) || "용어 수정에 실패했습니다.", true);
@@ -2389,6 +2458,7 @@
     m.setAttribute("aria-hidden", "true");
     delete m.dataset.docId;
     delete m.dataset.statuteKey;
+    delete m.dataset.editContext;
     setDictStatuteEditMsg("", false);
   }
 
@@ -2495,8 +2565,11 @@
             docId
           )
           .then(function () {
+          })
+          .then(function () {
             closeDictStatuteEditModal();
             runStatuteSearch();
+            refreshPublicContentAfterSave();
           })
           .catch(function (err) {
             setDictStatuteEditMsg((err && err.message) || "조문 수정에 실패했습니다.", true);
@@ -2785,7 +2858,11 @@
       return;
     }
     var guest = isGuestViewer();
-    var cap = guest ? Math.min(items.length, dictGuestLimit()) : items.length;
+    var cap = opts.publicPreview
+      ? items.length
+      : guest
+        ? Math.min(items.length, dictGuestLimit())
+        : items.length;
     for (var i = 0; i < cap; i++) {
       var t = items[i];
       var article = document.createElement("article");
@@ -2863,7 +2940,7 @@
       if (!opts.skipNavBack) appendDictNavBack(article, "term");
       container.appendChild(article);
     }
-    if (guest && items.length > cap) appendDictGuestLockNotice(container, "term");
+    if (!opts.publicPreview && guest && items.length > cap) appendDictGuestLockNotice(container, "term");
   }
 
   /** 판례 카드: 관리자 입력 판결문 전문 토글 */
@@ -3127,7 +3204,11 @@
       return;
     }
     var guest = isGuestViewer();
-    var cap = guest ? Math.min(items.length, dictGuestLimit()) : items.length;
+    var cap = opts.publicPreview
+      ? items.length
+      : guest
+        ? Math.min(items.length, dictGuestLimit())
+        : items.length;
     for (var i = 0; i < cap; i++) {
       var c = items[i];
       var article = document.createElement("article");
@@ -3256,7 +3337,7 @@
       if (!opts.skipNavBack) appendDictNavBack(article, backKind);
       container.appendChild(article);
     }
-    if (guest && items.length > cap) appendDictGuestLockNotice(container, "case");
+    if (!opts.publicPreview && guest && items.length > cap) appendDictGuestLockNotice(container, "case");
   }
 
   function hideDictTermLoading() {
@@ -3531,40 +3612,14 @@
       outT.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
-        if (handleAdminDictDeleteClick(el)) return;
-        var bc = el.closest("[data-admin-edit-case]");
-        if (bc && bc._case) {
-          if (typeof window.saveCaseEntryToFirestore !== "function") {
-            window.alert("저장 함수를 찾지 못했습니다.");
-            return;
-          }
-          openDictCaseEditModal(bc._case);
-          return;
-        }
-        var bt = el.closest("[data-admin-edit-term]");
-        if (bt && bt._term) {
-          openDictTermEditModal(bt._term);
-        }
+        if (handleAdminDictEditClick(el)) return;
       });
     }
 
     document.body.addEventListener("click", function (e) {
       var el = eventTargetElement(e);
       if (!el || !el.closest("#tag-dict-modal")) return;
-      if (handleAdminDictDeleteClick(el)) return;
-      var bc = el.closest("[data-admin-edit-case]");
-      if (bc && bc._case) {
-        if (typeof window.saveCaseEntryToFirestore !== "function") {
-          window.alert("저장 함수를 찾지 못했습니다.");
-          return;
-        }
-        openDictCaseEditModal(bc._case);
-        return;
-      }
-      var bt = el.closest("[data-admin-edit-term]");
-      if (bt && bt._term) {
-        openDictTermEditModal(bt._term);
-      }
+      handleAdminDictEditClick(el);
     });
 
     var btnC = $("case-search-btn");
@@ -3574,16 +3629,7 @@
       outC.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
-        if (handleAdminDictDeleteClick(el)) return;
-        var bc = el.closest("[data-admin-edit-case]");
-        if (bc && bc._case) {
-          if (typeof window.saveCaseEntryToFirestore !== "function") {
-            window.alert("저장 함수를 찾지 못했습니다.");
-            return;
-          }
-          openDictCaseEditModal(bc._case);
-          return;
-        }
+        if (handleAdminDictEditClick(el)) return;
         var pick = el.closest("[data-case-citation]");
         if (pick && pick.dataset.caseCitation) {
           inpC.value = pick.dataset.caseCitation;
@@ -3611,16 +3657,7 @@
       outS.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
-        if (handleAdminDictDeleteClick(el)) return;
-        var bs = el.closest("[data-admin-edit-statute]");
-        if (bs && bs._statute) {
-          if (typeof window.saveStatuteEntryToFirestore !== "function") {
-            window.alert("저장 함수를 찾지 못했습니다.");
-            return;
-          }
-          openDictStatuteEditModal(bs._statute);
-          return;
-        }
+        if (handleAdminDictEditClick(el)) return;
         var pick = el.closest("[data-statute-key]");
         if (!pick || !pick.getAttribute("data-statute-key")) return;
         var key = pick.getAttribute("data-statute-key");
@@ -3644,29 +3681,16 @@
       panelFav.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
-        if (handleAdminDictDeleteClick(el)) return;
-        var bc = el.closest("[data-admin-edit-case]");
-        if (bc && bc._case) {
-          if (typeof window.saveCaseEntryToFirestore !== "function") {
-            window.alert("저장 함수를 찾지 못했습니다.");
-            return;
-          }
-          openDictCaseEditModal(bc._case);
-          return;
-        }
-        var bt = el.closest("[data-admin-edit-term]");
-        if (bt && bt._term) {
-          openDictTermEditModal(bt._term);
-          return;
-        }
-        var bs = el.closest("[data-admin-edit-statute]");
-        if (bs && bs._statute) {
-          if (typeof window.saveStatuteEntryToFirestore !== "function") {
-            window.alert("저장 함수를 찾지 못했습니다.");
-            return;
-          }
-          openDictStatuteEditModal(bs._statute);
-        }
+        handleAdminDictEditClick(el);
+      });
+    }
+
+    var pubRoot = document.getElementById("public-content-root");
+    if (pubRoot) {
+      pubRoot.addEventListener("click", function (e) {
+        var el = eventTargetElement(e);
+        if (!el) return;
+        handleAdminDictEditClick(el, { publicContent: true });
       });
     }
 
@@ -3779,6 +3803,7 @@
       if (pDict && !pDict.hidden) runTermSearch();
       if (pStat && !pStat.hidden) runStatuteSearch();
       if (pCase && !pCase.hidden) runCaseSearch();
+      refreshPublicContentAfterSave();
     }
   };
 

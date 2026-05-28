@@ -13,7 +13,8 @@
     pricing: "/pricing",
     dashboard: "/dashboard",
     settings: "/settings",
-    admin: "/admin"
+    admin: "/admin",
+    public: "/public"
   };
 
   function $(id) {
@@ -64,7 +65,8 @@
       panelId !== "qa" &&
       panelId !== "dict" &&
       panelId !== "statutes" &&
-      panelId !== "cases"
+      panelId !== "cases" &&
+      panelId !== "public"
     ) {
       return false;
     }
@@ -117,6 +119,10 @@
       window.DictionaryUI.resetCasePanelToRoot();
       return;
     }
+    if (panelId === "public" && window.HanlawPublicContentUI && typeof window.HanlawPublicContentUI.initPanel === "function") {
+      window.HanlawPublicContentUI.initPanel();
+      return;
+    }
     if (panelId === "qa" && typeof window.refreshHanlawPublicQa === "function") {
       window.refreshHanlawPublicQa();
       return;
@@ -155,6 +161,10 @@
       b.classList.toggle("nav-main__btn--active", pid === panelId);
       b.setAttribute("aria-current", pid === panelId ? "page" : "false");
     });
+    var pubToggle = document.getElementById("nav-btn-public-toggle");
+    if (pubToggle) {
+      pubToggle.classList.toggle("nav-main__btn--active", panelId === "public");
+    }
     closeSidebar();
     if (panelId === "settings" && typeof window.refreshHanlawNicknameFormState === "function") {
       window.refreshHanlawNicknameFormState();

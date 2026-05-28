@@ -9464,3 +9464,56 @@ html[data-theme="light"] .quiz-nav-side:hover:not(:disabled):not([hidden]) {
   margin: 0;
   font-weight: 600;
 }
+
+.settings-block--withdrawal {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--danger, #dc2626) 25%, var(--border));
+}
+
+.settings-withdrawal-btn {
+  color: var(--danger, #f87171);
+  border-color: color-mix(in srgb, var(--danger, #dc2626) 45%, var(--border));
+}
+
+.settings-withdrawal-btn:hover {
+  background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent);
+}
+
+.account-withdrawal-modal__panel {
+  max-width: min(28rem, 94vw);
+}
+
+.account-withdrawal-body {
+  margin: 0 0 1rem;
+}
+
+.account-withdrawal-lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.account-withdrawal-lead--muted {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.account-withdrawal-check {
+  margin: 0.75rem 0 1rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+}
+
+.account-withdrawal-actions {
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.btn.account-withdrawal-submit {
+  color: var(--danger, #fca5a5);
+  border-color: color-mix(in srgb, var(--danger, #dc2626) 50%, var(--border));
+}
