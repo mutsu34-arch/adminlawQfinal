@@ -1,6 +1,7 @@
 (function () {
   var profileUnsub = null;
   var lastProfileUid = null;
+  var IDENTITY_PENDING_KEY = "hanlaw_identity_pending";
 
   function gateEl() {
     return document.getElementById("screen-identity-gate");
@@ -121,11 +122,140 @@
   }
 
   function userFacingError(e) {
-    if (e && e.message) return String(e.message);
-    return "본인인증에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+    var msg = e && e.message ? String(e.message) : "";
+    if (!msg) return "본인인증에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+    if (/본인인증 채널|조건을 만족하는|ALL_CHANNELS|CHANNEL_NOT/i.test(msg)) {
+      return (
+        msg +
+        " PortOne 채널 관리에서 채널 속성이 「본인인증」인 다날 채널 키를 사용 중인지 확인해 주세요. (결제용 채널 키는 사용할 수 없습니다.)"
+      );
+    }
+    return msg;
   }
 
-  function openPortOneIdentity(portone) {
+  function isIdentityRedirectPreferred() {
+    try {
+      var ua = String(navigator.userAgent || "");
+      if (/Android|iPhone|iPad|iPod|Mobile|KAKAOTALK|NAVER|Line/i.test(ua)) return true;
+      if (window.matchMedia && window.matchMedia("(max-width: 768px)").matches) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function buildIdentityRedirectUrl() {
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.set("hanlaw_identity_return", "1");
+      u.hash = "";
+      return u.toString();
+    } catch (e2) {
+      return String(window.location.origin || "") + "/";
+    }
+  }
+
+  function stashIdentityPending(challengeId, identityVerificationId) {
+    try {
+      sessionStorage.setItem(
+        IDENTITY_PENDING_KEY,
+        JSON.stringify({
+          challengeId: String(challengeId || "").trim(),
+          identityVerificationId: String(identityVerificationId || "").trim(),
+          ts: Date.now()
+        })
+      );
+    } catch (e) {}
+  }
+
+  function readIdentityPending() {
+    try {
+      var raw = sessionStorage.getItem(IDENTITY_PENDING_KEY);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || !o.challengeId) return null;
+      if (o.ts && Date.now() - o.ts > 20 * 60 * 1000) return null;
+      return o;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearIdentityPending() {
+    try {
+      sessionStorage.removeItem(IDENTITY_PENDING_KEY);
+    } catch (e) {}
+  }
+
+  function cleanupIdentityReturnParams() {
+    try {
+      var u = new URL(window.location.href);
+      ["hanlaw_identity_return", "identityVerificationId", "code", "message", "pgCode"].forEach(
+        function (k) {
+          u.searchParams.delete(k);
+        }
+      );
+      window.history.replaceState({}, document.title, u.pathname + (u.search ? u.search : ""));
+    } catch (e) {}
+    clearIdentityPending();
+  }
+
+  function tryHandleIdentityRedirectReturn() {
+    var u;
+    try {
+      u = new URL(window.location.href);
+    } catch (e) {
+      return Promise.resolve(false);
+    }
+    if (u.searchParams.get("hanlaw_identity_return") !== "1") return Promise.resolve(false);
+
+    var pending = readIdentityPending();
+    var errCode = u.searchParams.get("code");
+    var errMsg = u.searchParams.get("message");
+    if (errCode) {
+      cleanupIdentityReturnParams();
+      showGateBlocking();
+      setGateMsg(userFacingError({ message: errMsg || errCode }), true);
+      return Promise.resolve(true);
+    }
+
+    var ivId = String(u.searchParams.get("identityVerificationId") || "").trim();
+    if (!ivId && pending) ivId = pending.identityVerificationId;
+    if (!pending || !pending.challengeId || !ivId) {
+      cleanupIdentityReturnParams();
+      showGateBlocking();
+      setGateMsg("본인인증 결과를 확인하지 못했습니다. 다시 시도해 주세요.", true);
+      return Promise.resolve(true);
+    }
+
+    showGateBlocking();
+    setGateLoading(true);
+    setGateMsg("본인인증 결과를 확인하는 중…", false);
+    return callFinish(pending.challengeId, ivId)
+      .then(function () {
+        setGateMsg("본인인증이 완료되었습니다.", false);
+      })
+      .catch(function (e) {
+        setGateMsg(userFacingError(e), true);
+      })
+      .then(function () {
+        setGateLoading(false);
+        cleanupIdentityReturnParams();
+      })
+      .then(function () {
+        return true;
+      });
+  }
+
+  function openPortOneIdentity(portone, challengeId) {
+    if (!portone || !portone.storeId || !portone.identityVerificationId) {
+      return Promise.reject(new Error("본인인증을 시작할 수 없습니다."));
+    }
+    if (!portone.channelKey) {
+      return Promise.reject(
+        new Error(
+          "본인인증 채널 키가 설정되지 않았습니다. PortOne에서 채널 속성 「본인인증」 다날 채널을 추가했는지 확인해 주세요."
+        )
+      );
+    }
     return loadPortOneSdk().then(function (PortOne) {
       if (!PortOne || typeof PortOne.requestIdentityVerification !== "function") {
         throw new Error("본인인증 창을 열 수 없습니다. 잠시 후 다시 시도해 주세요.");
@@ -143,7 +273,15 @@
       if (user && user.uid) {
         payload.customer = { customerId: String(user.uid).slice(0, 20) };
       }
+      var useRedirect = isIdentityRedirectPreferred();
+      if (useRedirect) {
+        stashIdentityPending(challengeId, portone.identityVerificationId);
+        payload.redirectUrl = buildIdentityRedirectUrl();
+      }
       return PortOne.requestIdentityVerification(payload).then(function (rsp) {
+        if (useRedirect) {
+          return { redirect: true };
+        }
         if (rsp && rsp.code != null) {
           throw new Error(String(rsp.message || rsp.code || "본인인증이 취소되었습니다."));
         }
@@ -168,7 +306,15 @@
       }
 
       if (d.portone && d.portone.storeId && d.portone.identityVerificationId) {
-        return openPortOneIdentity(d.portone).then(function (ivId) {
+        if (!d.portone.channelKey) {
+          throw new Error(
+            "본인인증 채널 키가 서버에 설정되지 않았습니다. functions/.env 의 PORTONE_CHANNEL_KEY_DANAL_IDENTITY 를 확인한 뒤 Functions를 재배포해 주세요."
+          );
+        }
+        return openPortOneIdentity(d.portone, challengeId).then(function (ivId) {
+          if (ivId && typeof ivId === "object" && ivId.redirect) {
+            return { pendingRedirect: true };
+          }
           return callFinish(challengeId, ivId || d.portone.identityVerificationId).then(function (r2) {
             return (r2 && r2.data) || {};
           });
@@ -276,7 +422,11 @@
     setGateMsg("");
     setGateLoading(true);
     runIdentityChain("onboarding", null)
-      .then(function () {
+      .then(function (data) {
+        if (data && data.pendingRedirect) {
+          setGateMsg("본인인증 페이지로 이동합니다…", false);
+          return;
+        }
         setGateMsg("본인인증이 완료되었습니다.", false);
       })
       .catch(function (e) {
@@ -374,19 +524,44 @@
     if (b3) b3.addEventListener("click", onSettingsIdentityRefresh);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", bindGate);
-  } else {
+  function initIdentityModule() {
     bindGate();
-  }
-
-  try {
-    if (typeof firebase !== "undefined" && firebase.auth) {
-      firebase.auth().onAuthStateChanged(function (user) {
-        subscribeIdentityProfile(user);
+    function afterAuthReady() {
+      tryHandleIdentityRedirectReturn().then(function (handled) {
+        if (handled) return;
+        var u = firebase.auth().currentUser;
+        if (u) subscribeIdentityProfile(u);
       });
     }
-  } catch (e) {}
+    if (typeof firebase !== "undefined" && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function (user) {
+        if (!user || skipGateUser(user)) {
+          subscribeIdentityProfile(user);
+          return;
+        }
+        var u;
+        try {
+          u = new URL(window.location.href);
+        } catch (e) {
+          subscribeIdentityProfile(user);
+          return;
+        }
+        if (u.searchParams.get("hanlaw_identity_return") === "1") {
+          afterAuthReady();
+          return;
+        }
+        subscribeIdentityProfile(user);
+      });
+      return;
+    }
+    afterAuthReady();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initIdentityModule);
+  } else {
+    initIdentityModule();
+  }
 
   window.addEventListener("app-auth", function (ev) {
     var u = ev.detail && ev.detail.user;
