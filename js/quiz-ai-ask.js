@@ -538,7 +538,7 @@
   /** 패널을 펼칠 때만: 로그인·질문권 없으면 false (모달/알림 처리됨) */
   function guardEllyPanelOpen() {
     if (!isRealFirebaseUser()) {
-      window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
+      window.alert("엘리에게 질문하기는 질문권을 보유한 회원만 이용 가능합니다.");
       return false;
     }
     if (!hasEllyAccess()) {
@@ -560,7 +560,7 @@
 
   function sendAsk() {
     if (!isRealFirebaseUser()) {
-      window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
+      window.alert("엘리에게 질문하기는 질문권을 보유한 회원만 이용 가능합니다.");
       return;
     }
     if (!hasEllyAccess()) {
@@ -649,7 +649,7 @@
 
   function sendFromNoteArticle(article) {
     if (!isRealFirebaseUser()) {
-      window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
+      window.alert("엘리에게 질문하기는 질문권을 보유한 회원만 이용 가능합니다.");
       return;
     }
     if (!hasEllyAccess()) {
@@ -792,7 +792,7 @@
 
   function sendDictionaryPanelAsk(kind) {
     if (!isRealFirebaseUser()) {
-      window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
+      window.alert("엘리에게 질문하기는 질문권을 보유한 회원만 이용 가능합니다.");
       return;
     }
     if (!hasEllyAccess()) {
