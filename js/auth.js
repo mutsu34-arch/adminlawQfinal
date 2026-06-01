@@ -363,6 +363,9 @@
     if (el.notifWrap) el.notifWrap.hidden = true;
     updateFirebaseHeaderHint();
     dispatchGuestAuthEvent();
+    if (typeof window.loadGuestQuestions === "function") {
+      window.loadGuestQuestions();
+    }
   }
 
   function setLoading(on) {

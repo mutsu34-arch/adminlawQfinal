@@ -95,7 +95,9 @@ const {
   adminSavePublicContentConfig,
   adminResetPublicContentConfig
 } = require("./publicContentAdmin");
+const { getGuestQuestionBank } = require("./guestQuestionBank");
 exports.getPublicContentConfig = getPublicContentConfig;
+exports.getGuestQuestionBank = getGuestQuestionBank;
 exports.adminGetPublicContentConfig = adminGetPublicContentConfig;
 exports.adminSavePublicContentConfig = adminSavePublicContentConfig;
 exports.adminResetPublicContentConfig = adminResetPublicContentConfig;

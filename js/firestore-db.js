@@ -124,6 +124,37 @@
     return normalizeDocId(raw, "term");
   };
 
+  var GUEST_STRIP_KEYS = [
+    "explanation",
+    "explanationBasic",
+    "detail",
+    "tags",
+    "explainVerBasic",
+    "explainVerDetail"
+  ];
+
+  function stripGuestExplainFields(q) {
+    if (!q || typeof q !== "object") return q;
+    var o = {};
+    Object.keys(q).forEach(function (k) {
+      if (GUEST_STRIP_KEYS.indexOf(k) >= 0) return;
+      o[k] = q[k];
+    });
+    return o;
+  }
+
+  function stripGuestExplainFromBank() {
+    var bank = window.QUESTION_BANK || [];
+    window.QUESTION_BANK = bank.map(stripGuestExplainFields);
+    if (typeof window.refreshExamCatalogFromQuestionBank === "function") {
+      window.refreshExamCatalogFromQuestionBank();
+    }
+    if (typeof window.revalidateStudyScopeAgainstCatalog === "function") {
+      window.revalidateStudyScopeAgainstCatalog();
+    }
+    window.dispatchEvent(new CustomEvent("question-bank-updated"));
+  }
+
   window.loadRemoteQuestions = function () {
     var db = getDb();
     if (!db) {
@@ -142,6 +173,30 @@
         console.warn("Firestore 문항 로드 실패:", err);
         // 저장 직후 재조회 실패 시 원격 캐시를 비우면 방금 반영한 수정이 사라짐 → 기존 REMOTE 유지
         mergeBanks();
+      });
+  };
+
+  /** 비회원: Cloud Function으로 전체 문항(정답만, 해설 제외) 로드 */
+  window.loadGuestQuestions = function () {
+    if (typeof firebase === "undefined" || !firebase.app) {
+      window.QUESTION_BANK_REMOTE = [];
+      mergeBanks();
+      stripGuestExplainFromBank();
+      return Promise.resolve();
+    }
+    var region = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.functionsRegion) || "asia-northeast3";
+    var fn = firebase.app().functions(region).httpsCallable("getGuestQuestionBank");
+    return fn({})
+      .then(function (res) {
+        var list = res && res.data && Array.isArray(res.data.questions) ? res.data.questions : [];
+        window.QUESTION_BANK_REMOTE = list.map(stripGuestExplainFields);
+        mergeBanks();
+        stripGuestExplainFromBank();
+      })
+      .catch(function (err) {
+        console.warn("게스트 문항 로드 실패:", err);
+        mergeBanks();
+        stripGuestExplainFromBank();
       });
   };
 

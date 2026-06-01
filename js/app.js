@@ -1457,21 +1457,6 @@
     revealOpts = revealOpts || {};
     var timeout = revealOpts.timeout === true;
     if (!container) return;
-    /** 비회원: 내 선택이 맞았는지만 표시(정답 O/X는 강조하지 않음) */
-    if (!isViewerLoggedIn()) {
-      container.classList.add("q-actions--revealed");
-      container.querySelectorAll(".btn--ox").forEach(function (b) {
-        var isTrue = oxButtonIsTrue(b);
-        b.classList.remove("btn--ox-reveal-correct", "btn--ox-reveal-wrong", "btn--ox-reveal-dim");
-        var isUserBtn = isTrue === userTrue;
-        if (!timeout && isUserBtn) {
-          b.classList.add(userTrue === correctTrue ? "btn--ox-reveal-correct" : "btn--ox-reveal-wrong");
-        } else {
-          b.classList.add("btn--ox-reveal-dim");
-        }
-      });
-      return;
-    }
     container.classList.add("q-actions--revealed");
     container.querySelectorAll(".btn--ox").forEach(function (b) {
       var isTrue = oxButtonIsTrue(b);
@@ -1587,19 +1572,19 @@
       if (hintEl) {
         hintEl.hidden = false;
         hintEl.textContent =
-          "비회원은 정답·오답 여부만 확인할 수 있습니다. 로그인하면 기본 해설을, 유료 구독 시 상세 해설(법리·함정·판례)을 볼 수 있습니다.";
+          "비회원은 정답 O/X를 확인할 수 있습니다. 로그인하면 기본 해설을, 유료 구독 시 상세 해설(법리·함정·판례)을 볼 수 있습니다.";
       }
       if (parts.answerKey) {
-        parts.answerKey.textContent = "";
-        parts.answerKey.hidden = true;
+        parts.answerKey.textContent = "정답: " + formatOx(q.answer);
+        parts.answerKey.hidden = false;
       }
       if (parts.importanceLine) {
-        parts.importanceLine.hidden = true;
-        parts.importanceLine.textContent = "";
+        parts.importanceLine.hidden = false;
+        setImportanceLine(parts.importanceLine, q);
       }
       if (parts.difficultyLine) {
-        parts.difficultyLine.hidden = true;
-        parts.difficultyLine.textContent = "";
+        parts.difficultyLine.hidden = false;
+        setDifficultyLine(parts.difficultyLine, q);
       }
       if (parts.explain) {
         parts.explain.classList.remove("quiz-ai-answer");
@@ -2268,7 +2253,7 @@
       if (!isViewerLoggedIn() && !isAdsenseOpenMode()) {
         el.quizGuestHintTop.hidden = false;
         el.quizGuestHintTop.textContent =
-          "비회원은 정답·오답만 확인할 수 있습니다. 로그인 시 기본 해설, 유료 구독 시 상세 해설을 이용할 수 있습니다.";
+          "비회원은 정답 O/X를 확인할 수 있습니다. 로그인 시 기본 해설, 유료 구독 시 상세 해설을 이용할 수 있습니다.";
       } else {
         el.quizGuestHintTop.hidden = true;
         el.quizGuestHintTop.textContent = "";
