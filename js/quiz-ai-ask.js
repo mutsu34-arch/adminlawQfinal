@@ -167,7 +167,14 @@
     }
     var paidOk = typeof window.isPaidMember === "function" && window.isPaidMember();
     if (!paidOk) {
-      return "엘리(AI) 질문은 유료 구독 회원에 한해 이용할 수 있습니다.";
+      if (lastEllyCredits > 0) {
+        return (
+          "현재 보유한 엘리(AI) 질문권은 " +
+          lastEllyCredits +
+          "건입니다. 질문을 보내면 질문권이 차감됩니다. 아래에 질문을 입력한 뒤 「질문 보내기」를 눌러 주세요."
+        );
+      }
+      return "무료회원은 엘리(AI) 질문권(구매·포인트 전환)으로 이용할 수 있습니다. 질문권을 준비한 뒤 이용해 주세요.";
     }
     var nick = pickDisplayNickname();
     if (hasEllyUnlimited()) {
@@ -260,15 +267,20 @@
     bindEllyLimitModalOnce();
     var modal = document.getElementById("quiz-ai-limit-modal");
     if (!modal) {
+      var paidOk = typeof window.isPaidMember === "function" && window.isPaidMember();
       window.alert(
-        "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 포인트로 엘리 질문권을 전환해 주세요(대시보드 > 포인트 전환). 상위 구독 플랜은 요금제 탭에서 확인할 수 있습니다."
+        paidOk
+          ? "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 포인트로 엘리 질문권을 전환해 주세요(대시보드 > 포인트 전환). 상위 구독 플랜은 요금제 탭에서 확인할 수 있습니다."
+          : "보유한 엘리(AI) 질문권이 없습니다. 요금제에서 질문권을 구매하거나, 대시보드에서 포인트를 질문권으로 전환해 주세요."
       );
       return;
     }
     var body = document.getElementById("quiz-ai-limit-modal-body");
     if (body) {
-      body.textContent =
-        "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 포인트로 엘리 질문권을 전환할 수 있습니다(대시보드 > 포인트 전환). 더 높은 일일 한도가 필요하면 요금제에서 상위 플랜을 확인해 주세요.";
+      var paidOk2 = typeof window.isPaidMember === "function" && window.isPaidMember();
+      body.textContent = paidOk2
+        ? "오늘의 엘리(AI) 질문 한도를 모두 썼습니다. 내일 다시 시도하거나, 포인트로 엘리 질문권을 전환할 수 있습니다(대시보드 > 포인트 전환). 더 높은 일일 한도가 필요하면 요금제에서 상위 플랜을 확인해 주세요."
+        : "보유한 엘리(AI) 질문권이 없습니다. 요금제에서 질문권을 구매하거나, 대시보드에서 포인트를 질문권으로 전환한 뒤 다시 이용해 주세요.";
       body.style.whiteSpace = "pre-line";
     }
     modal.hidden = false;
@@ -389,9 +401,8 @@
   }
 
   function updateRemainTexts() {
-    var paidOk = typeof window.isPaidMember === "function" && window.isPaidMember();
-    /** 한도 소진 시에도 버튼으로 안내 모달을 띄우기 위해, 유료·로그인만으로 활성화 */
-    var disSend = !paidOk || !isRealFirebaseUser();
+    /** 한도 소진 시에도 버튼으로 안내 모달을 띄우기 위해, 로그인 상태면 버튼 활성화 */
+    var disSend = !isRealFirebaseUser();
     var s1 = document.getElementById(IDS.send);
     if (s1 && !s1.dataset.aiSending) s1.disabled = disSend;
     document.querySelectorAll(".note-quiz-chrome__ai-send").forEach(function (bs) {
@@ -538,10 +549,6 @@
   }
 
   function togglePanel() {
-    if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
-      return;
-    }
     var p = document.getElementById(IDS.panel);
     var btn = document.getElementById(IDS.toggle);
     if (!p) return;
@@ -552,10 +559,6 @@
   }
 
   function sendAsk() {
-    if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
-      return;
-    }
     if (!isRealFirebaseUser()) {
       window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
       return;
@@ -645,10 +648,6 @@
   }
 
   function sendFromNoteArticle(article) {
-    if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
-      return;
-    }
     if (!isRealFirebaseUser()) {
       window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
       return;
@@ -792,10 +791,6 @@
   }
 
   function sendDictionaryPanelAsk(kind) {
-    if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
-      return;
-    }
     if (!isRealFirebaseUser()) {
       window.alert("실제 계정으로 로그인한 뒤 이용해 주세요.");
       return;
@@ -890,10 +885,6 @@
   }
 
   function toggleDictionaryAiPanel(kind) {
-    if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-      window.alert(HANLAW_ELLIE_AI_LABEL + "는 유료 구독 회원에 한해 이용할 수 있습니다.");
-      return;
-    }
     var pre = dictionaryEliPrefix(kind);
     if (!pre) return;
     var p = document.getElementById(pre + "-panel");
