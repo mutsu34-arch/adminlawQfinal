@@ -1,8 +1,6 @@
 (function () {
   var COLL = "hanlaw_qa_public";
   var unsub = null;
-  var QA_GUEST_USAGE_KEY = "hanlaw_public_qa_guest_usage_v1";
-  var qaGuestUsageCache = null;
 
   function getDb() {
     try {
@@ -31,45 +29,6 @@
     } catch (e) {
       return "guest_fallback";
     }
-  }
-
-  function readQaGuestUsage() {
-    if (qaGuestUsageCache) return qaGuestUsageCache;
-    var fallback = {};
-    try {
-      var raw = localStorage.getItem(QA_GUEST_USAGE_KEY);
-      if (!raw) {
-        qaGuestUsageCache = fallback;
-        return qaGuestUsageCache;
-      }
-      var parsed = JSON.parse(raw);
-      qaGuestUsageCache = parsed && typeof parsed === "object" ? parsed : fallback;
-      return qaGuestUsageCache;
-    } catch (_) {
-      qaGuestUsageCache = fallback;
-      return qaGuestUsageCache;
-    }
-  }
-
-  function saveQaGuestUsage() {
-    try {
-      localStorage.setItem(QA_GUEST_USAGE_KEY, JSON.stringify(readQaGuestUsage()));
-    } catch (_) {}
-  }
-
-  function markQaGuestUsage(ticketId) {
-    if (isLoggedIn()) return;
-    var key = String(ticketId || "").trim();
-    if (!key) return;
-    var bag = readQaGuestUsage();
-    if (!bag[key]) {
-      bag[key] = Date.now();
-      saveQaGuestUsage();
-    }
-  }
-
-  function qaGuestUsedCount() {
-    return Math.min(5, Object.keys(readQaGuestUsage()).length);
   }
 
   function isAdminViewer() {
@@ -108,28 +67,17 @@
     if (empty) empty.hidden = !on;
   }
 
-  function setLoginHint(on, shownCount) {
+  function setLoginHint(on) {
     var h = document.getElementById("public-qa-login-hint");
     if (!h) return;
-    if (isAdsenseOpenMode()) {
+    if (isAdsenseOpenMode() || !on) {
       h.hidden = true;
       h.textContent = "";
       return;
     }
-    if (on) {
-      var limit = 5;
-      var used = qaGuestUsedCount();
-      var remaining = Math.max(0, limit - used);
-      h.textContent =
-        "[무료 체험 중] 비회원은 공개 Q&A를 최대 " +
-        limit +
-        "회 체험할 수 있습니다. 현재 " +
-        remaining +
-        "회 남았습니다. 더 많은 Q&A와 검색은 로그인 후 이용해 주세요.";
-    } else {
-      h.textContent = "";
-    }
-    h.hidden = !on;
+    h.hidden = false;
+    h.textContent =
+      "Q&A 미리보기는 「공개 콘텐츠」 탭에서 볼 수 있습니다. 검색·전체 목록은 로그인 후 이용해 주세요.";
   }
 
   function setSearchStatus(text, show) {
@@ -293,8 +241,7 @@
           var r = res && res.data ? res.data : {};
           loading = false;
           loaded = true;
-          markQaGuestUsage(tid);
-          setLoginHint(!isLoggedIn(), 0);
+          setLoginHint(!isLoggedIn());
           fillAnswerArea(ansBody, r);
           statusLine.hidden = false;
           if (r.selfView) {
@@ -410,7 +357,7 @@
     listEl.innerHTML = "";
     renderEmpty(false);
 
-    setLoginHint(!isLoggedIn(), 0);
+    setLoginHint(!isLoggedIn());
 
     var d = getDb();
     if (!d) {
@@ -418,7 +365,7 @@
       return;
     }
 
-    var cap = isLoggedIn() || isAdsenseOpenMode() ? 100 : 5;
+    var cap = 100;
     unsub = d
       .collection(COLL)
       .where("communityVisible", "==", true)
@@ -427,7 +374,7 @@
       .onSnapshot(
         function (snap) {
           listEl.innerHTML = "";
-          setLoginHint(!isLoggedIn(), snap.docs.length);
+          setLoginHint(!isLoggedIn());
           if (!snap.docs.length) {
             renderEmpty(true);
             return;
