@@ -155,18 +155,22 @@
     window.dispatchEvent(new CustomEvent("question-bank-updated"));
   }
 
-  window.loadRemoteQuestions = function () {
-    var db = getDb();
-    if (!db) {
-      window.QUESTION_BANK_REMOTE = [];
-      mergeBanks();
-      return Promise.resolve();
-    }
+  // 마지막으로 로드한 모드: null(미로드) | "paid"(직접 read·detail 포함) | "member"(Callable·detail 제거)
+  var lastLoadedQuestionMode = null;
+
+  function isPaidViewer() {
+    var m = window.APP_MEMBERSHIP;
+    return !!(m && (m.tier === "paid" || m.isAdmin));
+  }
+
+  /** 유료·관리자: hanlaw_questions 직접 read(상세해설 detail 포함) */
+  function loadPaidQuestionsDirect(db) {
     return db
       .collection(COLLECTION)
       .get()
       .then(function (snap) {
         window.QUESTION_BANK_REMOTE = snap.docs.map(docToQuestion);
+        lastLoadedQuestionMode = "paid";
         mergeBanks();
       })
       .catch(function (err) {
@@ -174,7 +178,61 @@
         // 저장 직후 재조회 실패 시 원격 캐시를 비우면 방금 반영한 수정이 사라짐 → 기존 REMOTE 유지
         mergeBanks();
       });
+  }
+
+  /** 무료(로그인) 회원: getMemberQuestionBank Callable(기본 해설 포함, 상세해설 detail 제거) */
+  function loadMemberQuestionsCallable() {
+    if (typeof firebase === "undefined" || !firebase.app) {
+      window.QUESTION_BANK_REMOTE = [];
+      lastLoadedQuestionMode = "member";
+      mergeBanks();
+      return Promise.resolve();
+    }
+    var region = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.functionsRegion) || "asia-northeast3";
+    var fn = firebase.app().functions(region).httpsCallable("getMemberQuestionBank");
+    return fn({})
+      .then(function (res) {
+        var list = res && res.data && Array.isArray(res.data.questions) ? res.data.questions : [];
+        window.QUESTION_BANK_REMOTE = list;
+        lastLoadedQuestionMode = "member";
+        mergeBanks();
+      })
+      .catch(function (err) {
+        console.warn("회원 문항 로드 실패:", err);
+        mergeBanks();
+      });
+  }
+
+  window.loadRemoteQuestions = function () {
+    var db = getDb();
+    if (!db) {
+      window.QUESTION_BANK_REMOTE = [];
+      mergeBanks();
+      return Promise.resolve();
+    }
+    if (isPaidViewer()) {
+      return loadPaidQuestionsDirect(db);
+    }
+    return loadMemberQuestionsCallable();
   };
+
+  // 로그인 직후엔 멤버십이 아직 확정되지 않아 무료 경로로 로드될 수 있다.
+  // 유료/관리자 권한이 확정되면 상세해설 포함 본을 다시 받아온다(권한 강등 시도 반대).
+  window.addEventListener("membership-updated", function () {
+    // 실제 로그인 계정에서만 동작(게스트/익명·로그아웃 시에는 게스트 흐름이 별도 처리)
+    var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+    if (!(u && u.email)) {
+      lastLoadedQuestionMode = null;
+      return;
+    }
+    if (lastLoadedQuestionMode == null) return; // 아직 최초 로드 전 → showApp 흐름이 처리
+    var wantPaid = isPaidViewer();
+    if (wantPaid && lastLoadedQuestionMode !== "paid") {
+      window.loadRemoteQuestions();
+    } else if (!wantPaid && lastLoadedQuestionMode === "paid") {
+      window.loadRemoteQuestions();
+    }
+  });
 
   /** 비회원: Cloud Function으로 전체 문항(정답만, 해설 제외) 로드 */
   window.loadGuestQuestions = function () {
@@ -587,12 +645,20 @@
       }
       return out;
     }
+    var rawFacts = String(entry && entry.facts ? entry.facts : "").trim();
+    var rawIssues = String(entry && entry.issues ? entry.issues : "").trim();
+    var rawJudgment = String(entry && entry.judgment ? entry.judgment : "").trim();
+    if (typeof window.normalizeCaseProseText === "function") {
+      rawFacts = window.normalizeCaseProseText(rawFacts);
+      rawIssues = window.normalizeCaseProseText(rawIssues, { preserveIssueList: true });
+      rawJudgment = window.normalizeCaseProseText(rawJudgment);
+    }
     var payload = {
       citation: String(entry && entry.citation ? entry.citation : "").trim(),
       title: String(entry && entry.title ? entry.title : "").trim(),
-      facts: String(entry && entry.facts ? entry.facts : "").trim(),
-      issues: String(entry && entry.issues ? entry.issues : "").trim(),
-      judgment: String(entry && entry.judgment ? entry.judgment : "").trim(),
+      facts: rawFacts,
+      issues: rawIssues,
+      judgment: rawJudgment,
       caseFullText: String(entry && entry.caseFullText ? entry.caseFullText : "").trim(),
       oxQuizzes: sanitizeOxQuizzes(entry && entry.oxQuizzes),
       searchKeys: Array.isArray(entry && entry.searchKeys) ? entry.searchKeys : [],

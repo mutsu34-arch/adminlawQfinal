@@ -175,7 +175,7 @@
         .filter(Boolean);
     }
     var parts = src
-      .split(/(?<=[.!?])\s+/)
+      .split(/(?<=[.!?…])(?=\s+(?!\d))/)
       .map(function (x) {
         return String(x || "").trim();
       })

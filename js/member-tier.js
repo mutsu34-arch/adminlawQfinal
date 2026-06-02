@@ -254,6 +254,7 @@
     var hadOneMonth = !!(d && d.portoneOneMonthPurchase === true);
     var canRefundOneMonth =
       tier === "paid" &&
+      !canCancelRecurring &&
       (hadOneMonth ||
         product.indexOf("one_month_") === 0 ||
         planLabel === "portone_1m" ||

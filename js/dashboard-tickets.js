@@ -464,12 +464,10 @@
     if (String(t.type || "").toLowerCase() === "question" && !(t.adminReply && String(t.adminReply).trim())) {
       var qaBoxPending = document.createElement("div");
       qaBoxPending.className = "dashboard-ticket-item__qa-community";
-      var allowFuturePending = t.qaAllowFutureCommunity !== false;
       var pendingMsg = document.createElement("p");
       pendingMsg.className = "dashboard-ticket-item__qa-hint";
-      pendingMsg.textContent = allowFuturePending
-        ? "변호사 답변이 등록되면 여기에서 Q&A 공개 여부를 최종 결정할 수 있습니다."
-        : "접수 시 Q&A 게시판 공개를 선택하지 않았습니다. 이 질문은 답변 후에도 공개 버튼이 나타나지 않습니다.";
+      pendingMsg.textContent =
+        "변호사 답변이 등록되면 여기에서 Q&A 공개 여부를 결정할 수 있습니다. 기본은 비공개이며, 공개하기를 누르면 다른 회원이 열람할 수 있습니다.";
       qaBoxPending.appendChild(pendingMsg);
       art.appendChild(qaBoxPending);
     }
@@ -495,24 +493,16 @@
       if (String(t.type || "").toLowerCase() === "question") {
         var ticketIdForQa = t.id || t._docId || "";
         var pubState = t.qaCommunityPublished;
-        var allowFuture = t.qaAllowFutureCommunity !== false;
         var isPublished = pubState === true;
-        var showPublishBtn = !isPublished && allowFuture;
 
         var qaBox = document.createElement("div");
         qaBox.className = "dashboard-ticket-item__qa-community";
 
-        if (!isPublished && !allowFuture) {
-          var declinedP = document.createElement("p");
-          declinedP.className = "dashboard-ticket-item__qa-declined";
-          declinedP.textContent =
-            "접수 시 Q&A 게시판 공개를 선택하지 않아, 이 질문은 목록에 올리지 않습니다.";
-          qaBox.appendChild(declinedP);
-        } else if (showPublishBtn) {
+        if (!isPublished) {
           var hintP = document.createElement("p");
           hintP.className = "dashboard-ticket-item__qa-hint";
           hintP.textContent =
-            "공개하면 다른 회원이 Q&A에서 이 질문과 답변을 열람할 수 있습니다. 다른 사람이 처음으로 답변을 펼쳐 볼 때 질문자에게 포인트가 적립될 수 있습니다.";
+            "기본은 비공개입니다. 공개하면 다른 회원이 Q&A에서 이 질문과 답변을 열람할 수 있습니다. 다른 사람이 처음으로 답변을 펼쳐 볼 때 질문자에게 포인트가 적립될 수 있습니다.";
           qaBox.appendChild(hintP);
 
           var pubBtn = document.createElement("button");

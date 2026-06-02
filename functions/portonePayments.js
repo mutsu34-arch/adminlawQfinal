@@ -16,9 +16,6 @@
  * - PORTONE_CHANNEL_KEY_KAKAOPAY_ONETIME: 카카오페이 일반 결제 채널 키 (선택)
  * - PORTONE_CHANNEL_KEY_KAKAOPAY_RECURRING: 카카오페이 정기 결제 채널 키 (선택)
  * - PORTONE_CHANNEL_KEY_KAKAOPAY: 레거시 단일 카카오페이 채널 키 (하위호환 fallback)
- * - PORTONE_CHANNEL_KEY_DANAL_CARD: 다날 일반결제(신용카드) 채널 키 (선택)
- * - PORTONE_CHANNEL_KEY_DANAL_MOBILE: 다날 일반결제(휴대폰 소액결제) 채널 키 (선택)
- * - PORTONE_CHANNEL_KEY_DANAL: 레거시 단일 다날 채널 키 (하위호환 fallback)
  *
  * 엘리 팩 금액: PORTONE_KRW_EQ10/20/30 우선, 없으면 PAYAPP_KRW_EQ*(레거시 env명) 호환.
  * 구독권 만료일: 한국시간 달력 기준 1개월 가산(2월·31일 등 반영).
@@ -221,17 +218,12 @@ function assertPortoneEnv() {
   const channelKeyKakaopay = String(process.env.PORTONE_CHANNEL_KEY_KAKAOPAY || "").trim();
   const channelKeyKakaopayOnetime = String(process.env.PORTONE_CHANNEL_KEY_KAKAOPAY_ONETIME || "").trim();
   const channelKeyKakaopayRecurring = String(process.env.PORTONE_CHANNEL_KEY_KAKAOPAY_RECURRING || "").trim();
-  const channelKeyDanal = String(process.env.PORTONE_CHANNEL_KEY_DANAL || "").trim();
-  const channelKeyDanalCard = String(process.env.PORTONE_CHANNEL_KEY_DANAL_CARD || "").trim();
-  const channelKeyDanalMobile = String(process.env.PORTONE_CHANNEL_KEY_DANAL_MOBILE || "").trim();
   const effectiveKpnOnetime = channelKeyKpnOnetime || channelKeyKpn;
   const effectiveKpnRecurring = channelKeyKpnRecurring || channelKeyKpn;
   const effectiveGalaxiaOnetime = channelKeyGalaxiaOnetime || channelKeyGalaxia;
   const effectiveGalaxiaRecurring = channelKeyGalaxiaRecurring || channelKeyGalaxia;
   const effectiveKakaopayOnetime = channelKeyKakaopayOnetime || channelKeyKakaopay;
   const effectiveKakaopayRecurring = channelKeyKakaopayRecurring || channelKeyKakaopay;
-  const effectiveDanalCard = channelKeyDanalCard || channelKeyDanal;
-  const effectiveDanalMobile = channelKeyDanalMobile || channelKeyDanal;
   if (!secret || !storeId || !effectiveKpnOnetime) {
     throw new HttpsError(
       "failed-precondition",
@@ -249,10 +241,7 @@ function assertPortoneEnv() {
     channelKeyGalaxiaRecurring: effectiveGalaxiaRecurring,
     channelKeyKakaopay: effectiveKakaopayOnetime,
     channelKeyKakaopayOnetime: effectiveKakaopayOnetime,
-    channelKeyKakaopayRecurring: effectiveKakaopayRecurring,
-    channelKeyDanal: effectiveDanalCard,
-    channelKeyDanalCard: effectiveDanalCard,
-    channelKeyDanalMobile: effectiveDanalMobile
+    channelKeyKakaopayRecurring: effectiveKakaopayRecurring
   };
 }
 
@@ -283,20 +272,6 @@ function resolveChannelKeyByPg(pgProvider, env, options) {
       );
     }
     return { channelKey: channelKeyKakaopay, pgProvider: "kakaopay" };
-  }
-  if (picked === "danal") {
-    const payMethod = String((opts && opts.payMethod) || "CARD").trim().toUpperCase();
-    const channelKeyDanal =
-      payMethod === "MOBILE"
-        ? env.channelKeyDanalMobile || env.channelKeyDanalCard
-        : env.channelKeyDanalCard;
-    if (!channelKeyDanal) {
-      throw new HttpsError(
-        "failed-precondition",
-        "다날 채널 키(PORTONE_CHANNEL_KEY_DANAL_CARD/_MOBILE 또는 PORTONE_CHANNEL_KEY_DANAL)가 설정되지 않았습니다."
-      );
-    }
-    return { channelKey: channelKeyDanal, pgProvider: "danal" };
   }
   const channelKey = isRecurring ? env.channelKeyKpnRecurring || env.channelKeyKpnOnetime : env.channelKeyKpnOnetime;
   return { channelKey, pgProvider: "kpn" };
@@ -594,8 +569,7 @@ const preparePortOnePayment = onCall({ region: REGION }, async (request) => {
     .trim()
     .toLowerCase();
   const resolved = resolveChannelKeyByPg(pgProvider, env, {
-    isRecurring: spec.kind === "sub_recurring_month",
-    payMethod: (request.data && request.data.payMethod) || spec.payMethod || "CARD"
+    isRecurring: spec.kind === "sub_recurring_month"
   });
   const storeId = env.storeId;
   const channelKey = resolved.channelKey;
@@ -641,15 +615,7 @@ const preparePortOnePayment = onCall({ region: REGION }, async (request) => {
         }
       : null;
   const resolvedPayMethod =
-    resolved.pgProvider === "kakaopay"
-      ? "EASY_PAY"
-      : resolved.pgProvider === "danal"
-        ? String((request.data && request.data.payMethod) || spec.payMethod || "CARD")
-            .trim()
-            .toUpperCase() === "MOBILE"
-          ? "MOBILE"
-          : "CARD"
-        : spec.payMethod || "CARD";
+    resolved.pgProvider === "kakaopay" ? "EASY_PAY" : spec.payMethod || "CARD";
   const resolvedEasyPayProvider = resolved.pgProvider === "kakaopay" ? "KAKAOPAY" : "";
 
   return {
@@ -683,12 +649,6 @@ const preparePortOneRecurringBillingKey = onCall({ region: REGION }, async (requ
   }
 
   const env = assertPortoneEnv();
-  if (pgProvider === "danal") {
-    throw new HttpsError(
-      "failed-precondition",
-      "다날은 현재 정기결제(빌링키 발급)를 지원하지 않습니다. 단건 결제를 이용해 주세요."
-    );
-  }
   const resolved = resolveChannelKeyByPg(pgProvider, env, { isRecurring: true });
   const storeId = env.storeId;
   const channelKey = resolved.channelKey;
@@ -720,12 +680,7 @@ const preparePortOneRecurringBillingKey = onCall({ region: REGION }, async (requ
           }
         }
       : null;
-  const billingKeyMethod =
-    resolved.pgProvider === "kakaopay"
-      ? "EASY_PAY"
-      : String((request.data && request.data.payMethod) || "CARD").trim().toUpperCase() === "MOBILE"
-        ? "MOBILE"
-        : "CARD";
+  const billingKeyMethod = resolved.pgProvider === "kakaopay" ? "EASY_PAY" : "CARD";
   const easyPayProvider = resolved.pgProvider === "kakaopay" ? "KAKAOPAY" : "";
   const issueName = String(spec.orderName || "정기결제 카드 등록")
     .replace(/\s+/g, " ")
@@ -979,6 +934,32 @@ const runPortOneRecurringBilling = onSchedule(
   }
 );
 
+// UI 가격·한도 단일화: 실제 청구에 쓰는 productSpec/env 값을 그대로 노출.
+// 엘리 일일 한도(5/10/20)·포인트 전환 단가(500)는 quizAiGemini.js·index.js 와 동일 값.
+const getPublicPricingConfig = onCall({ region: REGION }, async () => {
+  const prices = {};
+  [
+    "one_month_basic",
+    "one_month_super",
+    "one_month_ultra",
+    "recurring_basic",
+    "recurring_super",
+    "recurring_ultra"
+  ].forEach((p) => {
+    const s = productSpec(p);
+    if (s && s.amount) prices[p] = s.amount;
+  });
+  prices.elly_10 = expectedKrwForEllyPack(10);
+  prices.elly_20 = expectedKrwForEllyPack(20);
+  prices.elly_30 = expectedKrwForEllyPack(30);
+  return {
+    ok: true,
+    prices,
+    ellyDaily: { basic: 5, super: 10, ultra: 20 },
+    pointPerEllyCredit: 500
+  };
+});
+
 module.exports = {
   preparePortOnePayment,
   preparePortOneRecurringBillingKey,
@@ -986,5 +967,6 @@ module.exports = {
   completePortOnePayment,
   cancelPortOneRecurring,
   runPortOneRecurringBilling,
-  finalizePortOnePaymentById
+  finalizePortOnePaymentById,
+  getPublicPricingConfig
 };

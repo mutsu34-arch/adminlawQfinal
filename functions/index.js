@@ -52,11 +52,13 @@ const { addCalendarMonthsKst } = require("./kstCalendar");
 const {
   generateOrGetDictionaryEntry,
   generateStatuteOxQuizzesGemini,
-  generateStatuteEntryFromWebGemini
+  generateStatuteEntryFromWebGemini,
+  adminNormalizeCaseDictionaryText
 } = require("./dictionaryGemini");
 const { effectiveGeminiModelId, uniqueGeminiModelCandidates } = require("./geminiModel");
 const { retrieveLibraryContextForQuiz } = require("./libraryRag");
 exports.generateOrGetDictionaryEntry = generateOrGetDictionaryEntry;
+exports.adminNormalizeCaseDictionaryText = adminNormalizeCaseDictionaryText;
 
 const { quizAskGemini } = require("./quizAiGemini");
 exports.quizAskGemini = quizAskGemini;
@@ -95,12 +97,19 @@ const {
   adminSavePublicContentConfig,
   adminResetPublicContentConfig
 } = require("./publicContentAdmin");
-const { getGuestQuestionBank } = require("./guestQuestionBank");
+const {
+  refreshWeeklyPublicContentSchedule,
+  adminRefreshWeeklyPublicContent
+} = require("./publicContentWeekly");
+const { getGuestQuestionBank, getMemberQuestionBank } = require("./guestQuestionBank");
 exports.getPublicContentConfig = getPublicContentConfig;
 exports.getGuestQuestionBank = getGuestQuestionBank;
+exports.getMemberQuestionBank = getMemberQuestionBank;
 exports.adminGetPublicContentConfig = adminGetPublicContentConfig;
 exports.adminSavePublicContentConfig = adminSavePublicContentConfig;
 exports.adminResetPublicContentConfig = adminResetPublicContentConfig;
+exports.refreshWeeklyPublicContentSchedule = refreshWeeklyPublicContentSchedule;
+exports.adminRefreshWeeklyPublicContent = adminRefreshWeeklyPublicContent;
 
 const { registerUserSession } = require("./sessionControl");
 exports.registerUserSession = registerUserSession;
@@ -120,7 +129,8 @@ const {
   completePortOneRecurringFirstPayment,
   completePortOnePayment,
   cancelPortOneRecurring,
-  runPortOneRecurringBilling
+  runPortOneRecurringBilling,
+  getPublicPricingConfig
 } = require("./portonePayments");
 const { portoneWebhook } = require("./portoneWebhook");
 exports.preparePortOnePayment = preparePortOnePayment;
@@ -129,6 +139,7 @@ exports.completePortOneRecurringFirstPayment = completePortOneRecurringFirstPaym
 exports.completePortOnePayment = completePortOnePayment;
 exports.cancelPortOneRecurring = cancelPortOneRecurring;
 exports.runPortOneRecurringBilling = runPortOneRecurringBilling;
+exports.getPublicPricingConfig = getPublicPricingConfig;
 exports.portoneWebhook = portoneWebhook;
 
 const { cancelPayAppRebill } = require("./payappPayments");
@@ -1358,11 +1369,17 @@ async function enrichLibraryQuizRows(apiKey, modelId, rows, userPrompt, ragConte
       "- sourceQuestionNo, sourceChoiceNo, topic, statement, answer",
       "",
       "[추가/보강할 필드]",
-      "- explanation(필수), explanationBasic(필수), legal(선택), trap(선택), precedent(선택), importance(1~5), difficulty(1~5), tags",
+      "- explanation(필수), explanationBasic(필수), legal(필수), trap(필수), precedent(선택), importance(1~5), difficulty(1~5), tags(5개 이상)",
       "",
       "[규칙]",
-      "- explanation은 2~5문장, 근거 없는 추측 금지.",
-      "- explanationBasic은 1문장 핵심.",
+      "- explanationBasic은 1~2문장으로 핵심 결론만 요약.",
+      "- explanation(상세 해설)은 explanationBasic의 3~5배 분량으로, 불릿/줄바꿈을 활용해 가독성 있게 작성.",
+      "- legal(법리 근거): 관련 이론·판례 논리, 행정기본법·행정절차법 등 조문을 구체적으로 설명.",
+      "- trap(함정 포인트): 출제자가 지문을 어떻게 비틀었는지, 수험생이 착각하기 쉬운 지점을 짚어줌.",
+      "- precedent(판례): 자료실 발췌(RAG)에 근거가 있거나 확실한 판례만 '대법원 0000. 0. 0. 선고 0000두0000 판결' + 판결요지 형식으로. 불확실하면 빈 문자열로 두고 사건번호를 새로 지어내지 마세요(환각 금지).",
+      "- tags: 검색·분류용 #핵심키워드를 5개 이상. 법률용어(예: 처분권주의)·조문(예: 행정소송법 제31조)·판례번호(예: 2024두249) 형태로 작성.",
+      "- 최신성: 법령 개정·판례 변경 가능성이 있으면 explanation 끝에 '※ 최신 개정·판례 변경 여부 확인 필요'를 덧붙이고 관리자 검토가 필요함을 표시.",
+      "- 근거 없는 추측 금지. 부정확할 수 있으면 그 사실을 해설에 명시.",
       "- 출력 배열 길이는 입력과 같아야 함.",
       "- 시험종류(examId): " + examId + ", 연도(year): " + year,
       "",
@@ -1571,6 +1588,7 @@ exports.adminGenerateQuizFromLibrary = onCall(
       "- sourceQuestionNo/sourceChoiceNo를 반드시 채우세요.",
       "- statement는 해당 선지 문장을 원문에 가깝게 유지하세요. 결론/해설식 재서술을 만들지 마세요.",
       "- statement에는 근거 설명(예: '~이므로', '~때문에', '따라서')을 붙이지 말고 OX 판단문 한 문장으로 작성하세요.",
+      "- 사례형(Case) 문제는 구체적 상황 설정을 statement 앞부분에 포함하고('위 상황에서 ~한 경우' 형식), 마지막은 OX로 판단할 한 문장으로 끝맺으세요.",
       questionOnly ? "- 이번 배치는 sourceQuestionNo를 반드시 " + questionOnly + "로만 생성하세요." : "",
       choiceOnly ? "- 이번 배치는 sourceChoiceNo를 반드시 " + choiceOnly + "로만 생성하세요." : "",
       "- 파일 순서 기준으로 1번부터 마지막까지 생성하되, 누락 쌍을 우선 보완하세요.",
@@ -1889,10 +1907,10 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
       '    "explanationBasic": "1문장 핵심",',
       '    "evidenceQuote": "자료실 발췌에서 그대로 옮긴 근거 문장 1개(필수, 12자 이상)",',
       '    "evidenceHint": "근거 위치 힌트(예: 파일명/쪽수/청크 번호)",',
-      '    "legal": "법령 포인트(선택)",',
-      '    "trap": "함정 포인트(선택)",',
+      '    "legal": "법리 근거(필수): 관련 이론·조문 설명",',
+      '    "trap": "함정 포인트(필수): 착각하기 쉬운 지점",',
       '    "precedent": "반드시 빈 문자열로 출력",',
-      '    "tags": ["태그1","태그2"],',
+      '    "tags": ["태그1","태그2","태그3","태그4","태그5"],',
       '    "importance": 1~5,',
       '    "difficulty": 1~5',
       "  }",
@@ -1902,10 +1920,14 @@ exports.adminGenerateExpectedQuizFromLibrary = onCall(
       "- 총 " + count + "개를 생성하세요.",
       "- 같은 문장을 반복하지 마세요.",
       "- statement는 근거설명(~이므로, 따라서)을 붙이지 말고 OX 판단문으로만 작성.",
+      "- explanationBasic은 1~2문장 핵심, explanation(상세)은 그 3~5배 분량으로 불릿/줄바꿈을 활용.",
+      "- legal(법리 근거)·trap(함정 포인트)은 비우지 말고 구체적으로 작성.",
+      "- tags는 5개 이상. 법률용어·조문·판례번호 형태의 #핵심키워드.",
       "- 자료에 없는 내용 추측 금지. 확실하지 않으면 해당 문항을 만들지 마세요.",
       "- evidenceQuote는 반드시 [자료실 발췌(RAG)]의 문장을 거의 그대로 복사해 넣으세요.",
       "- evidenceQuote가 없는 문항은 무효입니다.",
-      "- 보수 모드: precedent는 반드시 빈 문자열로 두고, 판례 번호/사건번호를 새로 쓰지 마세요.",
+      "- 보수 모드: precedent는 반드시 빈 문자열로 두고, 판례 번호/사건번호를 새로 쓰지 마세요(환각 금지).",
+      "- 최신성: 법령 개정·판례 변경 가능성이 있으면 explanation에 '※ 최신 개정 여부 확인 필요'를 덧붙이세요.",
       "- 수험생이 헷갈리는 개념을 고르게 포함.",
       "- 법령/개념 중심으로만 구성하세요.",
       "",
@@ -2189,16 +2211,16 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
         '    "topic": "주제",',
         '    "statement": "입력과 동일한 판단문(수정 금지)",',
         '    "answer": true 또는 false,',
-        '    "explanation": "2~5문장 해설",',
-        '    "explanationBasic": "1문장 핵심",',
+        '    "explanation": "상세 해설(explanationBasic의 3~5배 분량, 불릿/줄바꿈 활용)",',
+        '    "explanationBasic": "1~2문장 핵심",',
         useLibraryRag
           ? '    "evidenceQuote": "자료실 발췌에서 그대로 옮긴 근거 문장 1개(필수, 12자 이상)",'
           : '    "evidenceQuote": "핵심 근거 요약(필수, 12자 이상)",',
         '    "evidenceHint": "근거 위치 또는 범위 힌트",',
-        '    "legal": "법령 포인트(선택)",',
-        '    "trap": "함정 포인트(선택)",',
+        '    "legal": "법리 근거(필수): 관련 이론·조문",',
+        '    "trap": "함정 포인트(필수): 착각하기 쉬운 지점",',
         '    "precedent": "반드시 빈 문자열",',
-        '    "tags": ["태그1"],',
+        '    "tags": ["태그1","태그2","태그3","태그4","태그5"],',
         '    "importance": 1~5,',
         '    "difficulty": 1~5',
         "  }",
@@ -2206,8 +2228,11 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
         "",
         "[규칙]",
         "- 각 문장이 참이면 answer=true, 거짓이면 false.",
+        "- legal(법리 근거)·trap(함정 포인트)은 비우지 말고 구체적으로 작성.",
+        "- tags는 5개 이상(법률용어·조문·판례번호 형태의 #핵심키워드).",
+        "- 최신성: 법령 개정·판례 변경 가능성이 있으면 explanation에 '※ 최신 개정 여부 확인 필요'를 덧붙이세요.",
         ...evidenceRules,
-        "- 보수 모드: precedent는 빈 문자열, 판례 번호를 새로 쓰지 마세요.",
+        "- 보수 모드: precedent는 빈 문자열, 판례 번호를 새로 쓰지 마세요(환각 금지).",
         "",
         styleBlock,
         "",
@@ -2273,7 +2298,8 @@ exports.adminGenerateExpectedQuizFromStatements = onCall(
           failRows.push({ index: globalIndex, reason: "근거 문장(evidenceQuote) 누락" });
           continue;
         }
-        if (!isEvidenceGroundedInRag(ragContext, evidenceQuote)) {
+        // 교재(RAG) 연결 시에만 발췌 일치 검증. 교재 미연결 모드는 evidenceQuote가 개념 요약이라 검증 생략.
+        if (useLibraryRag && !isEvidenceGroundedInRag(ragContext, evidenceQuote)) {
           failRows.push({ index: globalIndex, reason: "근거 문장이 자료실 발췌와 불일치" });
           continue;
         }
@@ -2926,6 +2952,7 @@ const STAGING_STATUTE_COLLECTION = "hanlaw_dict_statutes_staging";
 const TERM_COLLECTION = "hanlaw_dict_terms";
 const CASE_COLLECTION = "hanlaw_dict_cases";
 const STATUTE_COLLECTION = "hanlaw_dict_statutes";
+const { normalizeCaseDictionaryFields } = require("./caseTextNormalize");
 
 function sanitizeDictOxQuizzes(input, maxItems) {
   const cap =
@@ -2977,12 +3004,13 @@ function sanitizeTermPayload(raw) {
 
 function sanitizeCasePayload(raw) {
   const src = raw || {};
+  const normalized = normalizeCaseDictionaryFields(src);
   const out = {
     citation: String(src.citation || "").trim(),
     title: String(src.title || "").trim(),
-    facts: String(src.facts || "").trim(),
-    issues: String(src.issues || "").trim(),
-    judgment: String(src.judgment || "").trim(),
+    facts: normalized.facts,
+    issues: normalized.issues,
+    judgment: normalized.judgment,
     caseFullText: String(src.caseFullText || "").trim(),
     oxQuizzes: sanitizeDictOxQuizzes(src.oxQuizzes, 5),
     searchKeys: Array.isArray(src.searchKeys)

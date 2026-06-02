@@ -144,9 +144,6 @@
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        if (type === "question") {
-          doc.qaAllowFutureCommunity = opts.qaAllowFutureCommunity === true;
-        }
         if (opts.requestKind === "refund") {
           doc.requestKind = "refund";
         }
@@ -557,9 +554,6 @@
             .trim()
             .toLowerCase();
           if (ticketType !== "question" || !t.userId) {
-            return Promise.resolve();
-          }
-          if (t.qaAllowFutureCommunity === false) {
             return Promise.resolve();
           }
           var qmsg = String(t.message || "").trim();

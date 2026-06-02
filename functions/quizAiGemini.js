@@ -6,7 +6,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { retrieveLibraryContextForQuiz } = require("./libraryRag");
 const { appendLibraryRagBlockToSystemPrompt } = require("./libraryRagPromptAppend");
-const { effectiveGeminiModelId } = require("./geminiModel");
+const { effectiveGeminiModelId, GEMINI_TEXT_MODEL_FALLBACKS } = require("./geminiModel");
 const { getStoredNickname } = require("./userProfileServer");
 
 function db() {
@@ -47,8 +47,8 @@ const MAX_STATEMENT = 4000;
 const MAX_EXPLAIN = 6000;
 /** Gemini 출력 상한 — 너무 낮으면 MAX_TOKENS로 중간에 끊긴 답이 성공 처리될 수 있음 */
 const GEMINI_MAX_OUTPUT_TOKENS = 4096;
-/** 1.5 실패 시 2.5 등으로 폴백 (단종·지역 제한 대비) */
-const FALLBACK_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+/** 폴백 모델은 geminiModel.js 에서 단일 관리 (중복 정의 방지) */
+const FALLBACK_MODELS = GEMINI_TEXT_MODEL_FALLBACKS;
 
 /**
  * generateContent 결과의 finishReason 검사. 비정상 종료면 throw → 상위에서 releaseEllyReservation.
@@ -241,7 +241,7 @@ async function reserveEllySlot(uid, auth) {
       if (!paidOk) {
         throw new HttpsError(
           "failed-precondition",
-          "엘리(AI) 질문은 유료 구독 회원만 이용할 수 있습니다. 요금제 탭에서 구독 상품을 확인해 주세요."
+          "엘리(AI) 질문은 질문권을 보유한 회원만 이용할 수 있습니다. 질문권을 구매하거나 출석 포인트로 전환한 뒤 이용해 주세요."
         );
       }
       throw new HttpsError(

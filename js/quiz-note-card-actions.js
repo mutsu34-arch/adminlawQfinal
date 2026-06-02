@@ -648,10 +648,6 @@
 
     if (chromeBtn.classList.contains("note-quiz-chrome__ai-toggle")) {
       ensureContextsForArticle(article);
-      if (typeof window.isPaidMember !== "function" || !window.isPaidMember()) {
-        window.alert("엘리(AI)에게 질문하기는 유료 구독 회원에 한해 이용할 수 있습니다.");
-        return;
-      }
       var root = article.querySelector(".note-quiz-chrome");
       var p = root && root.querySelector(".note-quiz-chrome__ai-panel");
       if (!p) return;

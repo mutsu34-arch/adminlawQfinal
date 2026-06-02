@@ -66,15 +66,7 @@
     var v = checked ? String(checked.value || "").trim().toLowerCase() : "";
     if (v === "galaxia") return "galaxia";
     if (v === "kakaopay") return "kakaopay";
-    if (v === "danal") return "danal";
     return "kpn";
-  }
-
-  function selectedDanalPayMethod() {
-    var checked = document.querySelector('input[name="pricing-danal-paymethod"]:checked');
-    var v = checked ? String(checked.value || "").trim().toUpperCase() : "";
-    if (v === "MOBILE") return "MOBILE";
-    return "CARD";
   }
 
   function buildReturnUrl(extraParams) {
@@ -490,14 +482,7 @@
       var prepRecurring = firebase.app().functions(region).httpsCallable("preparePortOneRecurringBillingKey");
       var completeRecurring = firebase.app().functions(region).httpsCallable("completePortOneRecurringFirstPayment");
       var selectedPg = selectedPgProvider();
-      if (selectedPg === "danal") {
-        window.alert("다날은 현재 정기결제(자동결제)를 지원하지 않습니다. 단건 결제를 이용해 주세요.");
-        return;
-      }
       var recurringPayload = { product: product, pgProvider: selectedPg };
-      if (selectedPg === "danal") {
-        recurringPayload.payMethod = selectedDanalPayMethod();
-      }
       prepRecurring(recurringPayload)
         .then(function (res) {
           var d = res && res.data;
@@ -586,9 +571,6 @@
 
     var selectedPg = selectedPgProvider();
     var preparePayload = { product: product, pgProvider: selectedPg };
-    if (selectedPg === "danal") {
-      preparePayload.payMethod = selectedDanalPayMethod();
-    }
     prepare(preparePayload)
       .then(function (res) {
         var d = res && res.data;

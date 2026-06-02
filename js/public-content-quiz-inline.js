@@ -13,9 +13,26 @@
   }
 
   function reloadBank() {
+    var cfg = typeof window.getHanlawPublicContentConfig === "function" ? window.getHanlawPublicContentConfig() : null;
+    if (
+      cfg &&
+      cfg.weeklySnapshot &&
+      Array.isArray(cfg.weeklySnapshot.quiz) &&
+      cfg.weeklySnapshot.quiz.length
+    ) {
+      list = cfg.weeklySnapshot.quiz.slice();
+      return;
+    }
     if (typeof window.getHanlawPublicQuestionBank === "function") {
       list = window.getHanlawPublicQuestionBank();
     }
+  }
+
+  function stringifyDetailSegment(v) {
+    if (v == null) return "";
+    if (typeof v === "string") return v.trim();
+    if (typeof v === "object" && v.text != null) return String(v.text).trim();
+    return String(v).trim();
   }
 
   function formatOx(v) {
@@ -56,14 +73,34 @@
     container.innerHTML = "";
     var d = detail != null && typeof detail === "object" ? detail : {};
     var parts = [];
+    var leg = stringifyDetailSegment(d.legal);
+    var trap = stringifyDetailSegment(d.trap);
+    var prec = stringifyDetailSegment(d.precedent);
+    var memo = stringifyDetailSegment(d.memoTip);
     if (d.body && String(d.body).trim()) {
       parts.push(String(d.body).replace(/\r\n/g, "\n").trim());
-    }
-    if (typeof window.formatHanlawAiAnswerHtml === "function") {
-      container.innerHTML = window.formatHanlawAiAnswerHtml(parts.join("\n\n") || "등록된 상세 해설이 없습니다.");
     } else {
-      container.textContent = parts.join("\n\n") || "등록된 상세 해설이 없습니다.";
+      if (leg) parts.push("법리 근거\n" + leg);
+      if (trap) parts.push("함정 포인트\n" + trap);
+      if (prec) parts.push("판례·실무\n" + prec);
+      if (memo) parts.push("암기 팁\n" + memo);
     }
+    var out = parts.join("\n\n").trim();
+    if (!out) {
+      var p = document.createElement("p");
+      p.className = "feedback-detail__empty";
+      p.textContent = "등록된 상세 해설이 없습니다.";
+      container.appendChild(p);
+      return;
+    }
+    var root = document.createElement("div");
+    root.className = "feedback-detail__rich-html";
+    if (typeof window.formatHanlawAiAnswerHtml === "function") {
+      root.innerHTML = window.formatHanlawAiAnswerHtml(out);
+    } else {
+      root.textContent = out;
+    }
+    container.appendChild(root);
   }
 
   function showFeedback(q, userTrue) {
@@ -227,21 +264,13 @@
     reloadBank();
     if (list.length) {
       finishMount();
-      var u =
-        typeof firebase !== "undefined" && firebase.auth && firebase.auth().currentUser
-          ? firebase.auth().currentUser
-          : null;
-      if (u && typeof window.loadRemoteQuestions === "function") {
-        window.loadRemoteQuestions().then(function () {
-          reloadBank();
-          renderQuestion();
-        }).catch(function () {});
-      }
       return;
     }
 
     var loadP = Promise.resolve();
-    if (typeof window.loadRemoteQuestions === "function") {
+    if (typeof window.refreshHanlawPublicContentConfig === "function") {
+      loadP = window.refreshHanlawPublicContentConfig().catch(function () {});
+    } else if (typeof window.loadRemoteQuestions === "function") {
       loadP = window.loadRemoteQuestions().catch(function () {});
     }
     loadP.then(finishMount);

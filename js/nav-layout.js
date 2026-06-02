@@ -62,7 +62,6 @@
       !isNavViewerLoggedIn() &&
       panelId !== "quiz" &&
       panelId !== "pricing" &&
-      panelId !== "qa" &&
       panelId !== "dict" &&
       panelId !== "statutes" &&
       panelId !== "cases" &&
@@ -188,6 +187,33 @@
     if (!sel || !panelId) return;
     var o = sel.querySelector('option[value="' + panelId + '"]');
     if (o) sel.value = panelId;
+  }
+
+  function syncGuestQaNavVisibility() {
+    var loggedIn = isNavViewerLoggedIn();
+    document.querySelectorAll('.nav-main__btn[data-panel="qa"]').forEach(function (btn) {
+      btn.hidden = !loggedIn;
+    });
+    document.querySelectorAll('.nav-public-menu__btn[data-public-nav="qa"]').forEach(function (btn) {
+      btn.hidden = !loggedIn;
+    });
+    document.querySelectorAll('#public-content-tabs [data-public-tab="qa"]').forEach(function (btn) {
+      btn.hidden = !loggedIn;
+    });
+    if (!loggedIn) {
+      var qaPanel = document.getElementById("panel-qa");
+      if (qaPanel && qaPanel.classList.contains("panel--active")) {
+        showPanel("quiz", { syncUrl: true, replace: true });
+      }
+      var pubPanel = document.getElementById("panel-public");
+      if (pubPanel && pubPanel.getAttribute("data-public-tab") === "qa") {
+        pubPanel.setAttribute("data-public-tab", "hub");
+        if (window.HanlawPublicContentUI && typeof window.HanlawPublicContentUI.showHub === "function") {
+          window.HanlawPublicContentUI.showHub();
+        }
+      }
+    }
+    buildNavJumpOptions();
   }
 
   function buildNavJumpOptions() {
@@ -474,6 +500,7 @@
       }
     }
     buildNavJumpOptions();
+    syncGuestQaNavVisibility();
   });
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -557,6 +584,7 @@
     });
 
     initNavMobileBar();
+    syncGuestQaNavVisibility();
 
     window.hanlawNavigateToPanel = showPanel;
   });

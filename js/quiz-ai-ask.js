@@ -632,7 +632,7 @@
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
           showEllyLimitModal();
-        } else if (code === "functions/failed-precondition" && /유료 구독/.test(msg)) {
+        } else if (code === "functions/failed-precondition" && /질문권을 보유한/.test(msg)) {
           showEllyLimitModal();
         } else {
           if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
@@ -743,7 +743,7 @@
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
           showEllyLimitModal();
-        } else if (code === "functions/failed-precondition" && /유료 구독/.test(msg)) {
+        } else if (code === "functions/failed-precondition" && /질문권을 보유한/.test(msg)) {
           showEllyLimitModal();
         } else {
           if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {
@@ -869,7 +869,7 @@
         var msg = e && e.message ? String(e.message) : String(e);
         if (code === "functions/resource-exhausted") {
           showEllyLimitModal();
-        } else if (code === "functions/failed-precondition" && /유료 구독/.test(msg)) {
+        } else if (code === "functions/failed-precondition" && /질문권을 보유한/.test(msg)) {
           showEllyLimitModal();
         } else {
           if (code === "functions/failed-precondition" && /GEMINI_API_KEY/.test(msg)) {

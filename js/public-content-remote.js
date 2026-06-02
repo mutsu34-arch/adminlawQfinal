@@ -1,19 +1,20 @@
 /**
- * Firestore 공개 콘텐츠(published) — 안내 문구·퀴즈 배너·Q&A만 원격 반영
- * 용어·조문·판례·퀴즈 문항은 앱 사전·문항 DB와 동일하게 편집합니다.
+ * Firestore 공개 콘텐츠 — 안내 문구·주간 스냅샷(탭별 5건) 원격 반영
  */
 (function () {
   function buildDefaultConfig() {
     return {
       introLead:
-        "로그인 없이 열람할 수 있는 핵심 자료입니다. 공개 퀴즈 5문항은 기본·상세 해설을 모두 공개합니다.",
-      introDisclaimer:
-        "아래는 앱 콘텐츠 구성을 반영한 공개 미리보기입니다. 관리자 업데이트·앱 개선에 따라 실제 회원용 화면의 문항·해설·사전·Q&A와 달라질 수 있습니다.",
+        "로그인 없이 열람할 수 있는 핵심 자료입니다. 매주 앱 DB에서 선정한 5건씩 미리보기를 제공하며, 공개 퀴즈는 기본·상세 해설을 모두 공개합니다.",
+      introDisclaimer: "",
       quizBanner: {
         title: "공개 퀴즈 5문항",
         lead: "OX 5문항을 로그인 없이 풀고, 기본·상세 해설(법리·함정·판례)을 모두 확인할 수 있습니다.",
         href: "/content/quiz-36.html"
       },
+      weeklySnapshot: null,
+      weekKey: "",
+      validUntil: null,
       qa: null
     };
   }
@@ -42,6 +43,8 @@
       window.HANLAW_PUBLIC_CONTENT_CONFIG = base;
       return base;
     }
+    var weeklySnapshot =
+      remote.weeklySnapshot && typeof remote.weeklySnapshot === "object" ? remote.weeklySnapshot : null;
     var cfg = {
       introLead: normalizeIntro(remote.introLead, base.introLead),
       introDisclaimer:
@@ -49,7 +52,15 @@
           ? remote.introDisclaimer
           : base.introDisclaimer,
       quizBanner: normalizeQuizBanner(remote.quizBanner, base.quizBanner),
-      qa: Array.isArray(remote.qa) && remote.qa.length ? remote.qa : null
+      weeklySnapshot: weeklySnapshot,
+      weekKey: weeklySnapshot && weeklySnapshot.weekKey ? weeklySnapshot.weekKey : "",
+      validUntil: weeklySnapshot && weeklySnapshot.validUntil ? weeklySnapshot.validUntil : null,
+      qa:
+        weeklySnapshot && Array.isArray(weeklySnapshot.qa) && weeklySnapshot.qa.length
+          ? weeklySnapshot.qa
+          : Array.isArray(remote.qa) && remote.qa.length
+            ? remote.qa
+            : null
     };
     window.HANLAW_PUBLIC_CONTENT_CONFIG = cfg;
     return cfg;

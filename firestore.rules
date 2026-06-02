@@ -8,8 +8,26 @@ service cloud.firestore {
         && request.auth.token.email.lower() in ["mutsu34@gmail.com"];
     }
 
+    // 유료 회원 판별(member-tier.js resolveTier 와 동일 규칙):
+    // membershipTier == "paid" 이고 paidUntil 이 없거나 아직 만료되지 않음.
+    function memberDoc() {
+      return get(/databases/$(database)/documents/hanlaw_members/$(request.auth.uid)).data;
+    }
+    function isPaidMember() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/hanlaw_members/$(request.auth.uid))
+        && memberDoc().membershipTier == "paid"
+        && (
+          !("paidUntil" in memberDoc())
+          || memberDoc().paidUntil == null
+          || memberDoc().paidUntil > request.time
+        );
+    }
+
+    // 문항 전체(상세해설 detail 포함)는 유료 회원·관리자만 직접 읽기 허용.
+    // 비회원 → getGuestQuestionBank, 무료 회원 → getMemberQuestionBank Callable(서버에서 detail 제거).
     match /hanlaw_questions/{docId} {
-      allow read: if request.auth != null;
+      allow read: if isAdmin() || isPaidMember();
       allow create, update, delete: if isAdmin();
     }
 
@@ -22,7 +40,10 @@ service cloud.firestore {
         && request.resource.data.type in ["report", "question", "promotion", "suggestion"]
         && request.resource.data.message is string
         && request.resource.data.message.size() > 0
-        && request.resource.data.message.size() < 32000;
+        && request.resource.data.message.size() < 32000
+        // 생성 시 상태·관리자 답변 위조 차단(승인/포인트 지급은 Functions·관리자만)
+        && request.resource.data.status == "pending"
+        && request.resource.data.adminReply == null;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -98,6 +119,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // 비회원 문항 API rate limit 카운터(Functions 전용).
+    match /hanlaw_guest_bank_throttle/{ipHash} {
+      allow read, write: if false;
+    }
+
     // PortOne 결제 준비(금액·상품 검증용). 읽기·쓰기는 Cloud Functions(Admin SDK)만.
     match /hanlaw_portone_prepare/{paymentId} {
       allow read, write: if false;
@@ -136,12 +162,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // 변호사 질문 공개 목록(질문 본문). communityVisible==false 이면 질문자·관리자만 읽기(타인은 Q&A 미노출).
+    // 변호사 질문 공개 목록(질문 본문). 로그인 회원만 열람(communityVisible==true 또는 본인 비공개).
     match /hanlaw_qa_public/{ticketId} {
       allow read: if isAdmin()
-        || (request.auth != null && resource.data.askerUserId == request.auth.uid)
-        || resource.data.communityVisible == true
-        || !("communityVisible" in resource.data);
+        || (request.auth != null && (
+          resource.data.askerUserId == request.auth.uid
+          || resource.data.communityVisible == true
+        ));
       allow create, update, delete: if isAdmin();
     }
 
@@ -159,6 +186,11 @@ service cloud.firestore {
     // 고객 문의 채팅(하단 채팅). 쓰기는 submitSupportChatMessage Callable만. 읽기는 본인 스레드 또는 익명 UUID 스레드.
     // 공개 학습 콘텐츠 — 읽기만 허용(쓰기는 Functions adminSavePublicContentConfig)
     match /hanlaw_public_content/published {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /hanlaw_public_content/weekly {
       allow read: if true;
       allow write: if false;
     }

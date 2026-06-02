@@ -101,12 +101,7 @@ function sanitizeAnswerForPublic(answer, ticket, viewerUid, askerUid) {
 
 function resolveViewerId(request) {
   if (request && request.auth && request.auth.uid) return String(request.auth.uid);
-  const raw = String((request && request.data && request.data.viewerKey) || "").trim();
-  const normalized = raw.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
-  if (!normalized) {
-    throw new HttpsError("unauthenticated", "viewerKey가 필요합니다.");
-  }
-  return "guest_" + normalized;
+  throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
 }
 
 /**
@@ -144,14 +139,11 @@ exports.publishLawyerQaPublic = onCall({ region: REGION }, async (request) => {
     if (!asker) {
       throw new HttpsError("failed-precondition", "질문자 정보가 없습니다.");
     }
-    if (ticket.qaAllowFutureCommunity === false) {
-      return { ok: true, skipped: true };
-    }
-
     const qf = quizFieldsForPublicDoc(ticket);
     const pubPayload = {
       ticketId,
       questionMessage: qmsg.slice(0, 8000),
+      askerUserId: asker,
       publishedAt: FieldValue.serverTimestamp(),
       /** 질문자가 「공개하기」를 누르기 전까지 Q&A 목록·타인 열람 불가 */
       communityVisible: false
@@ -205,7 +197,7 @@ exports.searchLawyerQa = onCall({ region: REGION }, async (request) => {
   for (const doc of pubSnap.docs) {
     const ticketId = doc.id;
     const pub = doc.data() || {};
-    if (pub.communityVisible === false) continue;
+    if (pub.communityVisible !== true) continue;
 
     if (isEllyQaTicketId(ticketId)) {
       const ellyAskId = ticketId.slice(ELLY_QA_TICKET_PREFIX.length);
@@ -287,7 +279,7 @@ async function revealEllyQaAnswerInternal(request, viewerUid, ticketId) {
   if (!askerUserId) {
     throw new HttpsError("failed-precondition", "질문자 정보가 없습니다.");
   }
-  if (viewerUid !== askerUserId && pub.communityVisible === false) {
+  if (viewerUid !== askerUserId && pub.communityVisible !== true) {
     throw new HttpsError(
       "permission-denied",
       "아직 Q&A에 공개되지 않은 질문입니다. 질문자가 공개한 뒤에 답변을 볼 수 있습니다."
@@ -387,7 +379,7 @@ exports.revealLawyerQaAnswer = onCall({ region: REGION }, async (request) => {
   if (!askerUserId) {
     throw new HttpsError("failed-precondition", "질문자 정보가 없습니다.");
   }
-  if (viewerUid !== askerUserId && pub.communityVisible === false) {
+  if (viewerUid !== askerUserId && pub.communityVisible !== true) {
     throw new HttpsError(
       "permission-denied",
       "아직 Q&A에 공개되지 않은 질문입니다. 질문자가 공개한 뒤에 답변을 볼 수 있습니다."
@@ -491,12 +483,6 @@ exports.publishLawyerQaCommunity = onCall({ region: REGION }, async (request) =>
     if (String(ticket.userId || "") !== uid) {
       throw new HttpsError("permission-denied", "본인이 작성한 질문만 공개할 수 있습니다.");
     }
-    if (ticket.qaAllowFutureCommunity === false) {
-      throw new HttpsError(
-        "failed-precondition",
-        "질문 접수 시 Q&A 공개를 허용하지 않았습니다. 새 질문에서 공개를 선택한 뒤 이용해 주세요."
-      );
-    }
     const answer = String(ticket.adminReply || "").trim();
     if (!answer) {
       throw new HttpsError(
@@ -517,6 +503,7 @@ exports.publishLawyerQaCommunity = onCall({ region: REGION }, async (request) =>
       const pubPayload = {
         ticketId,
         questionMessage: qmsg.slice(0, 8000),
+        askerUserId: uid,
         publishedAt: FieldValue.serverTimestamp(),
         communityVisible: true,
         communityPublishedAt: FieldValue.serverTimestamp()
@@ -722,7 +709,7 @@ exports.unpublishEllyQaCommunity = onCall({ region: REGION }, async (request) =>
   }
 });
 
-/** 기존 hanlaw_qa_public 문서에 communityVisible 필드가 없으면 true로 채움(구 데이터 Q&A 노출 유지). 관리자 1회 실행. */
+/** 기존 hanlaw_qa_public 문서에 communityVisible 필드가 없으면 false로 채움(기본 비공개 명시). 관리자 1회 실행. */
 exports.adminBackfillLawyerQaCommunityVisible = onCall({ region: REGION }, async (request) => {
   if (!request.auth || !request.auth.uid) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -742,7 +729,7 @@ exports.adminBackfillLawyerQaCommunityVisible = onCall({ region: REGION }, async
     for (const doc of snap.docs) {
       const d = doc.data();
       if (d.communityVisible === undefined) {
-        batch.update(doc.ref, { communityVisible: true });
+        batch.update(doc.ref, { communityVisible: false });
         n++;
       }
     }

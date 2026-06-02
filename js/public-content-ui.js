@@ -27,6 +27,43 @@
     return null;
   }
 
+  function weeklySnapshot() {
+    var cfg = publishedConfig();
+    return cfg && cfg.weeklySnapshot ? cfg.weeklySnapshot : null;
+  }
+
+  function formatWeeklyNotice() {
+    var snap = weeklySnapshot();
+    if (!snap || !snap.weekKey) return "";
+    var until = "";
+    if (snap.validUntil) {
+      try {
+        until = new Date(snap.validUntil).toLocaleDateString("ko-KR", {
+          month: "long",
+          day: "numeric"
+        });
+      } catch (e) {}
+    }
+    return (
+      "이번 주 공개 미리보기(" +
+      snap.weekKey +
+      ")" +
+      (until ? " · 다음 갱신 약 " + until : "") +
+      " — 탭마다 앱 DB에서 무작위 5건씩 선정됩니다."
+    );
+  }
+
+  function appendWeeklyNotice(parent) {
+    if (!parent || parent.querySelector(".public-content-weekly-note")) return;
+    var text = formatWeeklyNotice();
+    if (!text) return;
+    var p = document.createElement("p");
+    p.className = "public-content-weekly-note dict-empty";
+    p.setAttribute("role", "note");
+    p.textContent = text;
+    parent.insertBefore(p, parent.firstChild);
+  }
+
   function isAdminUser() {
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
     if (!u || !u.email) return false;
@@ -78,20 +115,15 @@
     var cfg = publishedConfig();
     if (!cfg) return;
     var lead = document.getElementById("public-content-intro-lead");
-    var disc = document.getElementById("public-content-intro-disclaimer");
     if (lead && cfg.introLead) lead.textContent = cfg.introLead;
-    if (disc && cfg.introDisclaimer) {
-      disc.textContent = cfg.introDisclaimer;
-    }
   }
 
   function appendDisclaimer(parent, opts) {
     opts = opts || {};
     if (!parent || parent.querySelector(".public-content-disclaimer")) return;
     var cfg = publishedConfig();
-    var text =
-      (cfg && cfg.introDisclaimer) ||
-      "아래는 앱 콘텐츠 구성을 반영한 공개 미리보기입니다. 관리자 업데이트·앱 개선에 따라 실제 회원용 화면의 문항·해설·사전·Q&A와 달라질 수 있습니다.";
+    var text = cfg && cfg.introDisclaimer ? String(cfg.introDisclaimer).trim() : "";
+    if (!text) return;
     var p = document.createElement("p");
     p.className = "public-content-disclaimer";
     p.setAttribute("role", "note");
@@ -101,6 +133,8 @@
   }
 
   function resolveTerms() {
+    var snap = weeklySnapshot();
+    if (snap && Array.isArray(snap.terms) && snap.terms.length) return snap.terms;
     var idx = indexData().terms || [];
     var UI = window.DictionaryUI;
     if (!UI || typeof UI.findTermForTag !== "function") return [];
@@ -112,6 +146,8 @@
   }
 
   function resolveStatutes() {
+    var snap = weeklySnapshot();
+    if (snap && Array.isArray(snap.statutes) && snap.statutes.length) return snap.statutes;
     var idx = indexData().statutes || [];
     var UI = window.DictionaryUI;
     if (!UI || typeof UI.findStatuteForKey !== "function") return [];
@@ -123,20 +159,42 @@
   }
 
   function resolveCases() {
+    var snap = weeklySnapshot();
+    if (snap && Array.isArray(snap.cases) && snap.cases.length) return snap.cases;
     var idx = indexData().cases || [];
     var UI = window.DictionaryUI;
-    if (!UI || typeof UI.searchCases !== "function") return [];
-    return idx
-      .map(function (cite) {
+    var out = [];
+    var seen = {};
+    if (UI && typeof UI.searchCases === "function") {
+      idx.forEach(function (cite) {
         var found = UI.searchCases(cite);
-        return found && found.length ? found[0] : null;
-      })
-      .filter(Boolean);
+        if (found && found.length) {
+          var c = found[0];
+          var k = String(c.citation || cite).trim();
+          if (k && !seen[k]) {
+            seen[k] = true;
+            out.push(c);
+          }
+        }
+      });
+    }
+    if (out.length) return out;
+    var bundled = window.LEGAL_CASES_DATA || [];
+    bundled.forEach(function (c) {
+      if (!c || !String(c.citation || "").trim()) return;
+      var k = String(c.citation).trim();
+      if (seen[k]) return;
+      seen[k] = true;
+      out.push(c);
+    });
+    return out;
   }
 
   function qaItems() {
     var cfg = publishedConfig();
-    if (cfg && cfg.qa) return cfg.qa;
+    if (cfg && Array.isArray(cfg.qa) && cfg.qa.length) return cfg.qa;
+    var snap = weeklySnapshot();
+    if (snap && Array.isArray(snap.qa) && snap.qa.length) return snap.qa;
     var list = indexData().qa;
     return Array.isArray(list) ? list : [];
   }
@@ -279,6 +337,7 @@
     if (!root) return;
     root.innerHTML = "";
     appendDisclaimer(root, { compact: true });
+    appendWeeklyNotice(root);
 
     if (kind === "quiz") {
       renderQuizSection(root);
@@ -298,7 +357,7 @@
     } else if (kind === "statutes" && UI && typeof UI.renderStatuteResults === "function") {
       UI.renderStatuteResults(listWrap, resolveStatutes(), RENDER_OPTS);
     } else if (kind === "cases" && UI && typeof UI.renderCaseResults === "function") {
-      UI.renderCaseResults(listWrap, resolveCases(), RENDER_OPTS);
+      UI.renderCaseResults(listWrap, resolveCases(), "case", RENDER_OPTS);
     } else if (kind === "qa") {
       renderQaList(listWrap);
     } else {
@@ -353,6 +412,13 @@
       if (!btn) return;
       var kind = btn.getAttribute("data-public-tab");
       if (!kind) return;
+      if (kind === "qa") {
+        var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
+        if (!(u && u.email)) {
+          window.alert("Q&A는 로그인 후 이용할 수 있습니다.");
+          return;
+        }
+      }
       var panel = document.getElementById("panel-public");
       if (panel) panel.setAttribute("data-public-tab", kind);
       setActiveTab(wrap, kind);

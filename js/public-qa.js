@@ -15,21 +15,6 @@
     return !!(u && u.email);
   }
 
-  function isAdsenseOpenMode() {
-    return !!window.HANLAW_ADSENSE_OPEN_MODE;
-  }
-
-  function publicViewerKey() {
-    try {
-      var k = localStorage.getItem("hanlaw_public_viewer_key");
-      if (k) return String(k);
-      var nk = "guest_" + Math.random().toString(36).slice(2, 12);
-      localStorage.setItem("hanlaw_public_viewer_key", nk);
-      return nk;
-    } catch (e) {
-      return "guest_fallback";
-    }
-  }
 
   function isAdminViewer() {
     var u = typeof window.getHanlawUser === "function" ? window.getHanlawUser() : null;
@@ -67,17 +52,24 @@
     if (empty) empty.hidden = !on;
   }
 
-  function setLoginHint(on) {
-    var h = document.getElementById("public-qa-login-hint");
-    if (!h) return;
-    if (isAdsenseOpenMode() || !on) {
-      h.hidden = true;
-      h.textContent = "";
+  function syncQaGuestUi() {
+    if (window.DictionaryUI && typeof window.DictionaryUI.setGuestHint === "function") {
+      window.DictionaryUI.setGuestHint("qa");
+    }
+  }
+
+  function renderGuestQaBlocked(listEl) {
+    if (!listEl) return;
+    listEl.innerHTML = "";
+    if (window.DictionaryUI && typeof window.DictionaryUI.renderGuestBlocked === "function") {
+      window.DictionaryUI.renderGuestBlocked(listEl);
       return;
     }
-    h.hidden = false;
-    h.textContent =
-      "Q&A 미리보기는 「공개 콘텐츠」 탭에서 볼 수 있습니다. 검색·전체 목록은 로그인 후 이용해 주세요.";
+    var p = document.createElement("p");
+    p.className = "dict-empty";
+    p.textContent =
+      "비회원은 상단 「공개 콘텐츠」에서 퀴즈·용어·조문·판례·Q&A 미리보기를 이용할 수 있습니다. 전체 사전·검색은 로그인 후 이용해 주세요.";
+    listEl.appendChild(p);
   }
 
   function setSearchStatus(text, show) {
@@ -236,12 +228,12 @@
       firebase
         .app()
         .functions(region)
-        .httpsCallable("revealLawyerQaAnswer")({ ticketId: tid, viewerKey: publicViewerKey() })
+        .httpsCallable("revealLawyerQaAnswer")({ ticketId: tid })
         .then(function (res) {
           var r = res && res.data ? res.data : {};
           loading = false;
           loaded = true;
-          setLoginHint(!isLoggedIn());
+          syncQaGuestUi();
           fillAnswerArea(ansBody, r);
           statusLine.hidden = false;
           if (r.selfView) {
@@ -288,7 +280,7 @@
       window.alert("검색어는 2글자 이상 입력하세요.");
       return;
     }
-    if (!isLoggedIn() && !isAdsenseOpenMode()) {
+    if (!isLoggedIn()) {
       window.alert("검색은 로그인 후 이용할 수 있습니다.");
       return;
     }
@@ -357,7 +349,13 @@
     listEl.innerHTML = "";
     renderEmpty(false);
 
-    setLoginHint(!isLoggedIn());
+    if (!isLoggedIn()) {
+      syncQaGuestUi();
+      renderGuestQaBlocked(listEl);
+      return;
+    }
+
+    syncQaGuestUi();
 
     var d = getDb();
     if (!d) {
@@ -374,7 +372,7 @@
       .onSnapshot(
         function (snap) {
           listEl.innerHTML = "";
-          setLoginHint(!isLoggedIn());
+          syncQaGuestUi();
           if (!snap.docs.length) {
             renderEmpty(true);
             return;

@@ -890,11 +890,7 @@
               <section class="card public-content-intro">
                 <h2 class="card__title">공개 학습 콘텐츠</h2>
                 <p class="pricing-lead" id="public-content-intro-lead">
-                  로그인 없이 열람할 수 있는 핵심 자료입니다. 공개 퀴즈 5문항은 기본·상세 해설을 모두 공개합니다.
-                </p>
-                <p class="public-content-disclaimer" id="public-content-intro-disclaimer" role="note">
-                  아래는 앱 콘텐츠 구성을 반영한 <strong>공개 미리보기</strong>입니다. 관리자 업데이트·앱 개선에 따라
-                  실제 회원용 화면의 문항·해설·사전·Q&amp;A와 달라질 수 있습니다.
+                  로그인 없이 열람할 수 있는 핵심 자료입니다. 매주 앱 DB에서 선정한 5건씩 미리보기를 제공하며, 공개 퀴즈는 기본·상세 해설을 모두 공개합니다.
                 </p>
                 <div
                   id="public-content-tabs"
@@ -933,6 +929,7 @@
                 다른 회원이 답변을 처음 열람할 때 질문을 올린 분에게 포인트가 지급됩니다(200점).
                 포인트가 쌓이면 엘리(AI) 질문권으로 전환할 수 있습니다.
               </p>
+              <p id="dict-qa-guest-hint" class="dict-guest-hint" hidden></p>
               <div class="public-qa-search">
                 <label class="field field--grow public-qa-search__field">
                   <span class="field__label">질문·답변 검색</span>
@@ -951,10 +948,7 @@
                 </button>
               </div>
               <p id="public-qa-search-status" class="public-qa-search-status" hidden aria-live="polite"></p>
-              <p id="public-qa-login-hint" class="public-qa-login-hint dict-guest-hint" hidden>
-                Q&A 미리보기는 「공개 콘텐츠」 탭에서 볼 수 있습니다. 검색·전체 목록은 로그인 후 이용해 주세요.
-              </p>
-              <div id="public-qa-list" class="public-qa-list" aria-live="polite"></div>
+              <div id="public-qa-list" class="public-qa-list dict-results" aria-live="polite"></div>
               <p id="public-qa-empty" class="public-qa-empty" hidden>아직 공개된 질문이 없습니다.</p>
             </div>
           </div>
@@ -1749,7 +1743,7 @@
                   <strong>운영·연동 참고(관리자·테스트 계정 전용):</strong>
                   결제가 열리려면 Firebase Functions 환경에 포트원 스토어 ID·채널 키·V2 API 시크릿
                   (PORTONE_STORE_ID, PORTONE_CHANNEL_KEY_KPN, PORTONE_CHANNEL_KEY_GALAXIA, PORTONE_API_SECRET)이 필요합니다.
-                  아래에서 결제 PG와 다날 결제수단을 선택해 여러 채널을 시험할 수 있습니다.
+                  아래에서 결제 PG를 선택해 여러 채널을 시험할 수 있습니다.
                 </p>
                 <div class="pricing-pg-select" role="group" aria-label="결제 PG 선택">
                   <span class="pricing-pg-select__label">결제 PG</span>
@@ -1765,21 +1759,6 @@
                     <input type="radio" name="pricing-pg" value="kakaopay" />
                     <span>카카오페이</span>
                   </label>
-                  <label class="pricing-pg-select__option">
-                    <input type="radio" name="pricing-pg" value="danal" />
-                    <span>다날</span>
-                  </label>
-                </div>
-                <div class="pricing-pg-select" role="group" aria-label="다날 결제수단 선택">
-                  <span class="pricing-pg-select__label">다날 결제수단</span>
-                  <label class="pricing-pg-select__option">
-                    <input type="radio" name="pricing-danal-paymethod" value="CARD" checked />
-                    <span>신용카드</span>
-                  </label>
-                  <label class="pricing-pg-select__option">
-                    <input type="radio" name="pricing-danal-paymethod" value="MOBILE" />
-                    <span>휴대폰 소액결제</span>
-                  </label>
                 </div>
               </div>
             </div>
@@ -1792,8 +1771,8 @@
             <div class="pricing-grid">
               <article class="pricing-card">
                 <h3 class="pricing-card__name">베이직</h3>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩12,000</p>
-                <p class="pricing-card__period">1개월 · 엘리 일일 5회</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="one_month_basic">₩12,000</p>
+                <p class="pricing-card__period" data-price-tmpl="1개월 · 엘리 일일 {daily_basic}회">1개월 · 엘리 일일 5회</p>
                 <p class="pricing-card__note">집중 학습 입문에 맞춘 플랜입니다.</p>
                 <div class="pricing-card__pay-actions">
                   <button type="button" class="btn btn--primary" data-portone-product="one_month_basic">결제하기</button>
@@ -1802,8 +1781,8 @@
               <article class="pricing-card pricing-card--featured">
                 <span class="pricing-card__badge">인기</span>
                 <h3 class="pricing-card__name">슈퍼</h3>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩18,000</p>
-                <p class="pricing-card__period">1개월 · 엘리 일일 10회</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="one_month_super">₩18,000</p>
+                <p class="pricing-card__period" data-price-tmpl="1개월 · 엘리 일일 {daily_super}회">1개월 · 엘리 일일 10회</p>
                 <p class="pricing-card__note">매일 꾸준히 질문하며 공부하기에 적합합니다.</p>
                 <div class="pricing-card__pay-actions">
                   <button type="button" class="btn btn--primary" data-portone-product="one_month_super">결제하기</button>
@@ -1811,8 +1790,8 @@
               </article>
               <article class="pricing-card">
                 <h3 class="pricing-card__name">울트라</h3>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩24,000</p>
-                <p class="pricing-card__period">1개월 · 엘리 일일 20회</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="one_month_ultra">₩24,000</p>
+                <p class="pricing-card__period" data-price-tmpl="1개월 · 엘리 일일 {daily_ultra}회">1개월 · 엘리 일일 20회</p>
                 <p class="pricing-card__note">질문량이 많은 학습에 맞춘 플랜입니다.</p>
                 <div class="pricing-card__pay-actions">
                   <button type="button" class="btn btn--primary" data-portone-product="one_month_ultra">결제하기</button>
@@ -1840,11 +1819,11 @@
               <article class="pricing-card">
                 <span class="pricing-card__badge">할인가</span>
                 <h3 class="pricing-card__name">베이직</h3>
-                <p class="pricing-card__price-was" aria-hidden="true">₩12,000</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩10,000</p>
+                <p class="pricing-card__price-was" aria-hidden="true" data-price="one_month_basic">₩12,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="recurring_basic">₩10,000</p>
                 <p class="pricing-card__discount-label">1개월권 대비 월 할인가</p>
-                <p class="pricing-card__period">월 정기 · 엘리 일일 5회</p>
-                <p class="pricing-card__note">월 ₩12,000 → ₩10,000</p>
+                <p class="pricing-card__period" data-price-tmpl="월 정기 · 엘리 일일 {daily_basic}회">월 정기 · 엘리 일일 5회</p>
+                <p class="pricing-card__note" data-price-tmpl="월 {one_month_basic} → {recurring_basic}">월 ₩12,000 → ₩10,000</p>
                 <div class="pricing-card__pay-actions">
                   <button type="button" class="btn btn--primary" data-portone-product="recurring_basic">결제하기</button>
                 </div>
@@ -1852,11 +1831,11 @@
               <article class="pricing-card pricing-card--featured">
                 <span class="pricing-card__badge">할인가</span>
                 <h3 class="pricing-card__name">슈퍼</h3>
-                <p class="pricing-card__price-was" aria-hidden="true">₩18,000</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩15,000</p>
+                <p class="pricing-card__price-was" aria-hidden="true" data-price="one_month_super">₩18,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="recurring_super">₩15,000</p>
                 <p class="pricing-card__discount-label">1개월권 대비 월 할인가</p>
-                <p class="pricing-card__period">월 정기 · 엘리 일일 10회</p>
-                <p class="pricing-card__note">월 ₩18,000 → ₩15,000</p>
+                <p class="pricing-card__period" data-price-tmpl="월 정기 · 엘리 일일 {daily_super}회">월 정기 · 엘리 일일 10회</p>
+                <p class="pricing-card__note" data-price-tmpl="월 {one_month_super} → {recurring_super}">월 ₩18,000 → ₩15,000</p>
                 <div class="pricing-card__pay-actions">
                   <button type="button" class="btn btn--primary" data-portone-product="recurring_super">결제하기</button>
                 </div>
@@ -1864,11 +1843,11 @@
               <article class="pricing-card">
                 <span class="pricing-card__badge">할인가</span>
                 <h3 class="pricing-card__name">울트라</h3>
-                <p class="pricing-card__price-was" aria-hidden="true">₩24,000</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩20,000</p>
+                <p class="pricing-card__price-was" aria-hidden="true" data-price="one_month_ultra">₩24,000</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="recurring_ultra">₩20,000</p>
                 <p class="pricing-card__discount-label">1개월권 대비 월 할인가</p>
-                <p class="pricing-card__period">월 정기 · 엘리 일일 20회</p>
-                <p class="pricing-card__note">월 ₩24,000 → ₩20,000</p>
+                <p class="pricing-card__period" data-price-tmpl="월 정기 · 엘리 일일 {daily_ultra}회">월 정기 · 엘리 일일 20회</p>
+                <p class="pricing-card__note" data-price-tmpl="월 {one_month_ultra} → {recurring_ultra}">월 ₩24,000 → ₩20,000</p>
                 <div class="pricing-card__pay-actions">
                   <button type="button" class="btn btn--primary" data-portone-product="recurring_ultra">결제하기</button>
                 </div>
@@ -1889,8 +1868,8 @@
                 <span class="pricing-card__badge">팩</span>
                 <h3 class="pricing-card__name">엘리 10건</h3>
                 <p class="pricing-card__price-was pricing-card__price-was-ghost" aria-hidden="true">&nbsp;</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩5,000</p>
-                <p class="pricing-card__discount-label">1건당 500원</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="elly_10">₩5,000</p>
+                <p class="pricing-card__discount-label" data-price-tmpl="1건당 {elly_per_won}원">1건당 500원</p>
                 <p class="pricing-card__period">유효기간 1개월 · 한도 초과 후 차감</p>
                 <p class="pricing-card__note">10건 묶음 팩</p>
                 <div class="pricing-card__pay-actions">
@@ -1901,8 +1880,8 @@
                 <span class="pricing-card__badge">팩</span>
                 <h3 class="pricing-card__name">엘리 20건</h3>
                 <p class="pricing-card__price-was pricing-card__price-was-ghost" aria-hidden="true">&nbsp;</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩10,000</p>
-                <p class="pricing-card__discount-label">1건당 500원</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="elly_20">₩10,000</p>
+                <p class="pricing-card__discount-label" data-price-tmpl="1건당 {elly_per_won}원">1건당 500원</p>
                 <p class="pricing-card__period">유효기간 1개월 · 한도 초과 후 차감</p>
                 <p class="pricing-card__note">동일 단가 · 중간 용량</p>
                 <div class="pricing-card__pay-actions">
@@ -1913,8 +1892,8 @@
                 <span class="pricing-card__badge">팩</span>
                 <h3 class="pricing-card__name">엘리 30건</h3>
                 <p class="pricing-card__price-was pricing-card__price-was-ghost" aria-hidden="true">&nbsp;</p>
-                <p class="pricing-card__price pricing-card__price--krw-main">₩15,000</p>
-                <p class="pricing-card__discount-label">1건당 500원</p>
+                <p class="pricing-card__price pricing-card__price--krw-main" data-price="elly_30">₩15,000</p>
+                <p class="pricing-card__discount-label" data-price-tmpl="1건당 {elly_per_won}원">1건당 500원</p>
                 <p class="pricing-card__period">유효기간 1개월 · 한도 초과 후 차감</p>
                 <p class="pricing-card__note">다량 이용 시 동일 단가</p>
                 <div class="pricing-card__pay-actions">
@@ -1983,7 +1962,7 @@
                     <button type="button" class="btn btn--outline btn--small dashboard-btn-soft" id="dashboard-one-month-refund-btn">환불 요청</button>
                   </div>
                   <p id="dashboard-membership-hint" class="dashboard-section__lead dashboard-membership-hint" hidden>
-                    상세 해설(법리·함정·판례)은 유료 구독 또는 광고 확인 후 일정 시간 열람이 가능합니다.
+                    상세 해설(법리·함정·판례)은 유료 구독 회원에게 제공됩니다.
                     <button type="button" class="btn btn--link" id="dashboard-goto-pricing">요금제 보기</button>
                   </p>
                 </article>
@@ -2026,7 +2005,7 @@
                           </div>
                           <p class="dashboard-stat-card__hint">
                             퀴즈 1문제 이상 풀면 그날 출석으로 인정되며 하루 1회 포인트가 쌓입니다.
-                            아래 「포인트 전환」에서 <strong>500점</strong>으로 엘리(AI) 질문권 1건으로 바꿀 수 있습니다(전환 시점부터 1개월 유효).
+                            아래 「포인트 전환」에서 <strong data-elly-convert-count="1" data-price-tmpl="{points}점">500점</strong>으로 엘리(AI) 질문권 1건으로 바꿀 수 있습니다(전환 시점부터 1개월 유효).
                           </p>
                         </div>
                         <div class="dashboard-stat-card">
@@ -2136,6 +2115,7 @@
                             class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
                             id="btn-dashboard-attendance-convert-elly"
                             data-elly-convert-count="1"
+                            data-price-tmpl="엘리 질문권 1건 ({points}점)"
                             disabled
                           >
                             엘리 질문권 1건 (500점)
@@ -2144,6 +2124,7 @@
                             type="button"
                             class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
                             data-elly-convert-count="5"
+                            data-price-tmpl="5건 ({points}점)"
                             disabled
                           >
                             5건 (2,500점)
@@ -2152,6 +2133,7 @@
                             type="button"
                             class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
                             data-elly-convert-count="10"
+                            data-price-tmpl="10건 ({points}점)"
                             disabled
                           >
                             10건 (5,000점)
@@ -2160,6 +2142,7 @@
                             type="button"
                             class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
                             data-elly-convert-count="20"
+                            data-price-tmpl="20건 ({points}점)"
                             disabled
                           >
                             20건 (10,000점)
@@ -2168,6 +2151,7 @@
                             type="button"
                             class="btn btn--secondary btn--small dashboard-attendance-convert dashboard-btn-accent"
                             data-elly-convert-count="30"
+                            data-price-tmpl="30건 ({points}점)"
                             disabled
                           >
                             30건 (15,000점)
@@ -3558,7 +3542,7 @@
         <button type="button" class="modal__close" id="quiz-ai-limit-modal-close" aria-label="닫기">×</button>
       </div>
       <p class="modal__hint" id="quiz-ai-limit-modal-body">
-        무료 한도를 다 썼으니, 내일 질문하거나 질문권을 구매해 주세요.
+        엘리(AI) 질문 한도를 모두 사용했습니다. 질문권을 구매하거나 포인트로 전환해 이용해 주세요.
       </p>
       <div class="modal__actions">
         <button type="button" class="btn btn--ghost" id="quiz-ai-limit-modal-dismiss">닫기</button>
@@ -4010,12 +3994,13 @@
   <script src="/js/scope.js"></script>
   <script src="/js/legal-dictionary-data.js"></script>
   <script src="/js/case-dictionary-data.js"></script>
+  <script src="/js/case-text-normalize.js?v=1"></script>
   <script src="/js/casenote-link.js"></script>
-  <script src="/js/ai-answer-format.js?v=12"></script>
+  <script src="/js/ai-answer-format.js?v=13"></script>
   <script src="/js/statute-articles-static.js"></script>
   <script src="/js/case-ox-form.js?v=3"></script>
   <script src="/js/dict-favorites.js?v=1"></script>
-  <script src="/js/dict-panels.js?v=76"></script>
+  <script src="/js/dict-panels.js?v=77"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -4027,7 +4012,7 @@
   <script src="/js/ai-config.js"></script>
   <script src="/js/app-brand-normalize.js?v=1"></script>
   <script src="/js/tickets-service.js?v=18"></script>
-  <script src="/js/pricing-display-config.js?v=1"></script>
+  <script src="/js/pricing-display-config.js?v=2"></script>
   <script src="/js/portone-config.js?v=3"></script>
   <script src="/js/portone-checkout.js?v=13"></script>
   <script src="/js/auth.js?v=9"></script>
@@ -4040,33 +4025,20 @@
   <script src="/js/statute-tag.js"></script>
   <script src="/js/tag-dict-modal.js?v=11"></script>
   <script src="/js/member-tier.js?v=9"></script>
-  <script>
-    window.HANLAW_ADSENSE_DETAIL = window.HANLAW_ADSENSE_DETAIL || {
-      // 애드센스 승인 전에는 false 유지 (광고 관련 안내/오류 문구 숨김)
-      enabled: false,
-      client: "",
-      slot: "",
-      minViewMs: 8000,
-      // timeWindow일 때만 사용. 예: 1시간 3600000, 10분 600000, 하루 86400000
-      unlockTtlMs: 86400000,
-      // timeWindow: 광고 확인 후 unlockTtlMs 동안 전체 문항 열람 / everyDetail(기본): 상세 해설을 열 때마다 광고
-      unlockPolicy: "everyDetail"
-    };
-  </script>
-  <script src="/js/detail-ad-unlock.js?v=7"></script>
+  <script src="/js/detail-ad-unlock.js?v=8"></script>
   <script src="/js/question-credits.js?v=8"></script>
   <script src="/js/quiz-ai-ask.js?v=22"></script>
   <script src="/js/dashboard-tickets.js?v=13"></script>
   <script src="/js/learning-stats.js?v=6"></script>
   <script src="/js/nav-layout.js?v=13"></script>
   <script src="/js/public-content-data.js?v=5"></script>
-  <script src="/js/public-content-remote.js?v=3"></script>
+  <script src="/js/public-content-remote.js?v=5"></script>
   <script src="/js/quiz-admin-editor-standalone.js?v=3"></script>
-  <script src="/js/public-content-quiz-inline.js?v=2"></script>
-  <script src="/js/public-content-ui.js?v=9"></script>
+  <script src="/js/public-content-quiz-inline.js?v=3"></script>
+  <script src="/js/public-content-ui.js?v=12"></script>
   <script src="/js/public-guest-nav.js?v=3"></script>
   <script src="/js/admin-public-content.js?v=5"></script>
-  <script src="/js/public-qa.js?v=16"></script>
+  <script src="/js/public-qa.js?v=18"></script>
   <script src="/js/quiz-note-panel.js?v=14"></script>
   <script src="/js/dict-favorites-ui.js?v=3"></script>
   <script src="/js/quiz-question-memo.js?v=2"></script>

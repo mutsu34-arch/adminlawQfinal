@@ -6,6 +6,11 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 
+const {
+  ensureWeeklyPublicContentSnapshot,
+  serializeWeeklyForClient
+} = require("./publicContentWeekly");
+
 
 
 const DOC_PATH = "hanlaw_public_content/published";
@@ -110,31 +115,35 @@ async function writePublished(payload, { stripLegacy = true } = {}) {
 
 
 const getPublicContentConfig = onCall({ region: "asia-northeast3" }, async () => {
+  const db = getFirestore();
+  const weeklyRaw = await ensureWeeklyPublicContentSnapshot(db);
+  const weeklySnapshot = serializeWeeklyForClient(weeklyRaw);
 
-  const snap = await getFirestore().doc(DOC_PATH).get();
-
-  if (!snap.exists) return { config: null };
-
-  const data = snap.data() || null;
-
-  if (data && typeof data === "object") {
-
-    delete data.terms;
-
-    delete data.statutes;
-
-    delete data.cases;
-
-    if (isLegacy36Text(data.introLead)) {
-      data.introLead =
-        "로그인 없이 열람할 수 있는 핵심 자료입니다. 공개 퀴즈 5문항은 기본·상세 해설을 모두 공개합니다.";
-    }
-    data.quizBanner = normalizeQuizBanner(data.quizBanner);
-
+  const snap = await db.doc(DOC_PATH).get();
+  if (!snap.exists) {
+    return {
+      config: {
+        introLead:
+          "로그인 없이 열람할 수 있는 핵심 자료입니다. 매주 앱 DB에서 선정한 5건씩 미리보기를 제공하며, 공개 퀴즈는 기본·상세 해설을 모두 공개합니다.",
+        introDisclaimer: "",
+        quizBanner: normalizeQuizBanner(null),
+        weeklySnapshot,
+        qa: weeklySnapshot.qa
+      }
+    };
   }
 
-  return { config: data };
+  const data = snap.data() || {};
 
+  if (isLegacy36Text(data.introLead)) {
+    data.introLead =
+      "로그인 없이 열람할 수 있는 핵심 자료입니다. 매주 앱 DB에서 선정한 5건씩 미리보기를 제공하며, 공개 퀴즈는 기본·상세 해설을 모두 공개합니다.";
+  }
+  data.quizBanner = normalizeQuizBanner(data.quizBanner);
+  data.weeklySnapshot = weeklySnapshot;
+  data.qa = weeklySnapshot.qa;
+
+  return { config: data };
 });
 
 

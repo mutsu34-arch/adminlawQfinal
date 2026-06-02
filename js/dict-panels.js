@@ -879,8 +879,12 @@
         ? "dict-term-guest-hint"
         : kind === "statute"
           ? "dict-statute-guest-hint"
-          : "dict-case-guest-hint";
-    var el = $(id);
+          : kind === "case"
+            ? "dict-case-guest-hint"
+            : kind === "qa"
+              ? "dict-qa-guest-hint"
+              : "";
+    var el = id ? $(id) : null;
     if (!el) return;
     if (!isGuestViewer()) {
       el.hidden = true;
@@ -2966,8 +2970,11 @@
     return one;
   }
 
-  function normalizeCasePoliteStyle(raw) {
+  function normalizeCasePoliteStyle(raw, opts) {
     var s = String(raw || "").replace(/\r\n/g, "\n");
+    if (typeof window.normalizeCaseProseText === "function") {
+      s = window.normalizeCaseProseText(s, opts);
+    }
     if (!s.trim()) return "";
     var map = [
       [/제기하였다/g, "제기하였습니다"],
@@ -3212,7 +3219,7 @@
       }
 
       addSection("사실관계", normalizeCasePoliteStyle(c.facts));
-      addSection("쟁점", normalizeCaseIssuesTextForUi(normalizeCasePoliteStyle(c.issues)));
+      addSection("쟁점", normalizeCaseIssuesTextForUi(normalizeCasePoliteStyle(c.issues, { preserveIssueList: true })));
       addSection("법적 판단", normalizeCasePoliteStyle(c.judgment));
       appendDictionaryOxQuizSection(article, c.oxQuizzes, "판례 OX 퀴즈", 5);
       appendCaseFullTextToggle(article, c);
@@ -3648,6 +3655,7 @@
       setDictGuestHint("term");
       setDictGuestHint("statute");
       setDictGuestHint("case");
+      setDictGuestHint("qa");
     });
   }
 
@@ -3746,6 +3754,8 @@
     resetTermPanelToRoot: resetTermPanelToRoot,
     resetStatutePanelToRoot: resetStatutePanelToRoot,
     resetCasePanelToRoot: resetCasePanelToRoot,
+    setGuestHint: setDictGuestHint,
+    renderGuestBlocked: renderGuestMainDictBlocked,
     refreshPanelsIfOpen: function () {
       var pDict = document.getElementById("panel-dict");
       var pStat = document.getElementById("panel-statutes");

@@ -4,8 +4,13 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const https = require("https");
-const { effectiveGeminiModelId } = require("./geminiModel");
+const { effectiveGeminiModelId, GEMINI_TEXT_MODEL_FALLBACKS } = require("./geminiModel");
 const { getStoredNickname } = require("./userProfileServer");
+const {
+  normalizeCaseProseText,
+  normalizeCaseDictionaryFields,
+  caseFieldsNeedNormalize
+} = require("./caseTextNormalize");
 
 function db() {
   return getFirestore();
@@ -29,12 +34,8 @@ function isAdminFromAuth(auth) {
 }
 
 const MAX_STR = 12000;
-const GEMINI_MODEL_FALLBACKS = [
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite"
-];
+// 폴백 모델은 geminiModel.js 에서 단일 관리 (중복 정의 방지)
+const GEMINI_MODEL_FALLBACKS = GEMINI_TEXT_MODEL_FALLBACKS;
 
 function normTag(s) {
   return String(s || "")
@@ -554,6 +555,7 @@ async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, cas
     "문체 규칙: facts/issues/judgment/explanation은 반드시 정중한 서술형(합니다체, 예: ~하였습니다/~입니다)으로 작성하고, 반말체(~하였다/~했다)는 사용하지 마세요.\n" +
     "facts/issues/judgment는 반드시 '사실관계 → 쟁점 → 법적 판단' 관점으로 정리하고, 불확실하면 그렇게 밝히세요.\n" +
     "가독성 규칙: facts와 judgment는 2~4개 단락으로 나누고, 각 단락은 1~2문장으로 짧게 작성하세요.\n" +
+    "줄바꿈 규칙: 단락 구분은 빈 줄(\\n\\n)만 사용하세요. 문장·날짜·숫자 중간에 단일 줄바꿈(\\n)을 넣지 마세요. 날짜(예: 2015. 2. 8.)·선고일·행사일은 반드시 한 줄에 'YYYY. M. D.' 형식으로 작성하세요.\n" +
     "issues는 2~5개 핵심 쟁점을 줄바꿈으로 나열하고, 반드시 '첫째, ...\\n둘째, ...\\n셋째, ...' 형식으로 작성하세요.\n" +
     "oxQuizzes 생성 규칙: answer는 boolean(true=O, false=X), 사실관계/쟁점/법적판단을 고르게 포함하고, 전문에 없는 단정은 금지.\n" +
     (fullText
@@ -601,9 +603,9 @@ async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, cas
   return {
     citation: clampStr(o.citation, 400),
     title: clampStr(o.title, 300),
-    facts: clampStr(o.facts, MAX_STR),
-    issues: clampStr(normalizeCaseIssuesText(o.issues), MAX_STR),
-    judgment: clampStr(o.judgment, MAX_STR),
+    facts: clampStr(normalizeCaseProseText(o.facts), MAX_STR),
+    issues: clampStr(normalizeCaseProseText(normalizeCaseIssuesText(o.issues), { preserveIssueList: true }), MAX_STR),
+    judgment: clampStr(normalizeCaseProseText(o.judgment), MAX_STR),
     oxQuizzes,
     searchKeys: keys.length ? keys : [normTag(tag)]
   };
@@ -817,12 +819,13 @@ function firestoreToTermPayload(d) {
 }
 
 function firestoreToCasePayload(d) {
+  const normalized = normalizeCaseDictionaryFields(d || {});
   return {
     citation: d.citation || "",
     title: d.title || "",
-    facts: d.facts || "",
-    issues: normalizeCaseIssuesText(d.issues || ""),
-    judgment: d.judgment || "",
+    facts: normalized.facts,
+    issues: normalizeCaseIssuesText(normalized.issues),
+    judgment: normalized.judgment,
     caseFullText: d.caseFullText || "",
     oxQuizzes: sanitizeOxQuizzes(d.oxQuizzes, 5),
     searchKeys: d.searchKeys || [],
@@ -856,6 +859,7 @@ async function reviewDictionaryPayloadWithAi(gen, modelId, asCase, payload, tagI
     "아래 항목을 검토해 JSON만 출력하세요.",
     "출력 스키마: {\"risk\":\"low|medium|high\",\"summary\":\"한 줄 요약\",\"reasons\":[\"사유1\",\"사유2\"]}",
     "사유는 최대 3개.",
+    "날짜·줄바꿈: facts/judgment에 '2015.\\n2.\\n8.'처럼 날짜가 줄바꿈으로 쪼개져 있거나 문장 중간에 불필요한 줄바꿈이 있으면 medium 이상으로 표시하세요.",
     "",
     "[엔터티]",
     asCase ? "case" : "term",
@@ -1009,10 +1013,60 @@ const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async
   }
 });
 
+const adminNormalizeCaseDictionaryText = onCall({ region: "asia-northeast3" }, async (request) => {
+  if (!isAdminFromAuth(request.auth)) {
+    throw new HttpsError("permission-denied", "관리자만 실행할 수 있습니다.");
+  }
+  const dryRun = !!(request.data && request.data.dryRun);
+  const snap = await db().collection("hanlaw_dict_cases").get();
+  let scanned = 0;
+  let changed = 0;
+  const samples = [];
+  const batchSize = 400;
+  let batch = db().batch();
+  let batchCount = 0;
+
+  async function commitBatchIfNeeded(force) {
+    if (batchCount === 0) return;
+    if (!force && batchCount < batchSize) return;
+    if (!dryRun) await batch.commit();
+    batch = db().batch();
+    batchCount = 0;
+  }
+
+  for (const doc of snap.docs) {
+    scanned += 1;
+    const data = doc.data() || {};
+    if (!caseFieldsNeedNormalize(data)) continue;
+    const next = normalizeCaseDictionaryFields(data);
+    changed += 1;
+    if (samples.length < 8) {
+      samples.push({
+        docId: doc.id,
+        citation: String(data.citation || "").slice(0, 120)
+      });
+    }
+    if (!dryRun) {
+      batch.update(doc.ref, {
+        facts: next.facts,
+        issues: next.issues,
+        judgment: next.judgment,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      batchCount += 1;
+      if (batchCount >= batchSize) await commitBatchIfNeeded(true);
+    }
+  }
+  await commitBatchIfNeeded(true);
+
+  return { ok: true, dryRun, scanned, changed, samples };
+});
+
 module.exports = {
   generateOrGetDictionaryEntry,
   generateStatuteOxQuizzesGemini,
   generateStatuteEntryFromWebGemini,
+  adminNormalizeCaseDictionaryText,
   makeSlug,
   normTag,
   isLikelyCaseTag
