@@ -122,6 +122,13 @@
   }
 
   function userFacingError(e) {
+    var code = e && e.code ? String(e.code) : "";
+    if (code === "functions/already-exists") {
+      return (
+        (e && e.message ? String(e.message) : "") ||
+        "이미 본인인증으로 가입된 계정이 있습니다. 기존 계정으로 로그인해 주세요."
+      );
+    }
     var msg = e && e.message ? String(e.message) : "";
     if (!msg) return "본인인증에 실패했습니다. 잠시 후 다시 시도해 주세요.";
     if (/본인인증 채널|조건을 만족하는|ALL_CHANNELS|CHANNEL_NOT/i.test(msg)) {

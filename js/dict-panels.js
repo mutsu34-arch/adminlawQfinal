@@ -1043,6 +1043,9 @@
     if (delTerm) {
       delTerm.hidden = !isAdminUser() || !String(m.dataset.docId || "").trim();
     }
+    if (typeof window.raiseHanlawModalLayer === "function") {
+      window.raiseHanlawModalLayer(m);
+    }
     m.hidden = false;
     m.setAttribute("aria-hidden", "false");
     if (termIn) {
@@ -1109,6 +1112,9 @@
     setDictCaseEditMsg("", false);
     var delCase = $("dict-case-edit-delete");
     if (delCase) delCase.hidden = !isAdminUser();
+    if (typeof window.raiseHanlawModalLayer === "function") {
+      window.raiseHanlawModalLayer(m);
+    }
     m.hidden = false;
     m.setAttribute("aria-hidden", "false");
     var cit = $("dict-case-edit-citation");
@@ -2431,6 +2437,9 @@
     var delSt = $("dict-statute-edit-delete");
     if (delSt) {
       delSt.hidden = !isAdminUser() || !String(m.dataset.docId || "").trim();
+    }
+    if (typeof window.raiseHanlawModalLayer === "function") {
+      window.raiseHanlawModalLayer(m);
     }
     m.hidden = false;
     m.setAttribute("aria-hidden", "false");

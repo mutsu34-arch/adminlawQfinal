@@ -34,7 +34,7 @@
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/css/style.css?v=20260521-withdrawal" />
+  <link rel="stylesheet" href="/css/style.css?v=20260602-modal-stack" />
   <link rel="stylesheet" href="/css/public-content.css?v=6" />
 </head>
 <body>
@@ -129,7 +129,7 @@
       <div class="card card--auth identity-gate-card">
         <h2 class="card__title">휴대폰 본인인증</h2>
         <p class="identity-gate-lead">
-          휴대폰 본인인증이 필요합니다. 회원가입 및 서비스 이용을 위해 아래 버튼으로 본인 확인을 진행해 주세요.
+          휴대폰 본인인증이 필요합니다. 본인인증은 1인 1계정으로만 가입할 수 있습니다. 아래 버튼으로 본인 확인을 진행해 주세요.
         </p>
         <p id="identity-gate-msg" class="auth-message" role="status" aria-live="polite" hidden></p>
         <button type="button" id="btn-identity-gate-start" class="btn btn--primary">본인인증 진행</button>
@@ -3584,7 +3584,7 @@
 
   <div
     id="public-qa-edit-modal"
-    class="modal"
+    class="modal modal--stack-top"
     hidden
     aria-hidden="true"
     role="dialog"
@@ -3628,7 +3628,7 @@
 
   <div
     id="public-quiz-banner-edit-modal"
-    class="modal"
+    class="modal modal--stack-top"
     hidden
     aria-hidden="true"
     role="dialog"
@@ -3664,7 +3664,7 @@
 
   <div
     id="dict-term-edit-modal"
-    class="modal dict-term-edit-modal"
+    class="modal dict-term-edit-modal modal--stack-top"
     hidden
     aria-hidden="true"
     role="dialog"
@@ -3709,7 +3709,7 @@
 
   <div
     id="dict-case-edit-modal"
-    class="modal dict-case-edit-modal"
+    class="modal dict-case-edit-modal modal--stack-top"
     hidden
     aria-hidden="true"
     role="dialog"
@@ -3789,7 +3789,7 @@
 
   <div
     id="dict-statute-edit-modal"
-    class="modal dict-term-edit-modal"
+    class="modal dict-term-edit-modal modal--stack-top"
     hidden
     aria-hidden="true"
     role="dialog"
@@ -4000,7 +4000,8 @@
   <script src="/js/statute-articles-static.js"></script>
   <script src="/js/case-ox-form.js?v=3"></script>
   <script src="/js/dict-favorites.js?v=1"></script>
-  <script src="/js/dict-panels.js?v=77"></script>
+  <script src="/js/modal-layer.js?v=1"></script>
+  <script src="/js/dict-panels.js?v=78"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -4016,14 +4017,14 @@
   <script src="/js/portone-config.js?v=3"></script>
   <script src="/js/portone-checkout.js?v=13"></script>
   <script src="/js/auth.js?v=9"></script>
-  <script src="/js/identity-verification.js?v=4"></script>
+  <script src="/js/identity-verification.js?v=5"></script>
   <script src="/js/pricing-dev-visibility.js?v=1"></script>
   <script src="/js/support-chat.js?v=4"></script>
   <script src="/js/user-profile.js?v=20260419"></script>
   <script src="/js/account-withdrawal.js?v=1"></script>
   <script src="/js/dict-remote.js?v=6"></script>
   <script src="/js/statute-tag.js"></script>
-  <script src="/js/tag-dict-modal.js?v=11"></script>
+  <script src="/js/tag-dict-modal.js?v=12"></script>
   <script src="/js/member-tier.js?v=9"></script>
   <script src="/js/detail-ad-unlock.js?v=8"></script>
   <script src="/js/question-credits.js?v=8"></script>
@@ -4037,7 +4038,7 @@
   <script src="/js/public-content-quiz-inline.js?v=3"></script>
   <script src="/js/public-content-ui.js?v=12"></script>
   <script src="/js/public-guest-nav.js?v=3"></script>
-  <script src="/js/admin-public-content.js?v=5"></script>
+  <script src="/js/admin-public-content.js?v=6"></script>
   <script src="/js/public-qa.js?v=18"></script>
   <script src="/js/quiz-note-panel.js?v=14"></script>
   <script src="/js/dict-favorites-ui.js?v=3"></script>

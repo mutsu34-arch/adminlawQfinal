@@ -4,6 +4,11 @@ const crypto = require("crypto");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const {
+  extractCiDiFromVerifiedCustomer,
+  mockIdentityKeys,
+  commitVerifiedIdentity
+} = require("./identityRegistry");
 
 const COL = "hanlaw_identity_challenges";
 const CHALLENGE_TTL_MS = 15 * 60 * 1000;
@@ -72,9 +77,12 @@ const ALLOWED_PURPOSES = new Set(["onboarding", "contact_change", "password_rese
 
 /** 모의 인증 시 저장되는 표시용 값(개발·테스트 전용) */
 function mockVerifiedPayload() {
+  const keys = mockIdentityKeys();
   return {
     verifiedLegalName: "본인인증(모의)",
-    verifiedPhoneMasked: "010-****-5678"
+    verifiedPhoneMasked: "010-****-5678",
+    di: keys.di,
+    ci: keys.ci
   };
 }
 
@@ -129,9 +137,18 @@ function verifiedPayloadFromPortone(iv) {
   if (!name) {
     throw new HttpsError("failed-precondition", "본인인증 결과에서 이름을 확인할 수 없습니다.");
   }
+  const { di, ci } = extractCiDiFromVerifiedCustomer(vc);
+  if (!di && !ci) {
+    throw new HttpsError(
+      "failed-precondition",
+      "본인인증 결과에서 중복 확인 정보(DI/CI)를 받지 못했습니다. PortOne·다날 본인인증 설정을 확인해 주세요."
+    );
+  }
   return {
     verifiedLegalName: name,
-    verifiedPhoneMasked: maskPhone(phone)
+    verifiedPhoneMasked: maskPhone(phone),
+    di,
+    ci
   };
 }
 
@@ -293,17 +310,7 @@ async function finishWithPortone(db, challengeId, identityVerificationId, reques
     if (String(consumed.uid) !== request.auth.uid) {
       throw new HttpsError("permission-denied", "인증 요청과 로그인 계정이 일치하지 않습니다.");
     }
-    const ref = db.collection("hanlaw_user_profiles").doc(request.auth.uid);
-    await ref.set(
-      {
-        identityVerified: true,
-        verifiedLegalName: verified.verifiedLegalName,
-        verifiedPhoneMasked: verified.verifiedPhoneMasked,
-        identityVerifiedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
+    await commitVerifiedIdentity(db, request.auth.uid, verified, purpose);
     return {
       ok: true,
       purpose,
@@ -335,17 +342,7 @@ async function finishWithMock(db, challengeId, request) {
       throw new HttpsError("permission-denied", "인증 요청과 로그인 계정이 일치하지 않습니다.");
     }
     const mock = mockVerifiedPayload();
-    const ref = db.collection("hanlaw_user_profiles").doc(request.auth.uid);
-    await ref.set(
-      {
-        identityVerified: true,
-        verifiedLegalName: mock.verifiedLegalName,
-        verifiedPhoneMasked: mock.verifiedPhoneMasked,
-        identityVerifiedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
+    await commitVerifiedIdentity(db, request.auth.uid, mock, purpose);
     return { ok: true, purpose, verifiedLegalName: mock.verifiedLegalName, verifiedPhoneMasked: mock.verifiedPhoneMasked };
   }
 

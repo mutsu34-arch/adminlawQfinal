@@ -114,6 +114,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // 본인인증 DI/CI 레지스트리(1인 1계정). 읽기·쓰기는 Cloud Functions만.
+    match /hanlaw_identity_registry/{registryId} {
+      allow read, write: if false;
+    }
+
     // 결제 피드백 멱등 처리(Functions 전용, 예: PayApp)
     match /hanlaw_webhook_events/{eventId} {
       allow read, write: if false;

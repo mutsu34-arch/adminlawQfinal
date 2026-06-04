@@ -3,6 +3,7 @@
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { releaseIdentityRegistryForUid } = require("./identityRegistry");
 
 const FEEDBACK_MAX = 2000;
 
@@ -48,6 +49,8 @@ async function deleteSubcollectionAll(parentRef, subName) {
 async function deleteUserFirestoreData(uid, emailOpt) {
   const db = getFirestore();
   const email = emailOpt ? String(emailOpt).trim().slice(0, 200) : "";
+
+  await releaseIdentityRegistryForUid(db, uid);
 
   await deleteAllInQuery(db.collection("hanlaw_notifications").where("userId", "==", uid));
   await deleteAllInQuery(db.collection("hanlaw_tickets").where("userId", "==", uid));

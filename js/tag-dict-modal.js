@@ -310,11 +310,31 @@
     body.appendChild(root);
   }
 
+  function resetTagDictModalScroll() {
+    var m = $("tag-dict-modal");
+    if (!m) return;
+    m.scrollTop = 0;
+    if (typeof m.scrollTo === "function") {
+      m.scrollTo(0, 0);
+    }
+    var body = $("tag-dict-modal-body");
+    if (body) {
+      body.scrollTop = 0;
+      if (typeof body.scrollTo === "function") {
+        body.scrollTo(0, 0);
+      }
+    }
+  }
+
   function openModal() {
     var m = $("tag-dict-modal");
     if (m) {
+      resetTagDictModalScroll();
       m.hidden = false;
       m.setAttribute("aria-hidden", "false");
+      window.requestAnimationFrame(function () {
+        resetTagDictModalScroll();
+      });
     }
   }
 
@@ -323,6 +343,7 @@
     if (m) {
       m.hidden = true;
       m.setAttribute("aria-hidden", "true");
+      resetTagDictModalScroll();
     }
     CURRENT_ENTRY = null;
   }
@@ -511,6 +532,10 @@
         else UI.renderTermResults(body, [res.record]);
         CURRENT_ENTRY = { tag: tag, kind: res.kind, record: res.record };
         enforceTagModalPermissionUi(body, actions, res.kind);
+        resetTagDictModalScroll();
+        window.requestAnimationFrame(function () {
+          resetTagDictModalScroll();
+        });
       })
       .catch(function (e) {
         body.innerHTML = "";

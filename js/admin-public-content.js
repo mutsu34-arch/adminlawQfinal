@@ -134,6 +134,9 @@
       }
       if (hrefIn) hrefIn.value = b.href || "/content/quiz-36.html";
       setBannerMsg("", false);
+      if (typeof window.raiseHanlawModalLayer === "function") {
+        window.raiseHanlawModalLayer(modal);
+      }
       modal.hidden = false;
       modal.style.display = "";
     }
@@ -210,6 +213,9 @@
       if (qIn) qIn.value = item.questionMessage || "";
       if (answerIn) answerIn.value = item.answer || "";
       setQaMsg("", false);
+      if (typeof window.raiseHanlawModalLayer === "function") {
+        window.raiseHanlawModalLayer(modal);
+      }
       modal.hidden = false;
       modal.style.display = "";
     }

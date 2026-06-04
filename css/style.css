@@ -6586,6 +6586,11 @@ html[data-theme="light"] .support-chat-error {
   display: none !important;
 }
 
+/* 관리자 수정·공개콘텐츠 편집: 태그 사전·티켓 등 기본 modal 위 */
+.modal.modal--stack-top {
+  z-index: 650;
+}
+
 .modal__panel {
   width: 100%;
   max-width: 480px;
