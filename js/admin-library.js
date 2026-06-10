@@ -134,6 +134,11 @@
         if (x.fileKind === "xlsx") parts.push("시트 " + x.numPages + "개");
         else parts.push("약 " + x.numPages + "페이지");
       }
+      if (x.ingestPhase === "embedding" && x.chunkTotal) {
+        parts.push("임베딩 " + (x.ingestProgress || 0) + "/" + x.chunkTotal);
+      } else if (x.ingestPhase === "ocr") {
+        parts.push("OCR 처리 중");
+      }
       meta.textContent = parts.filter(Boolean).join(" · ");
       var err = document.createElement("div");
       if (x.status === "error" && x.errorMessage) {
@@ -144,25 +149,30 @@
       if (x.status === "processing" && procMs && now - procMs > 10 * 60 * 1000) {
         warn.className = "admin-library-row__err";
         warn.textContent =
-          "백엔드(onLibraryPdfUploaded)는 한 실행당 최대 약 9분(540초)입니다. 그보다 길게 '학습 중'만 보이면, 타임아웃 등으로 Firestore가 '오류'로 바뀌지 못하고 멈춘 경우가 많습니다. Firebase 콘솔 → Functions → 로그에서 문서 ID \"" +
-          d.id +
-          "\" 또는 libraryPipeline으로 검색하세요. 대용량·스캔 PDF는 나눠 올리거나 삭제 후 재시도하세요.";
-        if (now - procMs > 30 * 60 * 1000) {
-          warn.textContent +=
-            " 30분 이상이면 메모리 한도·Pinecone·임베딩 API 지연도 의심됩니다.";
-        }
-      } else if (x.status === "pending" && upMs && now - upMs > 20 * 60 * 1000) {
+          "학습이 오래 걸리거나 멈춘 것 같습니다. 대용량 PDF는 메모리·시간(최대 약 9분) 한도에 걸릴 수 있습니다. 아래 「학습 재시도」를 눌러 보세요. 그래도 안 되면 PDF를 나눠 올리세요.";
+      } else if (x.status === "pending" && upMs && now - upMs > 5 * 60 * 1000) {
         warn.className = "admin-library-row__err";
         warn.textContent =
-          "오래 대기 중입니다. Storage 업로드가 끝났는지, Functions 배포·HANLAW_STORAGE_BUCKET·트리거(onLibraryPdfUploaded)가 프로젝트와 일치하는지 확인하세요.";
+          "업로드 후 학습이 시작되지 않았습니다. Storage 업로드가 끝났다면 「학습 재시도」를 눌러 주세요.";
+      }
+      var actions = document.createElement("div");
+      actions.className = "admin-library-row__actions";
+      if (x.status === "pending" || x.status === "processing" || x.status === "error") {
+        var retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "btn btn--secondary btn--small";
+        retry.textContent = "학습 재시도";
+        retry.setAttribute("data-library-retry", d.id);
+        actions.appendChild(retry);
       }
       var del = document.createElement("button");
       del.type = "button";
       del.className = "btn btn--ghost btn--small";
       del.textContent = "삭제";
       del.setAttribute("data-library-id", d.id);
+      actions.appendChild(del);
       row.appendChild(titleWrap);
-      row.appendChild(del);
+      row.appendChild(actions);
       row.appendChild(meta);
       if (err.textContent) row.appendChild(err);
       if (warn.textContent) row.appendChild(warn);
@@ -192,6 +202,37 @@
         if (el) el.textContent = "목록을 불러오지 못했습니다.";
       }
     );
+  }
+
+  function retryLibrary(libraryId) {
+    if (!libraryId) return;
+    var msgEl = document.getElementById("admin-msg-library");
+    if (!window.confirm("이 자료의 벡터 학습을 다시 시작할까요? (최대 약 9분 소요)")) return;
+    if (typeof firebase === "undefined" || !firebase.functions) return;
+    setMsg(msgEl, "학습 재시도 중… (대용량 PDF는 수 분 걸릴 수 있습니다)", false);
+    var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
+    var fn = firebase.app().functions(region).httpsCallable("adminRetryLibraryIngest", {
+      timeout: 540000
+    });
+    fn({ libraryId: libraryId })
+      .then(function (res) {
+        var data = res && res.data;
+        var n = data && data.chunkCount != null ? data.chunkCount : "";
+        setMsg(
+          msgEl,
+          n ? "학습이 완료되었습니다. (청크 " + n + "개)" : "학습이 완료되었습니다.",
+          false
+        );
+        subscribeList();
+      })
+      .catch(function (e) {
+        var m = (e && e.message) || "학습 재시도에 실패했습니다.";
+        if (e && e.code === "functions/deadline-exceeded") {
+          m = "처리 시간(약 9분)을 초과했습니다. PDF를 나눠 올리거나 용량을 줄여 주세요.";
+        }
+        setMsg(msgEl, m, true);
+        subscribeList();
+      });
   }
 
   function deleteLibrary(libraryId) {
@@ -244,7 +285,23 @@
       if (!data || !data.storagePath) throw new Error("서버 응답이 올바르지 않습니다.");
       return refreshIdTokenThen(function () {
         var ref = firebase.storage().ref(data.storagePath);
-        return ref.put(file, { contentType: libraryFileContentType(file) });
+        var task = ref.put(file, { contentType: libraryFileContentType(file) });
+        if (file.size > 20 * 1024 * 1024 && typeof task.on === "function") {
+          return new Promise(function (resolve, reject) {
+            task.on(
+              "state_changed",
+              function (snap) {
+                var msgEl = document.getElementById("admin-msg-library");
+                if (!msgEl || !snap.totalBytes) return;
+                var pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+                setMsg(msgEl, "Storage 업로드 중… " + pct + "% (" + file.name + ")", false);
+              },
+              reject,
+              resolve
+            );
+          });
+        }
+        return task;
       });
     });
   }
@@ -378,6 +435,11 @@
     var listEl = document.getElementById("admin-library-list");
     if (listEl) {
       listEl.addEventListener("click", function (e) {
+        var retryBtn = e.target.closest("[data-library-retry]");
+        if (retryBtn) {
+          retryLibrary(retryBtn.getAttribute("data-library-retry"));
+          return;
+        }
         var b = e.target.closest("[data-library-id]");
         if (!b) return;
         deleteLibrary(b.getAttribute("data-library-id"));

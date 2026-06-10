@@ -198,33 +198,35 @@ async function embedInBatches(texts, batchSize) {
   return out;
 }
 
-async function upsertChunksToPinecone(libraryId, fileName, chunks) {
+async function upsertChunksToPinecone(libraryId, fileName, chunks, onProgress) {
   const index = getPineconeIndex();
   if (!index) throw new Error("PINECONE 설정 없음");
   const ns = index.namespace(getNamespace());
-  const texts = chunks.map((c) => c.text);
-  const vectors = await embedInBatches(texts);
-  const records = [];
-  for (let i = 0; i < chunks.length; i++) {
-    const c = chunks[i];
-    const id = `${libraryId}_c${c.chunkIndex}`;
-    const metaText = c.text.length > 3500 ? c.text.slice(0, 3500) + "…" : c.text;
-    records.push({
-      id,
-      values: vectors[i],
-      metadata: {
-        fileId: libraryId,
-        fileName: String(fileName || "").slice(0, 256),
-        page: c.page,
-        chunkIndex: c.chunkIndex,
-        text: metaText
-      }
-    });
-  }
-  const batchSize = 100;
-  for (let i = 0; i < records.length; i += batchSize) {
-    const slice = records.slice(i, i + batchSize);
-    await ns.upsert(slice);
+  const embedBatch = 32;
+  const safeName = String(fileName || "").slice(0, 256);
+  for (let i = 0; i < chunks.length; i += embedBatch) {
+    const slice = chunks.slice(i, i + embedBatch);
+    const vectors = await embedTexts(slice.map((c) => c.text));
+    const records = [];
+    for (let j = 0; j < slice.length; j++) {
+      const c = slice[j];
+      const metaText = c.text.length > 3500 ? c.text.slice(0, 3500) + "…" : c.text;
+      records.push({
+        id: `${libraryId}_c${c.chunkIndex}`,
+        values: vectors[j],
+        metadata: {
+          fileId: libraryId,
+          fileName: safeName,
+          page: c.page,
+          chunkIndex: c.chunkIndex,
+          text: metaText
+        }
+      });
+    }
+    await ns.upsert(records);
+    if (typeof onProgress === "function") {
+      await onProgress(Math.min(i + slice.length, chunks.length), chunks.length);
+    }
   }
 }
 

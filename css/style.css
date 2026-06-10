@@ -7683,6 +7683,13 @@ html[data-theme="light"] .support-chat-error {
   line-height: 1.35;
 }
 
+.admin-library-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
 .admin-library-row__meta {
   grid-column: 1 / -1;
   font-size: 0.78rem;

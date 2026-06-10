@@ -34,7 +34,7 @@
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/css/style.css?v=20260602-modal-stack" />
+  <link rel="stylesheet" href="/css/style.css?v=20260610-library-ingest" />
   <link rel="stylesheet" href="/css/public-content.css?v=6" />
 </head>
 <body>
@@ -3304,7 +3304,7 @@
               </div>
               <div id="admin-panel-library" class="admin-panel-library" hidden>
                 <p class="admin-json-help">
-                  행정법 교과서·기출 해설·법령 개정·판례 관련 <strong>PDF</strong> 또는 <strong>Excel(.xlsx)</strong>를 올리면 서버에서 텍스트를 추출해 벡터 DB(Pinecone)에 저장합니다. 파일당 최대 <strong>300MB</strong>까지 업로드할 수 있습니다.
+                  행정법 교과서·기출 해설·법령 개정·판례 관련 <strong>PDF</strong> 또는 <strong>Excel(.xlsx)</strong>를 올리면 서버에서 텍스트를 추출해 벡터 DB(Pinecone)에 저장합니다. 파일당 최대 <strong>300MB</strong>까지 업로드할 수 있으나, <strong>수백 MB·스캔 PDF</strong>는 학습에 수 분~9분이 걸리거나 실패할 수 있어 <strong>챕터별로 나눠 올리는 것</strong>을 권장합니다.
                   퀴즈 <strong>엘리(AI)에게 질문하기</strong> 답변 시 관련 발췌를 참고합니다. Functions 환경변수:
                   <code class="pricing-code">GEMINI_API_KEY</code>,
                   <code class="pricing-code">PINECONE_API_KEY</code>,
@@ -4059,7 +4059,7 @@
   <script src="/js/admin-quiz-create.js?v=19"></script>
   <script src="/js/admin-bundled-quiz.js?v=1"></script>
   <script src="/js/admin-review.js?v=20"></script>
-  <script src="/js/admin-library.js?v=6"></script>
+  <script src="/js/admin-library.js?v=7"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/admin-excel.js?v=11"></script>
   <script src="/js/admin-support-chat.js?v=4"></script>

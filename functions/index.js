@@ -117,10 +117,12 @@ exports.registerUserSession = registerUserSession;
 const {
   createLibraryDocument,
   deleteLibraryDocument,
+  adminRetryLibraryIngest,
   onLibraryPdfUploaded
 } = require("./libraryPipeline");
 exports.createLibraryDocument = createLibraryDocument;
 exports.deleteLibraryDocument = deleteLibraryDocument;
+exports.adminRetryLibraryIngest = adminRetryLibraryIngest;
 exports.onLibraryPdfUploaded = onLibraryPdfUploaded;
 
 const {

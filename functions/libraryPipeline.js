@@ -2,7 +2,7 @@
 
 /**
  * 자료실: Firestore 메타데이터 + Storage 업로드 → 청크·임베딩·Pinecone
- * Callable: createLibraryDocument, deleteLibraryDocument (관리자만)
+ * Callable: createLibraryDocument, deleteLibraryDocument, adminRetryLibraryIngest (관리자만)
  * Storage: hanlaw_library/{libraryId}/{파일명}.pdf | .xlsx
  */
 
@@ -25,6 +25,9 @@ const db = getFirestore();
 const LIBRARY_STORAGE_BUCKET =
   process.env.HANLAW_STORAGE_BUCKET || "adminlawq-b9dad.firebasestorage.app";
 
+const INGEST_MEMORY = "4GiB";
+const INGEST_TIMEOUT_SEC = 540;
+
 function isAdminEmail(email) {
   const raw = process.env.ADMIN_EMAILS || "mutsu34@gmail.com";
   const list = raw
@@ -32,6 +35,15 @@ function isAdminEmail(email) {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   return list.includes(String(email || "").toLowerCase());
+}
+
+function requireAdmin(request) {
+  if (!request.auth || !request.auth.token.email) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  if (!isAdminEmail(request.auth.token.email)) {
+    throw new HttpsError("permission-denied", "관리자만 사용할 수 있습니다.");
+  }
 }
 
 function sanitizeFileName(name) {
@@ -64,13 +76,149 @@ function shouldUseXlsxPipeline(fileName, buffer) {
   return false;
 }
 
+function isLibraryStoragePath(name) {
+  const low = String(name || "").toLowerCase();
+  return (
+    low.startsWith("hanlaw_library/") && (low.endsWith(".pdf") || low.endsWith(".xlsx"))
+  );
+}
+
+function libraryIdFromStoragePath(name) {
+  const parts = String(name || "").split("/");
+  if (parts.length < 3) return "";
+  return parts[1];
+}
+
+async function ingestLibraryObject(bucketName, objectName) {
+  const name = String(objectName || "").trim();
+  if (!isLibraryStoragePath(name)) {
+    throw new HttpsError("invalid-argument", "자료실 Storage 경로가 아닙니다.");
+  }
+  const libraryId = libraryIdFromStoragePath(name);
+  const fileLabel = name.split("/").slice(2).join("/");
+  const docRef = db.collection(COLLECTION).doc(libraryId);
+  const snap = await docRef.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "Firestore 자료 메타데이터를 찾을 수 없습니다.");
+  }
+
+  await docRef.set(
+    {
+      status: "processing",
+      errorMessage: null,
+      ingestPhase: "download",
+      ingestProgress: 0,
+      processedAt: FieldValue.serverTimestamp()
+    },
+    { merge: true }
+  );
+
+  try {
+    const bucket = getStorage().bucket(bucketName);
+    const file = bucket.file(name);
+    const [exists] = await file.exists();
+    if (!exists) {
+      throw new Error(
+        "Storage에 파일이 없습니다. 업로드가 끝나지 않았거나 삭제되었을 수 있습니다. 삭제 후 다시 올려 주세요."
+      );
+    }
+
+    const [buffer] = await file.download();
+    const fileBytes = buffer.length;
+
+    let chunksInfo;
+    let resolvedKind = "pdf";
+    if (shouldUseXlsxPipeline(name, buffer)) {
+      chunksInfo = extractChunksFromXlsx(buffer);
+      resolvedKind = "xlsx";
+    } else {
+      try {
+        chunksInfo = await extractChunksFromPdf(buffer);
+      } catch (e) {
+        const msg = String((e && e.message) || e || "");
+        if (msg.indexOf("OCR") >= 0 || msg.indexOf("텍스트가 거의 없습니다") >= 0) {
+          await docRef.set({ ingestPhase: "ocr", ingestProgress: 0 }, { merge: true });
+          chunksInfo = await extractChunksFromPdfByOcr(bucketName, name, libraryId);
+          await docRef.set({ ocrUsed: true }, { merge: true });
+        } else if (
+          /invalid pdf|pdf structure/i.test(msg) &&
+          buffer.length >= 2 &&
+          buffer[0] === 0x50 &&
+          buffer[1] === 0x4b
+        ) {
+          chunksInfo = extractChunksFromXlsx(buffer);
+          resolvedKind = "xlsx";
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    const { chunks, numPages } = chunksInfo;
+    if (!chunks.length) {
+      throw new Error("청크를 만들 수 없습니다.");
+    }
+
+    const d = snap.data();
+    const displayName = d.fileName || fileLabel;
+
+    await docRef.set(
+      {
+        ingestPhase: "embedding",
+        ingestProgress: 0,
+        chunkTotal: chunks.length,
+        bytes: fileBytes
+      },
+      { merge: true }
+    );
+
+    await deleteVectorsByFileId(libraryId);
+    await upsertChunksToPinecone(libraryId, displayName, chunks, async function (done, total) {
+      await docRef.set(
+        {
+          ingestPhase: "embedding",
+          ingestProgress: done,
+          chunkTotal: total
+        },
+        { merge: true }
+      );
+    });
+
+    await docRef.set(
+      {
+        status: "complete",
+        chunkCount: chunks.length,
+        numPages: numPages,
+        fileKind: resolvedKind,
+        bytes: fileBytes,
+        errorMessage: null,
+        ingestPhase: null,
+        ingestProgress: null,
+        chunkTotal: null,
+        completedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    return { ok: true, libraryId, chunkCount: chunks.length };
+  } catch (e) {
+    console.error("libraryPipeline ingest", libraryId, e);
+    const errMsg = (e && e.message) || String(e);
+    await docRef.set(
+      {
+        status: "error",
+        errorMessage: errMsg.slice(0, 500),
+        ingestPhase: null,
+        completedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+    throw e;
+  }
+}
+
 const createLibraryDocument = onCall({ region: "asia-northeast3" }, async (request) => {
-  if (!request.auth || !request.auth.token.email) {
-    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  }
-  if (!isAdminEmail(request.auth.token.email)) {
-    throw new HttpsError("permission-denied", "관리자만 등록할 수 있습니다.");
-  }
+  requireAdmin(request);
   const data = request.data || {};
   const title = String(data.title || "").trim().slice(0, 200);
   const category = String(data.category || "other").trim();
@@ -108,12 +256,7 @@ const createLibraryDocument = onCall({ region: "asia-northeast3" }, async (reque
 });
 
 const deleteLibraryDocument = onCall({ region: "asia-northeast3" }, async (request) => {
-  if (!request.auth || !request.auth.token.email) {
-    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  }
-  if (!isAdminEmail(request.auth.token.email)) {
-    throw new HttpsError("permission-denied", "관리자만 삭제할 수 있습니다.");
-  }
+  requireAdmin(request);
   const libraryId = String((request.data && request.data.libraryId) || "").trim();
   if (!libraryId) {
     throw new HttpsError("invalid-argument", "libraryId가 없습니다.");
@@ -141,108 +284,51 @@ const deleteLibraryDocument = onCall({ region: "asia-northeast3" }, async (reque
   return { ok: true };
 });
 
+/** 멈춘 항목(대기·학습 중·오류)을 Storage 파일 기준으로 다시 학습 */
+const adminRetryLibraryIngest = onCall(
+  { region: "asia-northeast3", memory: INGEST_MEMORY, timeoutSeconds: INGEST_TIMEOUT_SEC, cpu: 2 },
+  async (request) => {
+    requireAdmin(request);
+    const libraryId = String((request.data && request.data.libraryId) || "").trim();
+    if (!libraryId) {
+      throw new HttpsError("invalid-argument", "libraryId가 없습니다.");
+    }
+    const snap = await db.collection(COLLECTION).doc(libraryId).get();
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "문서를 찾을 수 없습니다.");
+    }
+    const path = String((snap.data() && snap.data().storagePath) || "").trim();
+    if (!path) {
+      throw new HttpsError("failed-precondition", "Storage 경로가 없습니다.");
+    }
+    const bucketName = LIBRARY_STORAGE_BUCKET;
+    try {
+      const result = await ingestLibraryObject(bucketName, path);
+      return result;
+    } catch (e) {
+      if (e instanceof HttpsError) throw e;
+      throw new HttpsError("internal", (e && e.message) || "학습 재시도에 실패했습니다.");
+    }
+  }
+);
+
 const onLibraryPdfUploaded = onObjectFinalized(
   {
     region: "asia-northeast3",
-    memory: "1GiB",
-    timeoutSeconds: 540,
-    bucket: LIBRARY_STORAGE_BUCKET
+    memory: INGEST_MEMORY,
+    cpu: 2,
+    timeoutSeconds: INGEST_TIMEOUT_SEC,
+    bucket: LIBRARY_STORAGE_BUCKET,
+    maxInstances: 2
   },
   async (event) => {
     const name = event.data.name || "";
-    const low = name.toLowerCase();
-    if (!name.startsWith("hanlaw_library/") || (!low.endsWith(".pdf") && !low.endsWith(".xlsx"))) {
-      return;
-    }
-    const parts = name.split("/");
-    if (parts.length < 3) return;
-    const libraryId = parts[1];
-    const fileLabel = parts.slice(2).join("/");
-
-    const docRef = db.collection(COLLECTION).doc(libraryId);
-    const snap = await docRef.get();
-    if (!snap.exists) {
-      console.error("libraryPipeline: no Firestore doc for", libraryId);
-      return;
-    }
-
-    await docRef.set(
-      {
-        status: "processing",
-        errorMessage: null,
-        processedAt: FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
-
+    if (!isLibraryStoragePath(name)) return;
+    const bucketName = event.data.bucket || LIBRARY_STORAGE_BUCKET;
     try {
-      const bucket = getStorage().bucket(event.data.bucket);
-      const [buffer] = await bucket.file(name).download();
-
-      let chunksInfo;
-      let resolvedKind = "pdf";
-      if (shouldUseXlsxPipeline(name, buffer)) {
-        chunksInfo = extractChunksFromXlsx(buffer);
-        resolvedKind = "xlsx";
-      } else {
-        try {
-          chunksInfo = await extractChunksFromPdf(buffer);
-        } catch (e) {
-          const msg = String((e && e.message) || e || "");
-          if (msg.indexOf("OCR") >= 0 || msg.indexOf("텍스트가 거의 없습니다") >= 0) {
-            chunksInfo = await extractChunksFromPdfByOcr(event.data.bucket, name, libraryId);
-            await docRef.set(
-              {
-                ocrUsed: true
-              },
-              { merge: true }
-            );
-          } else if (
-            /invalid pdf|pdf structure/i.test(msg) &&
-            buffer.length >= 2 &&
-            buffer[0] === 0x50 &&
-            buffer[1] === 0x4b
-          ) {
-            chunksInfo = extractChunksFromXlsx(buffer);
-            resolvedKind = "xlsx";
-          } else {
-            throw e;
-          }
-        }
-      }
-      const { chunks, numPages } = chunksInfo;
-      if (!chunks.length) {
-        throw new Error("청크를 만들 수 없습니다.");
-      }
-
-      const d = snap.data();
-      const displayName = d.fileName || fileLabel;
-
-      await deleteVectorsByFileId(libraryId);
-      await upsertChunksToPinecone(libraryId, displayName, chunks);
-
-      await docRef.set(
-        {
-          status: "complete",
-          chunkCount: chunks.length,
-          numPages: numPages,
-          fileKind: resolvedKind,
-          bytes: buffer.length,
-          errorMessage: null,
-          completedAt: FieldValue.serverTimestamp()
-        },
-        { merge: true }
-      );
+      await ingestLibraryObject(bucketName, name);
     } catch (e) {
-      console.error("libraryPipeline ingest", libraryId, e);
-      await docRef.set(
-        {
-          status: "error",
-          errorMessage: (e && e.message) || String(e),
-          completedAt: FieldValue.serverTimestamp()
-        },
-        { merge: true }
-      );
+      console.error("onLibraryPdfUploaded", name, e && e.message);
     }
   }
 );
@@ -250,5 +336,8 @@ const onLibraryPdfUploaded = onObjectFinalized(
 module.exports = {
   createLibraryDocument,
   deleteLibraryDocument,
-  onLibraryPdfUploaded
+  adminRetryLibraryIngest,
+  onLibraryPdfUploaded,
+  ingestLibraryObject,
+  LIBRARY_STORAGE_BUCKET
 };
