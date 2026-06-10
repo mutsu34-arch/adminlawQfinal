@@ -71,6 +71,16 @@
     return map[s] || s || "—";
   }
 
+  /** 완료로 표시됐지만 임베딩 진행 필드가 남아 불완전한 경우 */
+  function isIngestIncomplete(x) {
+    if (!x || x.ingestPhase !== "embedding" || !x.chunkTotal) return false;
+    var total = Number(x.chunkTotal) || 0;
+    var done = Number(x.ingestProgress) || 0;
+    if (total <= 0) return false;
+    if (done >= total) return false;
+    return x.status === "complete" || x.status === "processing";
+  }
+
   /** Firestore Timestamp → 밀리초 (없으면 null) */
   function firestoreTsToMs(ts) {
     if (!ts) return null;
@@ -116,7 +126,7 @@
       meta.className = "admin-library-row__meta";
       var parts = [];
       parts.push(catLabel[x.category] || x.category || "");
-      parts.push(statusLabel(x.status));
+      parts.push(isIngestIncomplete(x) ? "완료(임베딩 미완)" : statusLabel(x.status));
       var now = Date.now();
       var procMs = firestoreTsToMs(x.processedAt);
       var upMs = firestoreTsToMs(x.uploadedAt);
@@ -134,9 +144,13 @@
         if (x.fileKind === "xlsx") parts.push("시트 " + x.numPages + "개");
         else parts.push("약 " + x.numPages + "페이지");
       }
-      if (x.ingestPhase === "embedding" && x.chunkTotal) {
+      if (
+        x.chunkTotal &&
+        (x.status === "processing" || isIngestIncomplete(x)) &&
+        x.ingestPhase === "embedding"
+      ) {
         parts.push("임베딩 " + (x.ingestProgress || 0) + "/" + x.chunkTotal);
-      } else if (x.ingestPhase === "ocr") {
+      } else if (x.status === "processing" && x.ingestPhase === "ocr") {
         parts.push("OCR 처리 중");
       }
       meta.textContent = parts.filter(Boolean).join(" · ");
@@ -154,17 +168,20 @@
         warn.className = "admin-library-row__err";
         warn.textContent =
           "업로드 후 학습이 시작되지 않았습니다. Storage 업로드가 끝났다면 「학습 재시도」를 눌러 주세요.";
+      } else if (isIngestIncomplete(x)) {
+        warn.className = "admin-library-row__err";
+        warn.textContent =
+          "완료로 표시됐지만 임베딩이 끝나지 않았습니다. 「벡터 재학습」으로 처음부터 다시 시도하세요. 대용량 PDF는 나눠 올리는 것이 좋습니다.";
       }
       var actions = document.createElement("div");
       actions.className = "admin-library-row__actions";
-      if (x.status === "pending" || x.status === "processing" || x.status === "error") {
-        var retry = document.createElement("button");
-        retry.type = "button";
-        retry.className = "btn btn--secondary btn--small";
-        retry.textContent = "학습 재시도";
-        retry.setAttribute("data-library-retry", d.id);
-        actions.appendChild(retry);
-      }
+      var retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "btn btn--secondary btn--small";
+      retry.textContent = x.status === "complete" ? "벡터 재학습" : "학습 재시도";
+      retry.setAttribute("data-library-retry", d.id);
+      retry.setAttribute("data-library-status", x.status || "");
+      actions.appendChild(retry);
       var del = document.createElement("button");
       del.type = "button";
       del.className = "btn btn--ghost btn--small";
@@ -204,10 +221,15 @@
     );
   }
 
-  function retryLibrary(libraryId) {
+  function retryLibrary(libraryId, statusOpt) {
     if (!libraryId) return;
     var msgEl = document.getElementById("admin-msg-library");
-    if (!window.confirm("이 자료의 벡터 학습을 다시 시작할까요? (최대 약 9분 소요)")) return;
+    var status = String(statusOpt || "");
+    var confirmMsg =
+      status === "complete"
+        ? "이미 완료된 자료입니다. Storage 파일로 벡터(Pinecone)를 처음부터 다시 만듭니다. (최대 약 9분 소요) 계속할까요?"
+        : "이 자료의 벡터 학습을 다시 시작할까요? (최대 약 9분 소요)";
+    if (!window.confirm(confirmMsg)) return;
     if (typeof firebase === "undefined" || !firebase.functions) return;
     setMsg(msgEl, "학습 재시도 중… (대용량 PDF는 수 분 걸릴 수 있습니다)", false);
     var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
@@ -437,7 +459,10 @@
       listEl.addEventListener("click", function (e) {
         var retryBtn = e.target.closest("[data-library-retry]");
         if (retryBtn) {
-          retryLibrary(retryBtn.getAttribute("data-library-retry"));
+          retryLibrary(
+            retryBtn.getAttribute("data-library-retry"),
+            retryBtn.getAttribute("data-library-status")
+          );
           return;
         }
         var b = e.target.closest("[data-library-id]");

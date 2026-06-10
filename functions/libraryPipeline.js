@@ -192,9 +192,9 @@ async function ingestLibraryObject(bucketName, objectName) {
         fileKind: resolvedKind,
         bytes: fileBytes,
         errorMessage: null,
-        ingestPhase: null,
-        ingestProgress: null,
-        chunkTotal: null,
+        ingestPhase: FieldValue.delete(),
+        ingestProgress: FieldValue.delete(),
+        chunkTotal: FieldValue.delete(),
         completedAt: FieldValue.serverTimestamp()
       },
       { merge: true }
@@ -208,7 +208,9 @@ async function ingestLibraryObject(bucketName, objectName) {
       {
         status: "error",
         errorMessage: errMsg.slice(0, 500),
-        ingestPhase: null,
+        ingestPhase: FieldValue.delete(),
+        ingestProgress: FieldValue.delete(),
+        chunkTotal: FieldValue.delete(),
         completedAt: FieldValue.serverTimestamp()
       },
       { merge: true }
