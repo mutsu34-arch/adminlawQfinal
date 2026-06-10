@@ -28,11 +28,11 @@ service firebase.storage {
       allow delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
-    // 행정법 자료실 PDF·Excel (관리자만 업로드·조회)
+    // 행정법 자료실 PDF·Excel (관리자만 업로드·조회). 상한은 js/admin-library.js LIBRARY_UPLOAD_MAX_MB 와 동일.
     match /hanlaw_library/{libraryId}/{fileName} {
       allow read: if isAdmin();
       allow write: if isAdmin()
-        && request.resource.size < 100 * 1024 * 1024
+        && request.resource.size < 300 * 1024 * 1024
         && (
           request.resource.contentType == "application/pdf"
           || request.resource.contentType

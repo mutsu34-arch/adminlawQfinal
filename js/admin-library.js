@@ -1,4 +1,8 @@
 (function () {
+  /** storage.rules hanlaw_library 업로드 상한과 동일하게 유지 */
+  var LIBRARY_UPLOAD_MAX_MB = 300;
+  var LIBRARY_UPLOAD_MAX_BYTES = LIBRARY_UPLOAD_MAX_MB * 1024 * 1024;
+
   var listUnsub = null;
   var selectedFiles = [];
 
@@ -268,6 +272,19 @@
       setMsg(msgEl, "PDF 또는 Excel(.xlsx) 파일을 1개 이상 선택하세요.", true);
       return;
     }
+    for (var fi = 0; fi < files.length; fi++) {
+      if (files[fi].size > LIBRARY_UPLOAD_MAX_BYTES) {
+        setMsg(
+          msgEl,
+          "파일당 최대 " +
+            LIBRARY_UPLOAD_MAX_MB +
+            "MB까지 허용됩니다. 용량을 줄이거나 나눠 올려 주세요: " +
+            files[fi].name,
+          true
+        );
+        return;
+      }
+    }
     if (typeof firebase === "undefined" || !firebase.functions || !firebase.storage) {
       setMsg(msgEl, "Firebase Functions·Storage를 사용할 수 없습니다.", true);
       return;
@@ -306,6 +323,12 @@
         var m = (e && e.message) || String(e);
         if (code === "functions/unauthenticated") m = "로그인이 필요합니다.";
         if (code === "functions/permission-denied") m = "관리자만 업로드할 수 있습니다.";
+        if (code === "storage/unauthorized" && /hanlaw_library/i.test(m)) {
+          m =
+            "Storage 업로드가 거부되었습니다. 관리자 계정·파일 형식(PDF/xlsx)을 확인하고, 파일당 " +
+            LIBRARY_UPLOAD_MAX_MB +
+            "MB 이하인지 확인해 주세요.";
+        }
         setMsg(msgEl, m, true);
       });
   }
