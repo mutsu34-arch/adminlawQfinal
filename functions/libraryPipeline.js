@@ -15,7 +15,8 @@ const {
   extractChunksFromPdfByOcr,
   extractChunksFromXlsx,
   upsertChunksToPinecone,
-  deleteVectorsByFileId
+  deleteVectorsByFileId,
+  friendlyGeminiError
 } = require("./libraryRag");
 
 const COLLECTION = "hanlaw_library_files";
@@ -159,30 +160,51 @@ async function ingestLibraryObject(bucketName, objectName) {
       throw new Error("청크를 만들 수 없습니다.");
     }
 
-    const d = snap.data();
+    const d = snap.data() || {};
     const displayName = d.fileName || fileLabel;
+
+    let resumeFrom = 0;
+    const prevDone = Number(d.ingestProgress) || 0;
+    const prevTotal = Number(d.chunkTotal) || 0;
+    if (
+      (d.status === "error" || d.status === "processing") &&
+      d.ingestPhase === "embedding" &&
+      prevTotal === chunks.length &&
+      prevDone > 0 &&
+      prevDone < chunks.length
+    ) {
+      resumeFrom = prevDone;
+    }
 
     await docRef.set(
       {
         ingestPhase: "embedding",
-        ingestProgress: 0,
+        ingestProgress: resumeFrom,
         chunkTotal: chunks.length,
         bytes: fileBytes
       },
       { merge: true }
     );
 
-    await deleteVectorsByFileId(libraryId);
-    await upsertChunksToPinecone(libraryId, displayName, chunks, async function (done, total) {
-      await docRef.set(
-        {
-          ingestPhase: "embedding",
-          ingestProgress: done,
-          chunkTotal: total
-        },
-        { merge: true }
-      );
-    });
+    if (resumeFrom <= 0) {
+      await deleteVectorsByFileId(libraryId);
+    }
+    await upsertChunksToPinecone(
+      libraryId,
+      displayName,
+      chunks,
+      async function (done, total) {
+        await docRef.set(
+          {
+            ingestPhase: "embedding",
+            ingestProgress: done,
+            chunkTotal: total
+          },
+          { merge: true }
+        );
+      },
+      resumeFrom
+    );
 
     await docRef.set(
       {
@@ -203,18 +225,13 @@ async function ingestLibraryObject(bucketName, objectName) {
     return { ok: true, libraryId, chunkCount: chunks.length };
   } catch (e) {
     console.error("libraryPipeline ingest", libraryId, e);
-    const errMsg = (e && e.message) || String(e);
-    await docRef.set(
-      {
-        status: "error",
-        errorMessage: errMsg.slice(0, 500),
-        ingestPhase: FieldValue.delete(),
-        ingestProgress: FieldValue.delete(),
-        chunkTotal: FieldValue.delete(),
-        completedAt: FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
+    const errMsg = friendlyGeminiError(e) || (e && e.message) || String(e);
+    const failPatch = {
+      status: "error",
+      errorMessage: errMsg.slice(0, 500),
+      completedAt: FieldValue.serverTimestamp()
+    };
+    await docRef.set(failPatch, { merge: true });
     throw e;
   }
 }

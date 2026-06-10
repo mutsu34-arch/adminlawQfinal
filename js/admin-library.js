@@ -71,14 +71,23 @@
     return map[s] || s || "—";
   }
 
-  /** 완료로 표시됐지만 임베딩 진행 필드가 남아 불완전한 경우 */
-  function isIngestIncomplete(x) {
-    if (!x || x.ingestPhase !== "embedding" || !x.chunkTotal) return false;
+  function embeddingProgress(x) {
+    if (!x || x.ingestPhase !== "embedding" || !x.chunkTotal) return null;
     var total = Number(x.chunkTotal) || 0;
     var done = Number(x.ingestProgress) || 0;
-    if (total <= 0) return false;
-    if (done >= total) return false;
-    return x.status === "complete" || x.status === "processing";
+    if (total <= 0 || done >= total) return null;
+    return { done: done, total: total };
+  }
+
+  /** 완료로 표시됐지만 임베딩이 끝나지 않은 경우 */
+  function isIngestIncompleteComplete(x) {
+    return x && x.status === "complete" && !!embeddingProgress(x);
+  }
+
+  function ingestStatusLabel(x) {
+    if (isIngestIncompleteComplete(x)) return "완료(임베딩 미완)";
+    if (x && x.status === "processing" && embeddingProgress(x)) return "학습 중(임베딩)";
+    return statusLabel(x && x.status);
   }
 
   /** Firestore Timestamp → 밀리초 (없으면 null) */
@@ -126,7 +135,7 @@
       meta.className = "admin-library-row__meta";
       var parts = [];
       parts.push(catLabel[x.category] || x.category || "");
-      parts.push(isIngestIncomplete(x) ? "완료(임베딩 미완)" : statusLabel(x.status));
+      parts.push(ingestStatusLabel(x));
       var now = Date.now();
       var procMs = firestoreTsToMs(x.processedAt);
       var upMs = firestoreTsToMs(x.uploadedAt);
@@ -144,12 +153,9 @@
         if (x.fileKind === "xlsx") parts.push("시트 " + x.numPages + "개");
         else parts.push("약 " + x.numPages + "페이지");
       }
-      if (
-        x.chunkTotal &&
-        (x.status === "processing" || isIngestIncomplete(x)) &&
-        x.ingestPhase === "embedding"
-      ) {
-        parts.push("임베딩 " + (x.ingestProgress || 0) + "/" + x.chunkTotal);
+      var emb = embeddingProgress(x);
+      if (emb) {
+        parts.push("임베딩 " + emb.done + "/" + emb.total);
       } else if (x.status === "processing" && x.ingestPhase === "ocr") {
         parts.push("OCR 처리 중");
       }
@@ -168,10 +174,22 @@
         warn.className = "admin-library-row__err";
         warn.textContent =
           "업로드 후 학습이 시작되지 않았습니다. Storage 업로드가 끝났다면 「학습 재시도」를 눌러 주세요.";
-      } else if (isIngestIncomplete(x)) {
+      } else if (x.status === "error" && embeddingProgress(x)) {
         warn.className = "admin-library-row__err";
         warn.textContent =
-          "완료로 표시됐지만 임베딩이 끝나지 않았습니다. 「벡터 재학습」으로 처음부터 다시 시도하세요. 대용량 PDF는 나눠 올리는 것이 좋습니다.";
+          "임베딩 중 오류로 중단되었습니다. 「학습 재시도」를 누르면 " +
+          (x.ingestProgress || 0) +
+          "/" +
+          x.chunkTotal +
+          " 이후부터 이어서 시도합니다. (Gemini 503·429는 Google API 일시 장애·한도 때문입니다.)";
+      } else if (isIngestIncompleteComplete(x)) {
+        warn.className = "admin-library-row__err";
+        warn.textContent =
+          "완료로 표시됐지만 임베딩이 끝나지 않았습니다. 「벡터 재학습」으로 다시 시도하세요.";
+      } else if (x.status === "processing" && embeddingProgress(x) && procMs && now - procMs > 3 * 60 * 1000) {
+        warn.className = "admin-library-row__err";
+        warn.textContent =
+          "임베딩이 오래 멈춰 있습니다. 「학습 재시도」로 이어서 시도하거나, 1~2분 후 다시 시도해 주세요.";
       }
       var actions = document.createElement("div");
       actions.className = "admin-library-row__actions";

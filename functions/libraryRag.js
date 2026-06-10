@@ -165,6 +165,50 @@ async function extractChunksFromPdfByOcr(bucketName, objectName, libraryId) {
   return chunkTextByLength(merged, approxPages || 1);
 }
 
+function sleep(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+function isGeminiRetryableError(err) {
+  const msg = String((err && err.message) || err || "");
+  return /\[429|\[500|\[502|\[503|\[504|Too Many Requests|Resource exhausted|RESOURCE_EXHAUSTED|Service Unavailable|UNAVAILABLE|temporarily unavailable|rate limit|quota/i.test(
+    msg
+  );
+}
+
+function friendlyGeminiError(err) {
+  const msg = String((err && err.message) || err || "");
+  if (/prepayment credits are depleted|quota/i.test(msg)) {
+    return "Gemini API 크레딧·할당량이 부족합니다. AI Studio에서 결제·크레딧을 확인한 뒤 다시 시도해 주세요.";
+  }
+  if (/\[503|Service Unavailable|UNAVAILABLE|temporarily unavailable/i.test(msg)) {
+    return "Gemini 임베딩 API가 일시적으로 불안정합니다(503). 잠시 후 「학습 재시도」를 눌러 주세요. 이전까지 진행된 청크는 이어서 처리됩니다.";
+  }
+  if (/\[429|Too Many Requests|rate limit/i.test(msg)) {
+    return "Gemini API 요청 한도에 걸렸습니다(429). 1~2분 후 「학습 재시도」를 눌러 주세요.";
+  }
+  return msg;
+}
+
+async function embedContentWithRetry(model, req) {
+  const maxAttempts = 6;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await model.embedContent(req);
+    } catch (e) {
+      lastErr = e;
+      if (!isGeminiRetryableError(e) || attempt >= maxAttempts) break;
+      const waitMs = Math.min(30000, 800 * Math.pow(2, attempt - 1));
+      console.warn("embedContent retry", attempt, waitMs, e && e.message);
+      await sleep(waitMs);
+    }
+  }
+  throw lastErr;
+}
+
 async function embedTexts(texts) {
   const gemini = getGemini();
   if (!gemini) throw new Error("GEMINI_API_KEY 없음");
@@ -176,7 +220,7 @@ async function embedTexts(texts) {
       taskType: "RETRIEVAL_DOCUMENT"
     };
     if (EMBED_DIM > 0) req.outputDimensionality = EMBED_DIM;
-    const res = await model.embedContent(req);
+    const res = await embedContentWithRetry(model, req);
     const vec = res && res.embedding && res.embedding.values;
     if (!Array.isArray(vec) || !vec.length) {
       throw new Error("Gemini 임베딩 벡터가 비어 있습니다.");
@@ -198,13 +242,15 @@ async function embedInBatches(texts, batchSize) {
   return out;
 }
 
-async function upsertChunksToPinecone(libraryId, fileName, chunks, onProgress) {
+async function upsertChunksToPinecone(libraryId, fileName, chunks, onProgress, resumeFrom) {
   const index = getPineconeIndex();
   if (!index) throw new Error("PINECONE 설정 없음");
   const ns = index.namespace(getNamespace());
-  const embedBatch = 32;
+  const embedBatch = 16;
+  const batchPauseMs = 350;
   const safeName = String(fileName || "").slice(0, 256);
-  for (let i = 0; i < chunks.length; i += embedBatch) {
+  const startAt = Math.max(0, Math.min(Number(resumeFrom) || 0, chunks.length));
+  for (let i = startAt; i < chunks.length; i += embedBatch) {
     const slice = chunks.slice(i, i + embedBatch);
     const vectors = await embedTexts(slice.map((c) => c.text));
     const records = [];
@@ -226,6 +272,9 @@ async function upsertChunksToPinecone(libraryId, fileName, chunks, onProgress) {
     await ns.upsert(records);
     if (typeof onProgress === "function") {
       await onProgress(Math.min(i + slice.length, chunks.length), chunks.length);
+    }
+    if (batchPauseMs > 0 && i + embedBatch < chunks.length) {
+      await sleep(batchPauseMs);
     }
   }
 }
@@ -300,6 +349,7 @@ module.exports = {
   upsertChunksToPinecone,
   deleteVectorsByFileId,
   retrieveLibraryContextForQuiz,
+  friendlyGeminiError,
   EMBED_DIM,
   getGemini,
   getPineconeIndex
