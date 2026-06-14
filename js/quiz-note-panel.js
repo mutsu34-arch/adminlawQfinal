@@ -315,6 +315,9 @@
     if (kind === "master") {
       return { prefix: "master-note", rmClass: "master-note-remove", rmLabel: "마스터 해제" };
     }
+    if (kind === "dict-related") {
+      return { prefix: "dict-related-quiz", rmClass: "", rmLabel: "" };
+    }
     return { prefix: "fav-note", rmClass: "fav-note-remove", rmLabel: "찜 해제" };
   }
 
@@ -446,15 +449,17 @@
 
     article.appendChild(post);
 
-    var actRow = document.createElement("div");
-    actRow.className = prefix + "-card__actions";
-    var rm = document.createElement("button");
-    rm.type = "button";
-    rm.className = "btn btn--small btn--outline " + rmClass;
-    rm.setAttribute("data-qid", normalizeId(q.id));
-    rm.textContent = rmLabel;
-    actRow.appendChild(rm);
-    article.appendChild(actRow);
+    if (rmClass) {
+      var actRow = document.createElement("div");
+      actRow.className = prefix + "-card__actions";
+      var rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "btn btn--small btn--outline " + rmClass;
+      rm.setAttribute("data-qid", normalizeId(q.id));
+      rm.textContent = rmLabel;
+      actRow.appendChild(rm);
+      article.appendChild(actRow);
+    }
 
     article._hanlawPost = post;
     article._hanlawActions = actions;
@@ -493,15 +498,18 @@
       }
     }
 
-    if (window.HanlawNoteQuizChrome && typeof window.HanlawNoteQuizChrome.onCardRevealed === "function") {
-      window.HanlawNoteQuizChrome.onCardRevealed(article, q, userTrue);
-    }
-
     post.hidden = false;
     setOxDisabledIn(actions, true);
     article.setAttribute("data-answered", "1");
 
+    if (window.HanlawNoteQuizChrome && typeof window.HanlawNoteQuizChrome.onCardRevealed === "function") {
+      try {
+        window.HanlawNoteQuizChrome.onCardRevealed(article, q, userTrue);
+      } catch (chromeErr) {}
+    }
+
     if (
+      !article.classList.contains("dict-related-quiz-card") &&
       window.HanlawExplainHighlighter &&
       typeof window.HanlawExplainHighlighter.mountOnCard === "function"
     ) {
@@ -681,8 +689,14 @@
       if (!card || card.getAttribute("data-answered") === "1") return;
 
       var qid = normalizeId(card.getAttribute("data-qid"));
-      var q = typeof findQ === "function" ? findQ(qid) : null;
+      var q =
+        card._hanlawCachedQ ||
+        (typeof findQ === "function" ? findQ(qid) : null);
       if (!q) return;
+
+      // 사전 카드(data-case-citation 등) 클릭 핸들러가 재검색·재렌더하지 않도록
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
 
       var userTrue = oxButtonIsTrue(ox);
       revealCardAnswer(card, q, userTrue);
@@ -725,6 +739,7 @@
         );
       } catch (err) {}
       if (
+        !article.classList.contains("dict-related-quiz-card") &&
         window.HanlawExplainHighlighter &&
         typeof window.HanlawExplainHighlighter.remountDetailOnCard === "function"
       ) {

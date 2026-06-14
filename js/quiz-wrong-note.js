@@ -278,7 +278,7 @@
           },
           onAnswered: function (q, userTrue, ok) {
             if (window.LearningStats && typeof window.LearningStats.recordQuizAnswer === "function") {
-              window.LearningStats.recordQuizAnswer(q.topic, ok);
+              window.LearningStats.recordQuizAnswer(q.topic, ok, q.id);
             }
             if (
               !ok &&

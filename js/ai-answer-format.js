@@ -298,4 +298,77 @@
   window.formatHanlawAiAnswerHtml = formatHanlawAiAnswerHtml;
   window.formatHanlawRichParagraphsHtml = formatHanlawRichParagraphsHtml;
   window.stripHanlawReplyListMarkers = stripHanlawReplyListMarkers;
+
+  /** <개정 …>, [본조신설 …] 등 법령 개정 메타 표기 제거 */
+  function stripLawRevisionMeta(text) {
+    return String(text || "")
+      .replace(/<[^>\n]{0,240}>/g, "")
+      .replace(
+        /\[(?:본조)?(?:신설|개정|전문개정|제목개정|제개정|삭제|타법개정|타법)[^\]\n]{0,240}\]/gi,
+        ""
+      );
+  }
+
+  function normalizeLawStatutePlainText(text) {
+    var s = String(text || "").replace(/\r\n/g, "\n").trim();
+    if (!s) return "";
+    s = stripLawRevisionMeta(s);
+    s = s.replace(/([①-⑳])(?!\s)/g, "$1 ");
+    s = s.replace(/([①-⑳])/g, "\n$1 ");
+    s = s.replace(/\.(\d{1,2})\.\s+(?=[가-힣「『])/g, function (match, num, offset, full) {
+      var before = full.slice(Math.max(0, offset - 10), offset);
+      if (/\d{4}\.$/.test(before)) return match;
+      return ".\n" + num + ". ";
+    });
+    s = s.replace(/([가-힣])(\d{1,2})\.\s+(?=[가-힣「『])/g, "$1\n$2. ");
+    s = s.replace(/\n{3,}/g, "\n\n").trim();
+    return s;
+  }
+
+  /**
+   * 조문·시행령 본문: 호·항 번호 유지, <>·[] 개정 표기는 강조 없이 처리.
+   */
+  function formatHanlawStatuteBodyHtml(raw) {
+    var text = normalizeLawStatutePlainText(raw);
+    if (!text) return "";
+    var lines = text.split("\n");
+    var blocks = [];
+    for (var i = 0; i < lines.length; i++) {
+      var t = String(lines[i] || "").trim();
+      if (!t) continue;
+      var para = /^([①-⑳])\s*(.*)$/.exec(t);
+      if (para) {
+        blocks.push(
+          '<p class="hanlaw-statute-line hanlaw-statute-line--para">' +
+            '<span class="hanlaw-statute-mark">' +
+            escHtml(para[1]) +
+            "</span> " +
+            '<span class="hanlaw-statute-text">' +
+            escHtml(para[2]) +
+            "</span></p>"
+        );
+        continue;
+      }
+      var ho = /^(\d{1,2})\.\s+(.*)$/.exec(t);
+      if (ho) {
+        blocks.push(
+          '<p class="hanlaw-statute-line hanlaw-statute-line--ho">' +
+            '<span class="hanlaw-statute-mark">' +
+            escHtml(ho[1]) +
+            ".</span> " +
+            '<span class="hanlaw-statute-text">' +
+            escHtml(ho[2]) +
+            "</span></p>"
+        );
+        continue;
+      }
+      blocks.push(
+        '<p class="hanlaw-statute-line"><span class="hanlaw-statute-text">' + escHtml(t) + "</span></p>"
+      );
+    }
+    return blocks.join("");
+  }
+
+  window.normalizeLawStatutePlainText = normalizeLawStatutePlainText;
+  window.formatHanlawStatuteBodyHtml = formatHanlawStatuteBodyHtml;
 })();

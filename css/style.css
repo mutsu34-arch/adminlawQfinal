@@ -1540,6 +1540,128 @@ html[data-theme="light"] .header-quote-pin-btn {
   background: var(--bg);
 }
 
+.dict-statute-suggest {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.dict-statute-suggest__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.dict-statute-suggest__query {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-muted, #666);
+}
+
+.dict-statute-suggest__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.dict-statute-suggest__item {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--surface, #fff);
+}
+
+.dict-statute-suggest__pick {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+  font-weight: 700;
+}
+
+.dict-statute-suggest__snippet {
+  margin: 0.45rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.dict-statute-suggest__reason {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted, #777);
+}
+
+.dict-statute-suggest__law-kind {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+  background: var(--surface-muted, #eef2f7);
+  color: var(--text-muted, #555);
+  vertical-align: middle;
+}
+
+.dict-statute-sub-laws {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--border);
+}
+
+.dict-statute-sub-laws__heading {
+  margin-bottom: 0.65rem;
+}
+
+.dict-statute-sub-law {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--surface, #fff);
+}
+
+.dict-statute-sub-law__badge {
+  margin: 0 0 0.35rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--primary, #1a5fb4);
+}
+
+.dict-statute-sub-law__title {
+  margin: 0 0 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.hanlaw-statute-line {
+  margin: 0.35em 0;
+  line-height: 1.65;
+}
+
+.hanlaw-statute-line--ho {
+  padding-left: 0.75rem;
+}
+
+.hanlaw-statute-mark {
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 0.15em;
+}
+
+.hanlaw-statute-text {
+  color: var(--text);
+  font-weight: 400;
+}
+
+.dict-statute-sub-law__body {
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
 .dict-term-index__title {
   margin: 0 0 0.6rem;
   font-size: 0.92rem;
@@ -1932,6 +2054,37 @@ html[data-theme="light"] .case-result-card__ox-explain.quiz-ai-answer .quiz-ai-a
 
 .dict-ox-section .case-result-card__ox-list {
   margin-top: 0.35rem;
+}
+
+.dict-related-quiz-section__limit-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.dict-related-quiz-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dict-related-quiz-list__item {
+  margin: 0;
+  padding: 0;
+}
+
+.dict-related-quiz-section .note-card__feedback {
+  margin-top: 0.75rem;
+}
+
+.dict-related-quiz-section .note-quiz-chrome {
+  margin-top: 0.65rem;
+}
+
+.dict-related-quiz-section .note-quiz-memo {
+  margin-top: 0.65rem;
 }
 
 /* 요금제 패널: 안내 카드·그리드·질문권까지 동일 가로 폭 (메인 영역 전체 사용) */
@@ -3721,6 +3874,43 @@ html[data-theme="light"] .user-membership--paid {
   color: var(--muted);
 }
 
+.q-personal-rate,
+.quiz-personal-rate {
+  margin: -0.35rem 0 0.75rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.q-personal-rate[hidden],
+.quiz-personal-rate[hidden] {
+  display: none !important;
+}
+
+.quiz-personal-rate--low {
+  color: #f87171;
+}
+
+.quiz-personal-rate--mid {
+  color: #fbbf24;
+}
+
+.quiz-personal-rate--high {
+  color: #4ade80;
+}
+
+html[data-theme="light"] .quiz-personal-rate--low {
+  color: #dc2626;
+}
+
+html[data-theme="light"] .quiz-personal-rate--mid {
+  color: #d97706;
+}
+
+html[data-theme="light"] .quiz-personal-rate--high {
+  color: #16a34a;
+}
+
 /* 관리자 수정: .btn width:100%·stretch를 피하고 툴바에서 가운데 정렬 */
 .quiz-admin-edit-toolbar {
   display: flex;
@@ -4882,7 +5072,8 @@ html[data-theme="light"] .btn--quiz-master--on {
 }
 
 .fav-note-card,
-.master-note-card {
+.master-note-card,
+.dict-related-quiz-card {
   padding: 1rem 1.05rem;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -4890,12 +5081,14 @@ html[data-theme="light"] .btn--quiz-master--on {
 }
 
 .fav-note-card__head,
-.master-note-card__head {
+.master-note-card__head,
+.dict-related-quiz-card__head {
   margin-bottom: 0.65rem;
 }
 
 .fav-note-card__title,
-.master-note-card__title {
+.master-note-card__title,
+.dict-related-quiz-card__title {
   margin: 0;
   font-size: 0.92rem;
   font-weight: 600;
@@ -4904,7 +5097,8 @@ html[data-theme="light"] .btn--quiz-master--on {
 }
 
 .fav-note-card__stmt,
-.master-note-card__stmt {
+.master-note-card__stmt,
+.dict-related-quiz-card__stmt {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
   color: var(--text);
@@ -4996,7 +5190,8 @@ html[data-theme="light"] .btn--quiz-master--on {
 
 .wrong-note-card__head--indexed,
 .fav-note-card__head--indexed,
-.master-note-card__head--indexed {
+.master-note-card__head--indexed,
+.dict-related-quiz-card__head--indexed {
   display: flex;
   align-items: flex-start;
   gap: 0.65rem;
@@ -5028,7 +5223,8 @@ html[data-theme="light"] .btn--quiz-master--on {
 
 .wrong-note-card__meta,
 .fav-note-card__meta,
-.master-note-card__meta {
+.master-note-card__meta,
+.dict-related-quiz-card__meta {
   flex: 1;
   min-width: 0;
 }

@@ -41,8 +41,13 @@
       totalAnswered: 0,
       totalCorrect: 0,
       byTopic: {},
+      byQuestion: {},
       daily: {}
     };
+  }
+
+  function normalizeQuestionId(id) {
+    return String(id == null ? "" : id).trim();
   }
 
   function load() {
@@ -53,9 +58,25 @@
       if (!o || typeof o !== "object") return defaultState();
       if (!o.daily) o.daily = {};
       if (!o.byTopic) o.byTopic = {};
+      if (!o.byQuestion) o.byQuestion = {};
       return o;
     } catch (e) {
       return defaultState();
+    }
+  }
+
+  function pruneByQuestion(byQuestion) {
+    if (!byQuestion || typeof byQuestion !== "object") return;
+    var keys = Object.keys(byQuestion);
+    if (keys.length <= 2500) return;
+    keys.sort(function (a, b) {
+      var ta = byQuestion[a] && typeof byQuestion[a].t === "number" ? byQuestion[a].t : 0;
+      var tb = byQuestion[b] && typeof byQuestion[b].t === "number" ? byQuestion[b].t : 0;
+      return ta - tb;
+    });
+    var drop = keys.length - 2000;
+    for (var i = 0; i < drop; i++) {
+      delete byQuestion[keys[i]];
     }
   }
 
@@ -453,8 +474,38 @@
     }
   }
 
+  function questionStatsFromRow(row) {
+    if (!row || typeof row.a !== "number" || row.a < 1) return null;
+    var attempts = row.a;
+    var correct = typeof row.c === "number" ? row.c : 0;
+    return {
+      attempts: attempts,
+      correct: correct,
+      rate: Math.round((correct / attempts) * 100)
+    };
+  }
+
+  function getQuestionStats(questionId) {
+    if (!currentUid()) return null;
+    var qid = normalizeQuestionId(questionId);
+    if (!qid) return null;
+    var state = load();
+    return questionStatsFromRow(state.byQuestion && state.byQuestion[qid]);
+  }
+
+  function formatQuestionStatsLabel(stats) {
+    if (!stats || !stats.attempts) return "";
+    var pct =
+      typeof stats.rate === "number" && !isNaN(stats.rate)
+        ? stats.rate
+        : Math.round((stats.correct / stats.attempts) * 100);
+    return (
+      "내 정답률 " + stats.correct + "/" + stats.attempts + " (" + pct + "%)"
+    );
+  }
+
   window.LearningStats = {
-    recordQuizAnswer: function (topic, isCorrect) {
+    recordQuizAnswer: function (topic, isCorrect, questionId) {
       var uid = currentUid();
       if (!uid) return;
       var state = load();
@@ -464,12 +515,24 @@
       if (!state.byTopic[t]) state.byTopic[t] = { a: 0, c: 0 };
       state.byTopic[t].a++;
       if (isCorrect) state.byTopic[t].c++;
+      var qid = normalizeQuestionId(questionId);
+      if (qid) {
+        if (!state.byQuestion) state.byQuestion = {};
+        if (!state.byQuestion[qid]) state.byQuestion[qid] = { a: 0, c: 0, t: 0 };
+        state.byQuestion[qid].a++;
+        if (isCorrect) state.byQuestion[qid].c++;
+        state.byQuestion[qid].t = Date.now();
+        pruneByQuestion(state.byQuestion);
+      }
       var ymd = kstTodayYmd();
       var d = ensureDay(state, ymd);
       d.q = (d.q || 0) + 1;
       if (isCorrect) d.corr = (d.corr || 0) + 1;
       save(state);
     },
+
+    getQuestionStats: getQuestionStats,
+    formatQuestionStatsLabel: formatQuestionStatsLabel,
 
     markAttendance: function () {
       /* 예전: 앱 접속만으로 출석. 현재는 퀴즈 1문제 이상 풀이 시에만 출석·포인트(서버) 반영. */

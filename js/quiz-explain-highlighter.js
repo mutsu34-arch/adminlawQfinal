@@ -689,8 +689,19 @@
     return { basic: basic, detail: detail };
   }
 
+  /** 오답·찜·마스터 노트만 형광펜 — 조문/판례 하단 관련 기출 카드는 제외 */
+  function isQuizNoteHighlighterEligible(article) {
+    if (!article || !article.hasAttribute("data-note-quiz")) return false;
+    if (article.classList.contains("dict-related-quiz-card")) return false;
+    return true;
+  }
+
   function mountOnCard(article, q) {
     if (!article || article.getAttribute("data-answered") !== "1") return;
+    if (!isQuizNoteHighlighterEligible(article)) {
+      disposeOnCard(article);
+      return;
+    }
     var latest = findQuestionById(article.getAttribute("data-qid")) || q;
     if (!latest) return;
 
@@ -708,6 +719,10 @@
   }
 
   function remountDetailOnCard(article, q) {
+    if (!isQuizNoteHighlighterEligible(article)) {
+      disposeOnCard(article);
+      return;
+    }
     if (!article._hanlawExplainHl) {
       mountOnCard(article, q);
       return;
@@ -779,6 +794,10 @@
 
   function remountAllAnsweredCards() {
     document.querySelectorAll('[data-note-quiz][data-answered="1"]').forEach(function (article) {
+      if (!isQuizNoteHighlighterEligible(article)) {
+        disposeOnCard(article);
+        return;
+      }
       var q = findQuestionById(article.getAttribute("data-qid"));
       if (q) mountOnCard(article, q);
     });
@@ -786,6 +805,10 @@
 
   function remountDetailOnAnsweredCards() {
     document.querySelectorAll('[data-note-quiz][data-answered="1"]').forEach(function (article) {
+      if (!isQuizNoteHighlighterEligible(article)) {
+        disposeOnCard(article);
+        return;
+      }
       var q = findQuestionById(article.getAttribute("data-qid"));
       if (q) remountDetailOnCard(article, q);
     });

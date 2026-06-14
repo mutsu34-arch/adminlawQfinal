@@ -48,9 +48,16 @@ const { normalizeAppBrandInText } = require("./appBrandNormalize");
 initializeApp();
 const db = getFirestore();
 const { addCalendarMonthsKst } = require("./kstCalendar");
+const {
+  LAW_API_VPC,
+  fetchStatuteArticleOpenApi,
+  fetchCasePrecedentOpenApi,
+  verifyLawGoKrApi
+} = require("./lawGoKrApi");
 
 const {
   generateOrGetDictionaryEntry,
+  adminGenerateCaseDictFromOpenApi,
   generateStatuteOxQuizzesGemini,
   generateStatuteEntryFromWebGemini,
   adminNormalizeCaseDictionaryText
@@ -58,6 +65,7 @@ const {
 const { effectiveGeminiModelId, uniqueGeminiModelCandidates } = require("./geminiModel");
 const { retrieveLibraryContextForQuiz } = require("./libraryRag");
 exports.generateOrGetDictionaryEntry = generateOrGetDictionaryEntry;
+exports.adminGenerateCaseDictFromOpenApi = adminGenerateCaseDictFromOpenApi;
 exports.adminNormalizeCaseDictionaryText = adminNormalizeCaseDictionaryText;
 
 const { quizAskGemini } = require("./quizAiGemini");
@@ -102,9 +110,12 @@ const {
   adminRefreshWeeklyPublicContent
 } = require("./publicContentWeekly");
 const { getGuestQuestionBank, getMemberQuestionBank } = require("./guestQuestionBank");
+const { fetchStatuteArticleForUser, suggestStatuteArticlesForUser } = require("./lawGoKrUserStatute");
 exports.getPublicContentConfig = getPublicContentConfig;
 exports.getGuestQuestionBank = getGuestQuestionBank;
 exports.getMemberQuestionBank = getMemberQuestionBank;
+exports.fetchStatuteArticleForUser = fetchStatuteArticleForUser;
+exports.suggestStatuteArticlesForUser = suggestStatuteArticlesForUser;
 exports.adminGetPublicContentConfig = adminGetPublicContentConfig;
 exports.adminSavePublicContentConfig = adminSavePublicContentConfig;
 exports.adminResetPublicContentConfig = adminResetPublicContentConfig;
@@ -3396,27 +3407,75 @@ exports.generateDictStatuteOxQuizzes = onCall({ region: "asia-northeast3" }, asy
   return { ok: true, oxQuizzes };
 });
 
-exports.generateDictStatuteFromWeb = onCall({ region: "asia-northeast3" }, async (request) => {
-  assertAdminCallable(request);
-  const statuteKey = String((request.data && request.data.statuteKey) || "").trim();
-  const headingHint = String((request.data && request.data.headingHint) || "").trim();
-  const bodyHint = String((request.data && request.data.bodyHint) || "").trim();
-  if (!statuteKey) {
-    throw new HttpsError("invalid-argument", "statuteKey가 필요합니다.");
+exports.adminVerifyLawGoKrApi = onCall(
+  Object.assign({ region: "asia-northeast3", timeoutSeconds: 60 }, LAW_API_VPC),
+  async (request) => {
+    assertAdminCallable(request);
+    try {
+      const out = await verifyLawGoKrApi();
+      return out;
+    } catch (e) {
+      throw new HttpsError("failed-precondition", String((e && e.message) || e));
+    }
   }
-  const apiKey = process.env.GEMINI_API_KEY || "";
-  if (!apiKey) {
-    throw new HttpsError("failed-precondition", "서버에 GEMINI_API_KEY가 설정되지 않았습니다.");
+);
+
+exports.adminFetchStatuteArticleOpenApi = onCall(
+  Object.assign({ region: "asia-northeast3", timeoutSeconds: 120 }, LAW_API_VPC),
+  async (request) => {
+    assertAdminCallable(request);
+    const statuteKey = String((request.data && request.data.statuteKey) || "").trim();
+    if (!statuteKey) {
+      throw new HttpsError("invalid-argument", "statuteKey가 필요합니다.");
+    }
+    try {
+      return await fetchStatuteArticleOpenApi(statuteKey);
+    } catch (e) {
+      throw new HttpsError("failed-precondition", String((e && e.message) || e));
+    }
   }
-  const payload = await generateStatuteEntryFromWebGemini(
-    statuteKey,
-    headingHint,
-    bodyHint,
-    apiKey,
-    effectiveGeminiModelId()
-  );
-  return { ok: true, entry: payload };
-});
+);
+
+exports.adminFetchCasePrecedentOpenApi = onCall(
+  Object.assign({ region: "asia-northeast3", timeoutSeconds: 180, memory: "512MiB" }, LAW_API_VPC),
+  async (request) => {
+    assertAdminCallable(request);
+    const citation = String((request.data && request.data.citation) || "").trim();
+    if (!citation) {
+      throw new HttpsError("invalid-argument", "사건 표기(citation)가 필요합니다.");
+    }
+    try {
+      return await fetchCasePrecedentOpenApi(citation);
+    } catch (e) {
+      throw new HttpsError("failed-precondition", String((e && e.message) || e));
+    }
+  }
+);
+
+exports.generateDictStatuteFromWeb = onCall(
+  Object.assign({ region: "asia-northeast3", timeoutSeconds: 300, memory: "1GiB" }, LAW_API_VPC),
+  async (request) => {
+    assertAdminCallable(request);
+    const statuteKey = String((request.data && request.data.statuteKey) || "").trim();
+    const headingHint = String((request.data && request.data.headingHint) || "").trim();
+    const bodyHint = String((request.data && request.data.bodyHint) || "").trim();
+    if (!statuteKey) {
+      throw new HttpsError("invalid-argument", "statuteKey가 필요합니다.");
+    }
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    if (!apiKey) {
+      throw new HttpsError("failed-precondition", "서버에 GEMINI_API_KEY가 설정되지 않았습니다.");
+    }
+    const payload = await generateStatuteEntryFromWebGemini(
+      statuteKey,
+      headingHint,
+      bodyHint,
+      apiKey,
+      effectiveGeminiModelId()
+    );
+    return { ok: true, entry: payload };
+  }
+);
 
 exports.adminRejectDictStaging = onCall({ region: "asia-northeast3" }, async (request) => {
   assertAdminCallable(request);

@@ -894,6 +894,66 @@
     });
   };
 
+  /** 관리자 전용: 국가법령 Open API에서 판결문 전문 가져오기 */
+  window.adminFetchCasePrecedentOpenApi = function (opts) {
+    opts = opts || {};
+    return getCallable("adminFetchCasePrecedentOpenApi")({
+      citation: opts.citation
+    }).then(function (r) {
+      return r.data || {};
+    });
+  };
+
+  /** 관리자 전용: Open API 판결 전문 → Gemini 요약 → 판례사전 검수 대기 */
+  window.adminGenerateCaseDictFromOpenApi = function (opts) {
+    opts = opts || {};
+    return getCallable("adminGenerateCaseDictFromOpenApi")({
+      citation: opts.citation || opts.tag,
+      caseFullText: opts.caseFullText,
+      forceRegenerate: opts.forceRegenerate === true
+    }).then(function (r) {
+      return r.data || {};
+    });
+  };
+
+  /** 관리자 전용: 국가법령 Open API에서 조문 원문만 가져오기 */
+  window.adminFetchStatuteArticleOpenApi = function (opts) {
+    opts = opts || {};
+    return getCallable("adminFetchStatuteArticleOpenApi")({
+      statuteKey: opts.statuteKey
+    }).then(function (r) {
+      return r.data || {};
+    });
+  };
+
+  /** 관리자 전용: law.go.kr Open API 연결 확인 */
+  window.adminVerifyLawGoKrApi = function () {
+    return getCallable("adminVerifyLawGoKrApi")({}).then(function (r) {
+      return r.data || {};
+    });
+  };
+
+  /** 로그인 회원: 국가법령 Open API에서 조문 원문 가져오기(비회원·관리자 전용 API와 분리) */
+  window.fetchStatuteArticleForUser = function (opts) {
+    opts = opts || {};
+    return getCallable("fetchStatuteArticleForUser")({
+      statuteKey: opts.statuteKey
+    }).then(function (r) {
+      return r.data || {};
+    });
+  };
+
+  /** 로그인 회원: 검색어로 법령·조문 후보 유추(국가법령 Open API) */
+  window.suggestStatuteArticlesForUser = function (opts) {
+    opts = opts || {};
+    return getCallable("suggestStatuteArticlesForUser")({
+      query: opts.query,
+      maxResults: opts.maxResults
+    }).then(function (r) {
+      return r.data || {};
+    });
+  };
+
   /** 관리자 전용: 조문 키를 기준으로 조문 본문·준용·하위법령 설명 초안 생성 */
   window.generateDictStatuteFromWeb = function (opts) {
     opts = opts || {};

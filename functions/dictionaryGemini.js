@@ -11,6 +11,12 @@ const {
   normalizeCaseDictionaryFields,
   caseFieldsNeedNormalize
 } = require("./caseTextNormalize");
+const {
+  getLawGoKrOc,
+  fetchStatuteArticleOpenApi,
+  fetchCasePrecedentOpenApi,
+  LAW_API_VPC
+} = require("./lawGoKrApi");
 
 function db() {
   return getFirestore();
@@ -177,7 +183,58 @@ function stripHtmlToPlain(html) {
     .trim();
 }
 
+async function fetchStatuteOpenApiContext(statuteKey) {
+  if (!getLawGoKrOc()) return null;
+  try {
+    const out = await fetchStatuteArticleOpenApi(statuteKey);
+    if (!out || !out.ok) {
+      return {
+        text: "",
+        attempted: 1,
+        succeeded: 0,
+        triedUrls: [out && out.searchUrl, out && out.bodyUrl].filter(Boolean),
+        results: [
+          {
+            url: (out && out.searchUrl) || "open-api",
+            ok: false,
+            reason: (out && out.reason) || "조문 추출 실패"
+          }
+        ],
+        openApi: out || null
+      };
+    }
+    const block =
+      "[국가법령 Open API 원문]\n" +
+      out.heading +
+      "\n\n" +
+      out.body +
+      "\n\n출처: " +
+      (out.sourceNote || "");
+    return {
+      text: block,
+      attempted: 1,
+      succeeded: 1,
+      triedUrls: [out.searchUrl, out.bodyUrl].filter(Boolean),
+      results: [{ url: out.bodyUrl || out.searchUrl, ok: true, reason: "Open API 조문 수집" }],
+      openApi: out
+    };
+  } catch (e) {
+    return {
+      text: "",
+      attempted: 1,
+      succeeded: 0,
+      triedUrls: [],
+      results: [{ url: "open-api", ok: false, reason: String((e && e.message) || e).slice(0, 180) }],
+      openApi: null
+    };
+  }
+}
+
 async function fetchStatuteWebContext(statuteKey) {
+  const openFirst = await fetchStatuteOpenApiContext(statuteKey);
+  if (openFirst && openFirst.succeeded > 0 && openFirst.text) {
+    return openFirst;
+  }
   const q = String(statuteKey || "").trim();
   if (!q) return { text: "", attempted: 0, succeeded: 0, triedUrls: [], results: [] };
   const urls = [
@@ -206,13 +263,18 @@ async function fetchStatuteWebContext(statuteKey) {
       results.push({ url: urls[i], ok: false, reason: msg });
     }
   }
-  return {
+  const merged = {
     text: blocks.join("\n\n"),
-    attempted: urls.length,
+    attempted: urls.length + (openFirst ? openFirst.attempted : 0),
     succeeded,
-    triedUrls,
-    results
+    triedUrls: (openFirst && openFirst.triedUrls ? openFirst.triedUrls : []).concat(triedUrls),
+    results: (openFirst && openFirst.results ? openFirst.results : []).concat(results)
   };
+  if (openFirst && openFirst.text && !merged.text) {
+    merged.text = openFirst.text;
+    merged.succeeded = Math.max(merged.succeeded, openFirst.succeeded);
+  }
+  return merged;
 }
 
 function buildScourtLawListUrl(citation, searchKeys) {
@@ -703,6 +765,8 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
   const headingRaw = clampStr(headingHint, 500).trim();
   const bodyRaw = clampStr(bodyHint, MAX_STR).trim();
   const webInfo = await fetchStatuteWebContext(sk);
+  const openApi =
+    webInfo && webInfo.openApi && webInfo.openApi.ok ? webInfo.openApi : null;
   const webCtx = String(webInfo && webInfo.text ? webInfo.text : "").trim();
   const prompt =
     "당신은 한국 행정법 조문사전 편집자입니다.\n" +
@@ -721,8 +785,11 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
     (webCtx ? "\n\n[자동 수집 법령검색 텍스트]\n" + webCtx : "");
 
   const o = await generateJsonWithModelFallback(gen, modelId, prompt);
-  const heading = clampStr(o.heading || headingRaw || sk, 500);
-  const bodyRawOut = clampStr(o.body || bodyRaw || "", MAX_STR);
+  const heading = clampStr(
+    (openApi && openApi.heading) || o.heading || headingRaw || sk,
+    500
+  );
+  const bodyRawOut = clampStr((openApi && openApi.body) || o.body || bodyRaw || "", MAX_STR);
   const appliedRulesRaw = clampStr(o.appliedRules || "", 3000);
   const subordinateRulesRaw = clampStr(o.subordinateRules || "", 3000);
   const examPointRaw = clampStr(o.examPoint || "", 3000);
@@ -773,7 +840,8 @@ async function generateStatuteEntryFromWebGemini(statuteKey, headingHint, bodyHi
   const subordinateRules = split.subordinateRules || subordinateRulesRaw;
   const examPoint = enforcePoliteKorean(split.examPoint || examPointRaw);
   const sourceNote = clampStr(
-    o.sourceNote ||
+    (openApi && openApi.sourceNote) ||
+      o.sourceNote ||
       "내부 자동 생성: 법령 검색 텍스트를 참고해 작성됨. 최신 조문은 국가법령정보센터에서 재확인 필요.",
     500
   );
@@ -889,6 +957,158 @@ async function reviewDictionaryPayloadWithAi(gen, modelId, asCase, payload, tagI
     return defaultAiReviewForDict(asCase);
   }
 }
+
+async function saveCasePayloadToStaging(raw, payload, auth, aiReview) {
+  const slug = makeSlug(raw);
+  const stagingRef = db().collection(stagingCollectionByKind(true)).doc(slug);
+  await stagingRef.set(
+    {
+      entityType: "case",
+      entryKey: entryKeyByKind(true, payload),
+      payload,
+      status: "reviewing",
+      source: "open-api-gemini",
+      changeType: "upsert",
+      tagInput: raw,
+      normKey: normTag(raw),
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: auth.uid,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: auth.uid,
+      approvedAt: null,
+      approvedBy: null,
+      rejectReason: "",
+      version: 1,
+      aiReview
+    },
+    { merge: true }
+  );
+  const stagingSnap = await stagingRef.get();
+  const stagingData = stagingSnap.data() || {};
+  const stagingVersion = parseInt(stagingData.version, 10);
+  return {
+    stagingDocId: slug,
+    stagingVersion: Number.isFinite(stagingVersion) ? stagingVersion : 1
+  };
+}
+
+/**
+ * 관리자: 국가법령 Open API 판결 전문 → Gemini 요약 → 검수 대기(staging).
+ * caseFullText를 직접 넣으면 Open API 조회는 생략합니다.
+ */
+const adminGenerateCaseDictFromOpenApi = onCall(
+  Object.assign({ region: "asia-northeast3", timeoutSeconds: 540, memory: "1GiB" }, LAW_API_VPC),
+  async (request) => {
+    if (!request.auth || !request.auth.uid) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+    if (!isAdminFromAuth(request.auth)) {
+      throw new HttpsError("permission-denied", "관리자만 실행할 수 있습니다.");
+    }
+    const raw = String(
+      (request.data && request.data.citation) ||
+        (request.data && request.data.tag) ||
+        ""
+    )
+      .replace(/^#/, "")
+      .trim();
+    if (!raw || raw.length > 400) {
+      throw new HttpsError("invalid-argument", "사건 표기가 올바르지 않습니다.");
+    }
+    const forceRegenerate = !!(request.data && request.data.forceRegenerate);
+    let caseFullText = String((request.data && request.data.caseFullText) || "")
+      .trim()
+      .slice(0, 120000);
+
+    const slug = makeSlug(raw);
+    const prodRef = db().collection("hanlaw_dict_cases").doc(slug);
+    const existing = await prodRef.get();
+    if (existing.exists && !forceRegenerate && !caseFullText) {
+      return {
+        ok: true,
+        source: "store",
+        kind: "case",
+        record: firestoreToCasePayload(existing.data())
+      };
+    }
+
+    let openApiMeta = null;
+    if (!caseFullText) {
+      let apiOut;
+      try {
+        apiOut = await fetchCasePrecedentOpenApi(raw);
+      } catch (e) {
+        throw new HttpsError(
+          "failed-precondition",
+          String((e && e.message) || e) || "국가법령정보 Open API 조회에 실패했습니다."
+        );
+      }
+      if (!apiOut || !apiOut.ok) {
+        throw new HttpsError(
+          "failed-precondition",
+          (apiOut && apiOut.reason) || "국가법령정보 Open API에서 판결문을 찾지 못했습니다."
+        );
+      }
+      caseFullText = String(apiOut.caseFullText || "").trim();
+      if (!caseFullText) {
+        throw new HttpsError("failed-precondition", "판결문 전문이 비어 있습니다.");
+      }
+      openApiMeta = apiOut;
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    if (!apiKey) {
+      throw new HttpsError(
+        "failed-precondition",
+        "서버에 GEMINI_API_KEY가 설정되지 않았습니다."
+      );
+    }
+    const modelId = effectiveGeminiModelId();
+    let learnerNick = "";
+    try {
+      learnerNick = await getStoredNickname(request.auth.uid);
+    } catch (e) {
+      console.warn("adminGenerateCaseDictFromOpenApi nickname skip", e && e.message);
+    }
+
+    try {
+      const gen = new GoogleGenerativeAI(apiKey);
+      const payload = await generateCaseWithGemini(raw, apiKey, modelId, learnerNick, caseFullText);
+      payload.caseFullText = caseFullText;
+      if (openApiMeta && openApiMeta.caseToken && !payload.citation) {
+        payload.citation = String(openApiMeta.caseToken).trim();
+      }
+      if (openApiMeta && openApiMeta.title && !payload.title) {
+        payload.title = String(openApiMeta.title).trim();
+      }
+      const cn = computeCasenoteUrl(payload.citation, payload.searchKeys);
+      if (cn) payload.casenoteUrl = cn;
+
+      const aiReview = await reviewDictionaryPayloadWithAi(gen, modelId, true, payload, raw);
+      const staged = await saveCasePayloadToStaging(raw, payload, request.auth, aiReview);
+
+      return {
+        ok: true,
+        source: "generated-pending-review",
+        kind: "case",
+        record: firestoreToCasePayload(payload),
+        stagingDocId: staged.stagingDocId,
+        stagingVersion: staged.stagingVersion,
+        openApi: openApiMeta
+          ? {
+              caseToken: openApiMeta.caseToken || "",
+              title: openApiMeta.title || "",
+              lawGoKrWebUrl: openApiMeta.lawGoKrWebUrl || ""
+            }
+          : null
+      };
+    } catch (e) {
+      console.error("adminGenerateCaseDictFromOpenApi error", e);
+      if (e instanceof HttpsError) throw e;
+      throw new HttpsError("internal", (e && e.message) || "판례사전 생성 중 오류가 발생했습니다.");
+    }
+  }
+);
 
 const generateOrGetDictionaryEntry = onCall({ region: "asia-northeast3" }, async (request) => {
   if (!request.auth || !request.auth.uid) {
@@ -1064,6 +1284,7 @@ const adminNormalizeCaseDictionaryText = onCall({ region: "asia-northeast3" }, a
 
 module.exports = {
   generateOrGetDictionaryEntry,
+  adminGenerateCaseDictFromOpenApi,
   generateStatuteOxQuizzesGemini,
   generateStatuteEntryFromWebGemini,
   adminNormalizeCaseDictionaryText,

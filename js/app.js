@@ -85,10 +85,12 @@
     quizGuestHintTop: document.getElementById("quiz-guest-hint-top"),
     qSource: document.getElementById("q-source"),
     qMeta: document.getElementById("q-meta"),
+    qPersonalRate: document.getElementById("q-personal-rate"),
     qText: document.getElementById("q-text"),
     qActions: document.getElementById("q-actions"),
     feedback: document.getElementById("feedback"),
     feedbackResult: document.getElementById("feedback-result"),
+    feedbackPersonalRate: document.getElementById("feedback-personal-rate"),
     feedbackAnswerKey: document.getElementById("feedback-answer-key"),
     feedbackImportanceLine: document.getElementById("feedback-importance-line"),
     feedbackDifficultyLine: document.getElementById("feedback-difficulty-line"),
@@ -1691,6 +1693,7 @@
       el.feedbackAttendanceNotify.textContent = "";
       el.feedbackAttendanceNotify.hidden = true;
     }
+    syncQuestionPersonalRate(null);
     window.__HANLAW_QUIZ_AI_CONTEXT = null;
     if (window.QuizAiAsk && typeof window.QuizAiAsk.resetMain === "function") {
       window.QuizAiAsk.resetMain();
@@ -2165,6 +2168,65 @@
     });
   }
 
+  function applyPersonalRateTone(node, stats) {
+    if (!node) return;
+    node.classList.remove(
+      "quiz-personal-rate--low",
+      "quiz-personal-rate--mid",
+      "quiz-personal-rate--high"
+    );
+    if (!stats || stats.attempts < 1) return;
+    var pct =
+      typeof stats.rate === "number" && !isNaN(stats.rate)
+        ? stats.rate
+        : Math.round((stats.correct / stats.attempts) * 100);
+    if (pct < 50) node.classList.add("quiz-personal-rate--low");
+    else if (pct < 80) node.classList.add("quiz-personal-rate--mid");
+    else node.classList.add("quiz-personal-rate--high");
+  }
+
+  function syncQuestionPersonalRate(q, opts) {
+    opts = opts || {};
+    var pre = el.qPersonalRate;
+    var post = el.feedbackPersonalRate;
+    var LS = window.LearningStats;
+    var canShow =
+      isViewerLoggedIn() &&
+      q &&
+      q.id != null &&
+      String(q.id).trim() &&
+      LS &&
+      typeof LS.getQuestionStats === "function" &&
+      typeof LS.formatQuestionStatsLabel === "function";
+    if (!canShow) {
+      if (pre) pre.hidden = true;
+      if (post) post.hidden = true;
+      return;
+    }
+    var stats = LS.getQuestionStats(q.id);
+    var label = stats ? LS.formatQuestionStatsLabel(stats) : "";
+    if (pre) {
+      if (label && !opts.answered) {
+        pre.textContent = label;
+        pre.hidden = false;
+        applyPersonalRateTone(pre, stats);
+      } else {
+        pre.hidden = true;
+        pre.textContent = "";
+      }
+    }
+    if (post) {
+      if (label && opts.answered) {
+        post.textContent = label;
+        post.hidden = false;
+        applyPersonalRateTone(post, stats);
+      } else {
+        post.hidden = true;
+        post.textContent = "";
+      }
+    }
+  }
+
   function onAnswerTimeout() {
     var q = state.list[state.index];
     if (!q) return;
@@ -2174,7 +2236,7 @@
     paintAnsweredFeedback(q, userTrue, { timeout: true });
     el.score.textContent = "정답 " + state.correct;
     if (window.LearningStats && typeof window.LearningStats.recordQuizAnswer === "function") {
-      window.LearningStats.recordQuizAnswer(q.topic, false);
+      window.LearningStats.recordQuizAnswer(q.topic, false, q.id);
     }
     if (!isViewerLoggedIn()) {
       if (el.feedbackMaster) el.feedbackMaster.hidden = true;
@@ -2219,6 +2281,7 @@
       window.refreshQuizMasterButton();
     }
     syncQuizMemoForQuestion(q);
+    syncQuestionPersonalRate(q, { answered: true });
     window.__HANLAW_QUIZ_AI_CONTEXT = buildQuizAiContext(q, userTrue);
   }
 
@@ -2308,6 +2371,7 @@
       el.feedbackResult.classList.remove("is-correct", "is-wrong");
       clearFeedbackExtras();
       syncQuizMemoForQuestion(q);
+      syncQuestionPersonalRate(q, { answered: false });
       clearOxReveal(el.qActions);
       if (el.btnQuizFavorite) el.btnQuizFavorite.hidden = true;
       if (el.btnQuizMaster) el.btnQuizMaster.hidden = true;
@@ -2534,7 +2598,7 @@
     paintAnsweredFeedback(q, userTrue);
     el.score.textContent = "정답 " + state.correct;
     if (window.LearningStats && typeof window.LearningStats.recordQuizAnswer === "function") {
-      window.LearningStats.recordQuizAnswer(q.topic, ok);
+      window.LearningStats.recordQuizAnswer(q.topic, ok, q.id);
     }
     if (!isViewerLoggedIn()) {
       if (el.feedbackMaster) el.feedbackMaster.hidden = true;

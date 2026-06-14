@@ -6,6 +6,7 @@
       : null;
   var selectedTermInitialFilter = "none";
   var selectedCaseYearFilter = "none";
+  var runStatuteSearchSeq = 0;
 
   function compareTermText(a, b) {
     var sa = String(a || "");
@@ -194,6 +195,12 @@
         docId = ro._docId || null;
         if (Array.isArray(ro.oxQuizzes) && ro.oxQuizzes.length) oxQuizzes = ro.oxQuizzes;
       }
+      var appliedRules = "";
+      var subordinateRules = "";
+      if (ro) {
+        if (ro.appliedRules != null) appliedRules = String(ro.appliedRules);
+        if (ro.subordinateRules != null) subordinateRules = String(ro.subordinateRules);
+      }
       out.push({
         key: key,
         lawName: law,
@@ -202,6 +209,8 @@
         heading: heading,
         body: body,
         sourceNote: sourceNote,
+        appliedRules: appliedRules,
+        subordinateRules: subordinateRules,
         oxQuizzes: oxQuizzes,
         _docId: docId
       });
@@ -218,8 +227,19 @@
     if (!s) return "";
     var h = String(s.heading || "").trim();
     var law = String(s.lawName || "").trim();
+    if (h && law && h.indexOf(law) === 0) return h;
     if (law && h) return law + " " + h;
     return h || law || s.key || "";
+  }
+
+  function formatStatuteBodyHtml(raw) {
+    if (typeof window.formatHanlawStatuteBodyHtml === "function") {
+      return window.formatHanlawStatuteBodyHtml(raw);
+    }
+    if (typeof window.formatHanlawAiAnswerHtml === "function") {
+      return window.formatHanlawAiAnswerHtml(raw);
+    }
+    return String(raw || "");
   }
 
   function searchStatutes(query) {
@@ -257,6 +277,661 @@
 
   function browseStatutesSorted() {
     return getStatuteEntries();
+  }
+
+  /** 「행정소송법 12조」처럼 「제」가 빠진 입력을 parseStatuteArticleTag 형식으로 보정 */
+  function normalizeStatuteQueryInput(q) {
+    var s = String(q || "").trim().replace(/\s+/g, " ");
+    if (!s || /제\s*\d+\s*조/.test(s)) return s;
+    return s.replace(
+      /^(.+?)\s+(\d+)\s*조(?:의\s*(\d+))?(?:\s*제\s*(\d+)\s*항)?(?:\s*제\s*(\d+)\s*호)?\s*$/i,
+      function (_m, law, art, sub, para, item) {
+        var out = String(law || "").trim() + " 제" + art + "조";
+        if (sub) out += "의" + sub;
+        if (para) out += " 제" + para + "항";
+        if (item) out += " 제" + item + "호";
+        return out;
+      }
+    );
+  }
+
+  var STATUTE_LAW_ALIASES = [
+    { alias: "행정소송법", law: "행정소송법" },
+    { alias: "행정소송", law: "행정소송법" },
+    { alias: "소송법", law: "행정소송법" },
+    { alias: "행정절차법", law: "행정절차법" },
+    { alias: "행정절차", law: "행정절차법" },
+    { alias: "절차법", law: "행정절차법" },
+    { alias: "지방자치법", law: "지방자치법" },
+    { alias: "지방자치", law: "지방자치법" },
+    { alias: "국가공무원법", law: "국가공무원법" },
+    { alias: "공무원법", law: "국가공무원법" },
+    { alias: "헌법", law: "헌법" },
+    { alias: "민법", law: "민법" },
+    { alias: "형법", law: "형법" }
+  ];
+
+  function parseStatuteQueryComponents(query) {
+    var raw = String(query || "")
+      .trim()
+      .replace(/\s+/g, " ");
+    if (!raw) {
+      return { raw: "", article: null, articleSub: null, lawHint: "", keywords: "" };
+    }
+    var article = null;
+    var articleSub = null;
+    var artM = raw.match(/(?:제\s*)?(\d+)\s*조(?:의\s*(\d+))?/);
+    if (artM) {
+      article = artM[1];
+      articleSub = artM[2] || null;
+    }
+    var tail = raw
+      .replace(/(?:제\s*)?\d+\s*조(?:의\s*\d+)?(?:\s*제\s*\d+\s*항)?(?:\s*제\s*\d+\s*호)?/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    var lawHint = "";
+    var keywords = tail;
+    var tailNorm = norm(tail);
+    var aliases = STATUTE_LAW_ALIASES.slice().sort(function (a, b) {
+      return b.alias.length - a.alias.length;
+    });
+    for (var ai = 0; ai < aliases.length; ai++) {
+      var aliasNorm = norm(aliases[ai].alias);
+      if (tailNorm === aliasNorm || tailNorm.indexOf(aliasNorm) >= 0) {
+        lawHint = aliases[ai].law;
+        keywords = tail.replace(new RegExp(aliases[ai].alias, "gi"), " ").replace(/\s+/g, " ").trim();
+        break;
+      }
+    }
+    if (!lawHint) {
+      var lawM = tail.match(/([가-힣·]+(?:법|령|규칙))/);
+      if (lawM) {
+        lawHint = lawM[1].replace(/·/g, "");
+        keywords = tail.replace(lawM[0], "").replace(/\s+/g, " ").trim();
+      }
+    }
+    if (!lawHint && tailNorm === norm("헌법")) {
+      lawHint = "헌법";
+      keywords = "";
+    }
+    if (!keywords && !lawHint) keywords = tail;
+    return { raw: raw, article: article, articleSub: articleSub, lawHint: lawHint, keywords: keywords || "" };
+  }
+
+  /** 정식 법령명+조문번호 입력(예: 행정소송법 제13조)일 때만 즉시 조회 */
+  function isExactStatuteLookupQuery(qNorm, parsed) {
+    if (!parsed || !parsed.lawName || !parsed.article) return false;
+    var law = String(parsed.lawName || "").trim();
+    if (!/[법령규칙]|^헌법$/u.test(law)) return false;
+    var qn = norm(qNorm);
+    for (var i = 0; i < STATUTE_LAW_ALIASES.length; i++) {
+      var alias = STATUTE_LAW_ALIASES[i].alias;
+      if (STATUTE_LAW_ALIASES[i].law === law) continue;
+      if (qn.indexOf(norm(alias)) >= 0) return false;
+    }
+    return true;
+  }
+
+  function mergeStatuteSuggestions(listA, listB) {
+    var out = [];
+    var seen = {};
+    function pushOne(item) {
+      if (!item) return;
+      var key = String(item.statuteKey || "").trim();
+      if (!key) return;
+      var prev = seen[key];
+      if (prev != null) {
+        if ((item.score || 0) > (out[prev].score || 0)) out[prev] = item;
+        return;
+      }
+      seen[key] = out.length;
+      out.push(item);
+    }
+    var i;
+    for (i = 0; i < (listA || []).length; i++) pushOne(listA[i]);
+    for (i = 0; i < (listB || []).length; i++) pushOne(listB[i]);
+    out.sort(function (a, b) {
+      if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+      return String(a.displayTitle || "").localeCompare(String(b.displayTitle || ""), "ko-KR");
+    });
+    return out;
+  }
+
+  function collectStatuteSuggestionsLocal(query) {
+    var comps = parseStatuteQueryComponents(query);
+    var nq = norm(query);
+    var kwNorm = norm(comps.keywords || query);
+    var suggestions = [];
+    var seen = {};
+
+    function pushLocal(item) {
+      var key = String(item.statuteKey || "").trim();
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      suggestions.push(item);
+    }
+
+    var entries = getStatuteEntries();
+    for (var ei = 0; ei < entries.length; ei++) {
+      var s = entries[ei];
+      var score = 0;
+      var reasons = [];
+      var headN = norm(s.heading || "");
+      var lawN = norm(s.lawName || "");
+      var bodyN = norm(s.body || "");
+      var titleStr = statuteDisplayTitle(s);
+      if (comps.article && String(s.articleNo || "") !== String(comps.article)) continue;
+      if (comps.article) {
+        score += 70;
+        reasons.push("조문번호");
+      }
+      if (comps.lawHint && lawN.indexOf(norm(comps.lawHint)) < 0 && norm(comps.lawHint).indexOf(lawN) < 0) {
+        if (comps.article) continue;
+      }
+      if (comps.lawHint && (lawN.indexOf(norm(comps.lawHint)) >= 0 || norm(comps.lawHint).indexOf(lawN) >= 0)) {
+        score += 40;
+        reasons.push("법령명");
+      }
+      if (kwNorm.length >= 2) {
+        if (headN.indexOf(kwNorm) >= 0) {
+          score += 62;
+          reasons.push("조문 제목");
+        } else if (bodyN.indexOf(kwNorm) >= 0) {
+          score += 48;
+          reasons.push("본문 키워드");
+        } else if (!comps.article) {
+          continue;
+        }
+      } else if (nq.length >= 2 && (headN.indexOf(nq) >= 0 || bodyN.indexOf(nq) >= 0 || lawN.indexOf(nq) >= 0)) {
+        score += 44;
+        reasons.push("키워드");
+      } else if (!comps.article && !comps.lawHint) {
+        continue;
+      }
+      if (score <= 0) continue;
+      pushLocal({
+        statuteKey: s.key,
+        displayTitle: titleStr,
+        snippet: String(s.heading || s.body || "").replace(/\s+/g, " ").trim().slice(0, 120),
+        score: score,
+        reason: reasons.join(" · "),
+        source: "local"
+      });
+    }
+
+    var bank = window.QUESTION_BANK;
+    if (Array.isArray(bank)) {
+      for (var qi = 0; qi < bank.length; qi++) {
+        var q = bank[qi];
+        if (!q || !Array.isArray(q.tags)) continue;
+        for (var ti = 0; ti < q.tags.length; ti++) {
+          var tag = String(q.tags[ti] || "").trim();
+          if (!tag || typeof window.parseStatuteArticleTag !== "function") continue;
+          var tp = window.parseStatuteArticleTag(tag);
+          if (!tp || typeof window.statuteCacheKey !== "function") continue;
+          if (comps.article && String(tp.article || "") !== String(comps.article)) continue;
+          var sk = window.statuteCacheKey(tp);
+          if (!sk || seen[sk]) continue;
+          var tagNorm = normStatuteTagCompact(tag);
+          var score2 = comps.article ? 55 : 0;
+          var reasons2 = [];
+          if (kwNorm.length >= 2 && tagNorm.indexOf(kwNorm) >= 0) {
+            score2 += 50;
+            reasons2.push("기출 태그");
+          } else if (comps.lawHint && tagNorm.indexOf(norm(comps.lawHint)) >= 0) {
+            score2 += 42;
+            reasons2.push("기출 태그");
+          } else if (!comps.article) {
+            continue;
+          }
+          if (score2 <= 0) continue;
+          var localHit = findStatuteEntryByKey(sk);
+          pushLocal({
+            statuteKey: sk,
+            displayTitle: tp.displayTitle || tag,
+            snippet: localHit
+              ? String(localHit.heading || localHit.body || "").slice(0, 120)
+              : String(q.topic || q.statement || "").slice(0, 80),
+            score: score2,
+            reason: reasons2.join(" · ") || "기출 태그",
+            source: "quizTag"
+          });
+        }
+      }
+    }
+
+    suggestions.sort(function (a, b) {
+      if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+      return String(a.displayTitle || "").localeCompare(String(b.displayTitle || ""), "ko-KR");
+    });
+    return suggestions.slice(0, 12);
+  }
+
+  function renderStatuteSuggestionPicker(container, query, suggestions, opts) {
+    opts = opts || {};
+    container.innerHTML = "";
+    if (!suggestions.length) {
+      var empty = document.createElement("p");
+      empty.className = "dict-empty";
+      empty.textContent =
+        opts.emptyMessage ||
+        "일치하는 조문 후보를 찾지 못했습니다. 다른 키워드나 「행정소송법 제13조」 형식으로 다시 조회해 보세요.";
+      container.appendChild(empty);
+      return;
+    }
+    var wrap = document.createElement("section");
+    wrap.className = "dict-statute-suggest";
+    var h = document.createElement("h3");
+    h.className = "dict-statute-suggest__title";
+    h.textContent = "조회할 조문을 선택하세요";
+    wrap.appendChild(h);
+    var lead = document.createElement("p");
+    lead.className = "dict-statute-suggest__query";
+    lead.textContent = "입력: 「" + String(query || "").trim() + "」 — 아래 후보 중 하나를 눌러 주세요.";
+    wrap.appendChild(lead);
+    var list = document.createElement("ol");
+    list.className = "dict-statute-suggest__list";
+    for (var i = 0; i < suggestions.length; i++) {
+      (function (item) {
+        var li = document.createElement("li");
+        li.className = "dict-statute-suggest__item";
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "dict-statute-suggest__pick btn btn--outline";
+        btn.textContent = String(item.displayTitle || item.statuteKey || "조문");
+        btn.setAttribute("data-statute-key", String(item.statuteKey || ""));
+        li.appendChild(btn);
+        if (item.snippet) {
+          var sn = document.createElement("p");
+          sn.className = "dict-statute-suggest__snippet";
+          sn.textContent = String(item.snippet);
+          li.appendChild(sn);
+        }
+        if (item.reason) {
+          var rs = document.createElement("p");
+          rs.className = "dict-statute-suggest__reason";
+          rs.textContent = String(item.reason);
+          li.appendChild(rs);
+        }
+        if (item.lawNameKo && /시행령|시행규칙/.test(String(item.lawNameKo))) {
+          var badge = document.createElement("span");
+          badge.className = "dict-statute-suggest__law-kind";
+          badge.textContent = /시행규칙/.test(String(item.lawNameKo)) ? "시행규칙" : "시행령";
+          btn.appendChild(document.createTextNode(" "));
+          btn.appendChild(badge);
+        }
+        btn.addEventListener("click", function () {
+          loadStatuteEntryDirect(String(item.statuteKey || ""), String(item.displayTitle || ""));
+        });
+        list.appendChild(li);
+      })(suggestions[i]);
+    }
+    wrap.appendChild(list);
+    container.appendChild(wrap);
+  }
+
+  function loadStatuteEntryDirect(statuteKey, displayTitle) {
+    var out = $("statute-search-results");
+    var input = $("statute-article-query");
+    if (!out || !statuteKey) return;
+    if (input && displayTitle) input.value = displayTitle;
+    var seq = ++runStatuteSearchSeq;
+    var localExact = findStatuteEntryByKey(statuteKey);
+    if (localExact) {
+      renderStatuteResults(out, [localExact]);
+      setDictGuestHint("statute");
+      emitDictResultsUpdated("statute");
+      return;
+    }
+    if (typeof window.fetchStatuteArticleForUser !== "function") {
+      renderStatuteResults(out, [], { emptyMessage: "조문을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요." });
+      return;
+    }
+    out.innerHTML = "";
+    var loading = document.createElement("p");
+    loading.className = "dict-empty dict-loading";
+    loading.textContent = "국가법령정보에서 조문을 불러오는 중…";
+    out.appendChild(loading);
+    window
+      .fetchStatuteArticleForUser({ statuteKey: statuteKey })
+      .then(function (api) {
+        if (seq !== runStatuteSearchSeq) return;
+        var entry = statuteEntryFromApiResult(api);
+        if (entry) {
+          renderStatuteResults(out, [entry]);
+        } else {
+          renderStatuteResults(out, [], {
+            emptyMessage:
+              (api && api.reason ? String(api.reason) : "조문을 찾지 못했습니다.") +
+              " 다른 후보를 선택하거나 검색어를 바꿔 보세요."
+          });
+        }
+        setDictGuestHint("statute");
+        emitDictResultsUpdated("statute");
+      })
+      .catch(function (err) {
+        if (seq !== runStatuteSearchSeq) return;
+        renderStatuteResults(out, [], {
+          emptyMessage: err && err.message ? String(err.message) : "조문 조회에 실패했습니다."
+        });
+        setDictGuestHint("statute");
+        emitDictResultsUpdated("statute");
+      });
+  }
+
+  function findStatuteEntryByKey(key) {
+    var k = String(key || "").trim();
+    if (!k) return null;
+    var list = getStatuteEntries();
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].key || "") === k) return list[i];
+    }
+    return null;
+  }
+
+  function statuteEntryFromApiResult(apiResult) {
+    if (!apiResult || !apiResult.ok) return null;
+    var p = apiResult.parsed || {};
+    var parts = String(apiResult.statuteKey || "").split("|");
+    return {
+      key: apiResult.statuteKey,
+      lawName: p.lawName || parts[0] || "",
+      articleNo: p.article || parts[1] || "",
+      articleSub: p.articleSub || parts[2] || "",
+      heading: apiResult.heading || "",
+      body: apiResult.body || "",
+      sourceNote: apiResult.sourceNote || "",
+      subordinateArticles: Array.isArray(apiResult.subordinateArticles)
+        ? apiResult.subordinateArticles
+        : [],
+      oxQuizzes: [],
+      _docId: null,
+      _fromOpenApi: true
+    };
+  }
+
+  function appendStatuteTextSection(article, label, text, className) {
+    if (!article || !text) return;
+    var sec = document.createElement("section");
+    sec.className = "case-result-card__section " + (className || "");
+    var h = document.createElement("h4");
+    h.className = "case-result-card__label";
+    h.textContent = label;
+    sec.appendChild(h);
+    var div = document.createElement("div");
+    div.className = "case-result-card__text quiz-ai-answer";
+    if (typeof window.formatHanlawAiAnswerHtml === "function") {
+      div.innerHTML = window.formatHanlawAiAnswerHtml(text);
+    } else {
+      div.textContent = text;
+    }
+    sec.appendChild(div);
+    article.appendChild(sec);
+  }
+
+  function appendSubordinateStatuteSections(article, entry) {
+    if (!article || !entry) return;
+    var subs = entry.subordinateArticles;
+    if (Array.isArray(subs) && subs.length) {
+      var wrap = document.createElement("section");
+      wrap.className = "dict-statute-sub-laws";
+      var h = document.createElement("h4");
+      h.className = "case-result-card__label dict-statute-sub-laws__heading";
+      h.textContent = "하위 법령 — 위임조문 3단비교 (시행령·시행규칙)";
+      wrap.appendChild(h);
+      for (var i = 0; i < subs.length; i++) {
+        var sub = subs[i] || {};
+        var block = document.createElement("div");
+        block.className = "dict-statute-sub-law";
+        if (sub.kind) {
+          var badge = document.createElement("p");
+          badge.className = "dict-statute-sub-law__badge";
+          badge.textContent = String(sub.kind);
+          block.appendChild(badge);
+        }
+        var sh = document.createElement("h5");
+        sh.className = "dict-statute-sub-law__title";
+        sh.textContent = String(sub.heading || sub.lawNameKo || "").trim();
+        block.appendChild(sh);
+        var sb = document.createElement("div");
+        sb.className = "dict-statute-sub-law__body quiz-ai-answer";
+        sb.innerHTML = formatStatuteBodyHtml(String(sub.body || ""));
+        block.appendChild(sb);
+        wrap.appendChild(block);
+      }
+      article.appendChild(wrap);
+      return;
+    }
+    if (entry.subordinateRules) {
+      appendStatuteTextSection(article, "하위 법령 (시행령·시행규칙)", entry.subordinateRules, "dict-statute-sub-laws--stored");
+    }
+  }
+
+  function normStatuteTagCompact(s) {
+    return String(s || "")
+      .replace(/^#/, "")
+      .trim()
+      .replace(/[\s.\-·]/g, "")
+      .toLowerCase();
+  }
+
+  function statuteEntryMatchCompact(entry) {
+    var law = String(entry.lawName || "").replace(/\s+/g, "");
+    var art = String(entry.articleNo || "").trim();
+    var sub = String(entry.articleSub || "").trim();
+    if (!law || !art) {
+      var parts = String(entry.key || "").split("|");
+      law = String(parts[0] || "").replace(/\s+/g, "");
+      art = String(parts[1] || "").trim();
+      sub = String(parts[2] || "").trim();
+    }
+    return (law + "제" + art + "조" + (sub ? "의" + sub : "")).toLowerCase();
+  }
+
+  function questionMatchesStatuteEntry(q, entry) {
+    if (!q || !entry) return false;
+    var targetKey = String(entry.key || "").trim();
+    var compact = statuteEntryMatchCompact(entry);
+    if (Array.isArray(q.tags)) {
+      for (var i = 0; i < q.tags.length; i++) {
+        var tag = String(q.tags[i] || "").trim();
+        if (!tag) continue;
+        if (normStatuteTagCompact(tag) === compact) return true;
+        if (
+          typeof window.parseStatuteArticleTag === "function" &&
+          typeof window.statuteCacheKey === "function"
+        ) {
+          var parsed = window.parseStatuteArticleTag(tag);
+          if (parsed && window.statuteCacheKey(parsed) === targetKey) return true;
+        }
+      }
+    }
+    if (q.detail && q.detail.legal != null) {
+      var leg = normStatuteTagCompact(stringifyDetailSegForDict(q.detail.legal));
+      if (leg && leg.indexOf(compact) >= 0) return true;
+    }
+    return false;
+  }
+
+  function findRelatedQuestionsForStatute(entry) {
+    if (!entry || isGuestViewer()) return [];
+    var bank = window.QUESTION_BANK;
+    if (!Array.isArray(bank) || !bank.length) return [];
+    var out = [];
+    for (var i = 0; i < bank.length; i++) {
+      var q = bank[i];
+      if (!q || typeof q.answer !== "boolean") continue;
+      if (!questionMatchesStatuteEntry(q, entry)) continue;
+      out.push(q);
+    }
+    return sortRelatedQuestionsForDict(out);
+  }
+
+  function normCaseCitationCompact(s) {
+    return String(s || "")
+      .replace(/^#/, "")
+      .replace(/^판례/i, "")
+      .trim()
+      .replace(/[\s.\-·]/g, "")
+      .toLowerCase();
+  }
+
+  function extractCaseMatchTokensFromEntry(entry) {
+    var tokens = [];
+    var seen = {};
+    function add(raw) {
+      var t = normCaseCitationCompact(raw);
+      if (!t || seen[t]) return;
+      seen[t] = true;
+      tokens.push(t);
+      var compact = String(raw || "").replace(/\s/g, "");
+      var m = compact.match(/(\d{2,4}[가-힣]{1,3}\d{2,7})/);
+      if (m && m[1]) {
+        var core = normCaseCitationCompact(m[1]);
+        if (core && !seen[core]) {
+          seen[core] = true;
+          tokens.push(core);
+        }
+      }
+    }
+    add(entry && entry.citation);
+    var keys = (entry && entry.searchKeys) || [];
+    for (var i = 0; i < keys.length; i++) add(keys[i]);
+    return tokens;
+  }
+
+  function questionMatchesCaseEntry(q, entry) {
+    if (!q || !entry) return false;
+    var targetTokens = extractCaseMatchTokensFromEntry(entry);
+    if (!targetTokens.length) return false;
+    if (Array.isArray(q.tags)) {
+      for (var i = 0; i < q.tags.length; i++) {
+        var tagComp = normCaseCitationCompact(q.tags[i]);
+        if (!tagComp) continue;
+        for (var ti = 0; ti < targetTokens.length; ti++) {
+          if (tagComp === targetTokens[ti]) return true;
+          if (
+            tagComp.length >= 6 &&
+            targetTokens[ti].length >= 6 &&
+            (tagComp.indexOf(targetTokens[ti]) >= 0 || targetTokens[ti].indexOf(tagComp) >= 0)
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+    if (q.detail && q.detail.precedent != null) {
+      var prec = normCaseCitationCompact(stringifyDetailSegForDict(q.detail.precedent));
+      for (var pj = 0; pj < targetTokens.length; pj++) {
+        if (prec && prec.indexOf(targetTokens[pj]) >= 0) return true;
+      }
+    }
+    return false;
+  }
+
+  function sortRelatedQuestionsForDict(list) {
+    return (list || []).slice().sort(function (a, b) {
+      var ya = parseInt(String(a.year != null ? a.year : ""), 10);
+      var yb = parseInt(String(b.year != null ? b.year : ""), 10);
+      if (Number.isFinite(yb) && Number.isFinite(ya) && yb !== ya) return yb - ya;
+      if (Number.isFinite(yb) && !Number.isFinite(ya)) return 1;
+      if (!Number.isFinite(yb) && Number.isFinite(ya)) return -1;
+      return String(a.id || "").localeCompare(String(b.id || ""), "ko-KR");
+    });
+  }
+
+  function findRelatedQuestionsForCase(entry) {
+    if (!entry || isGuestViewer()) return [];
+    var bank = window.QUESTION_BANK;
+    if (!Array.isArray(bank) || !bank.length) return [];
+    var out = [];
+    for (var i = 0; i < bank.length; i++) {
+      var q = bank[i];
+      if (!q || typeof q.answer !== "boolean") continue;
+      if (!questionMatchesCaseEntry(q, entry)) continue;
+      out.push(q);
+    }
+    return sortRelatedQuestionsForDict(out);
+  }
+
+  function stringifyDetailSegForDict(v) {
+    if (v == null) return "";
+    if (typeof v === "string") return v.trim();
+    if (typeof v === "object" && v.text != null) return String(v.text).trim();
+    return String(v).trim();
+  }
+
+  var DICT_RELATED_QUIZ_FREE_LIMIT = 3;
+
+  function isDictRelatedQuizPaidViewer() {
+    return typeof window.isPaidMember === "function" && window.isPaidMember();
+  }
+
+  function dictRelatedQuizDisplayLimit(totalCount) {
+    var total = typeof totalCount === "number" && totalCount > 0 ? totalCount : 0;
+    if (!total) return 0;
+    if (isDictRelatedQuizPaidViewer()) return total;
+    return Math.min(DICT_RELATED_QUIZ_FREE_LIMIT, total);
+  }
+
+  function dictRelatedQuizHeadingText(totalCount, shownCount) {
+    if (shownCount >= totalCount) {
+      return "관련 기출 (" + totalCount + "문항)";
+    }
+    return "관련 기출 (" + shownCount + "문항 / 전체 " + totalCount + "문항)";
+  }
+
+  /** 조문·판례 카드 하단: QUESTION_BANK 태그 매칭 기출 — 퀴즈·노트 카드와 동일 UI */
+  function appendRelatedExamQuizSection(article, entry, findRelatedFn) {
+    if (!article || !entry || isGuestViewer()) return;
+    var UI = window.HanlawNoteQuizUi;
+    if (!UI || typeof UI.buildCard !== "function" || typeof UI.attachListInteractions !== "function") {
+      return;
+    }
+    var finder =
+      typeof findRelatedFn === "function" ? findRelatedFn : findRelatedQuestionsForStatute;
+    var related = finder(entry);
+    if (!related.length) return;
+    var shownCount = dictRelatedQuizDisplayLimit(related.length);
+    var shown = related.slice(0, shownCount);
+    var sec = document.createElement("section");
+    sec.className = "case-result-card__section dict-ox-section dict-related-quiz-section";
+    var h = document.createElement("h4");
+    h.className = "case-result-card__label dict-ox-section__heading";
+    h.textContent = dictRelatedQuizHeadingText(related.length, shownCount);
+    sec.appendChild(h);
+    if (!isDictRelatedQuizPaidViewer() && related.length > DICT_RELATED_QUIZ_FREE_LIMIT) {
+      var lockP = document.createElement("p");
+      lockP.className = "dict-related-quiz-section__limit-hint feedback-premium-lock";
+      lockP.textContent =
+        "무료 회원은 관련 기출 " +
+        DICT_RELATED_QUIZ_FREE_LIMIT +
+        "문항까지 이용할 수 있습니다. 유료 구독 시 전체 " +
+        related.length +
+        "문항을 볼 수 있습니다.";
+      sec.appendChild(lockP);
+    }
+    var list = document.createElement("ol");
+    list.className = "dict-related-quiz-list";
+    var qi;
+    for (qi = 0; qi < shown.length; qi++) {
+      var li = document.createElement("li");
+      li.className = "dict-related-quiz-list__item";
+      li.appendChild(UI.buildCard(shown[qi], qi + 1, "dict-related"));
+      list.appendChild(li);
+    }
+    UI.attachListInteractions(list, {
+      findQuestion: function (qid) {
+        var want = UI.normalizeId(qid);
+        for (var i = 0; i < shown.length; i++) {
+          if (UI.normalizeId(shown[i].id) === want) return shown[i];
+        }
+        return null;
+      },
+      removeSelector: ".dict-related-quiz-list__noop-remove"
+    });
+    sec.appendChild(list);
+    article.appendChild(sec);
   }
 
   function renderStatuteArticleIndex(container, items) {
@@ -304,7 +979,8 @@
       var p = document.createElement("p");
       p.className = "dict-empty";
       p.textContent =
-        "일치하는 조문이 없습니다. 법령명·조문번호·본문 키워드로 다시 검색하거나, js/statute-articles-static.js 에 조문을 추가하세요.";
+        opts.emptyMessage ||
+        "일치하는 조문이 없습니다. 「행정소송법 제2조」처럼 법령명·조문번호로 검색하거나, 본문 키워드로 다시 조회해 보세요.";
       container.appendChild(p);
       return;
     }
@@ -328,11 +1004,7 @@
       article.appendChild(h);
       var body = document.createElement("div");
       body.className = "dict-result-card__body quiz-ai-answer";
-      if (typeof window.formatHanlawAiAnswerHtml === "function") {
-        body.innerHTML = window.formatHanlawAiAnswerHtml(s.body || "");
-      } else {
-        body.textContent = s.body || "";
-      }
+      body.innerHTML = formatStatuteBodyHtml(s.body || "");
       article.appendChild(body);
       appendCopyButtonRow(article, {
         label: "본문 복사",
@@ -340,8 +1012,13 @@
           return String(s.body || "");
         }
       });
+      if (s.appliedRules) {
+        appendStatuteTextSection(article, "준용 규정", s.appliedRules, "dict-statute-applied-rules");
+      }
+      appendSubordinateStatuteSections(article, s);
       appendDictionaryOxQuizSection(article, s.oxQuizzes, "조문 OX 퀴즈", 3);
-      if (s.sourceNote && isAdminUser()) {
+      appendRelatedExamQuizSection(article, s);
+      if (s.sourceNote) {
         var foot = document.createElement("p");
         foot.className = "dict-result-card__foot";
         if (typeof window.formatHanlawRichParagraphsHtml === "function") {
@@ -415,18 +1092,110 @@
       emitDictResultsUpdated("statute");
       return;
     }
-    var q = String(input.value || "").trim();
-    if (!q) {
+    var qRaw = String(input.value || "").trim();
+    if (!qRaw) {
       var list0 = browseStatutesSorted();
       renderStatuteArticleIndex(out, list0);
       setDictGuestHint("statute");
       emitDictResultsUpdated("statute");
       return;
     }
-    var list = searchStatutes(q);
-    renderStatuteResults(out, list);
-    setDictGuestHint("statute");
-    emitDictResultsUpdated("statute");
+
+    var seq = ++runStatuteSearchSeq;
+    var qNorm = normalizeStatuteQueryInput(qRaw);
+    var parsed =
+      typeof window.parseStatuteArticleTag === "function"
+        ? window.parseStatuteArticleTag(qNorm)
+        : null;
+    var exactKey =
+      parsed && typeof window.statuteCacheKey === "function"
+        ? window.statuteCacheKey(parsed)
+        : "";
+
+    function finish(list, finishOpts) {
+      if (seq !== runStatuteSearchSeq) return;
+      renderStatuteResults(out, list, finishOpts);
+      setDictGuestHint("statute");
+      emitDictResultsUpdated("statute");
+    }
+
+    function finishSuggest(query, suggestions, suggestOpts) {
+      if (seq !== runStatuteSearchSeq) return;
+      renderStatuteSuggestionPicker(out, query, suggestions, suggestOpts);
+      setDictGuestHint("statute");
+      emitDictResultsUpdated("statute");
+    }
+
+    if (exactKey && isExactStatuteLookupQuery(qNorm, parsed)) {
+      var localExact = findStatuteEntryByKey(exactKey);
+      if (localExact) {
+        finish([localExact]);
+        return;
+      }
+      if (typeof window.fetchStatuteArticleForUser === "function") {
+        out.innerHTML = "";
+        var loading = document.createElement("p");
+        loading.className = "dict-empty dict-loading";
+        loading.textContent = "국가법령정보에서 조문을 불러오는 중…";
+        out.appendChild(loading);
+        window
+          .fetchStatuteArticleForUser({ statuteKey: exactKey })
+          .then(function (api) {
+            if (seq !== runStatuteSearchSeq) return;
+            var entry = statuteEntryFromApiResult(api);
+            if (entry) {
+              finish([entry]);
+              return;
+            }
+            var reason =
+              api && api.reason ? String(api.reason) : "조문을 찾지 못했습니다.";
+            finishSuggest(qRaw, collectStatuteSuggestionsLocal(qRaw), {
+              emptyMessage:
+                reason + " 아래 후보 중에서 선택하거나 검색어를 바꿔 보세요."
+            });
+          })
+          .catch(function (err) {
+            if (seq !== runStatuteSearchSeq) return;
+            finishSuggest(qRaw, collectStatuteSuggestionsLocal(qRaw), {
+              emptyMessage: err && err.message ? String(err.message) : "조문 조회에 실패했습니다."
+            });
+          });
+        return;
+      }
+    }
+
+    var localSuggestions = collectStatuteSuggestionsLocal(qRaw);
+    out.innerHTML = "";
+    var loadingSuggest = document.createElement("p");
+    loadingSuggest.className = "dict-empty dict-loading";
+    loadingSuggest.textContent = "법령·조문 후보를 찾는 중…";
+    out.appendChild(loadingSuggest);
+
+    var remotePromise = Promise.resolve({ suggestions: [] });
+    if (typeof window.suggestStatuteArticlesForUser === "function") {
+      remotePromise = window
+        .suggestStatuteArticlesForUser({ query: qRaw, maxResults: 10 })
+        .then(function (res) {
+          return res || { suggestions: [] };
+        })
+        .catch(function () {
+          return { suggestions: [] };
+        });
+    }
+
+    remotePromise.then(function (remote) {
+      if (seq !== runStatuteSearchSeq) return;
+      var merged = mergeStatuteSuggestions(localSuggestions, remote.suggestions || []);
+      if (!merged.length) {
+        var list = searchStatutes(qRaw);
+        if (!list.length && qNorm !== qRaw) list = searchStatutes(qNorm);
+        if (list.length) {
+          finish(list);
+          return;
+        }
+      }
+      finishSuggest(qRaw, merged);
+    });
   }
 
   function generatedTermsSorted() {
@@ -1135,6 +1904,7 @@
     var dex = $("dict-case-edit-cancel");
     var del = $("dict-case-edit-delete");
     var aiFill = $("dict-case-edit-ai-fill");
+    var btnCaseLawApi = $("dict-case-edit-law-api");
     [
       "dict-case-edit-citation",
       "dict-case-edit-title",
@@ -1214,6 +1984,52 @@
           });
       });
     }
+    if (btnCaseLawApi) {
+      btnCaseLawApi.addEventListener("click", function () {
+        var citation = String(($("dict-case-edit-citation") && $("dict-case-edit-citation").value) || "").trim();
+        if (!citation) {
+          setDictCaseEditMsg("사건 표기(citation)를 먼저 입력해 주세요. 예: 2016두31616", true);
+          return;
+        }
+        if (typeof window.adminFetchCasePrecedentOpenApi !== "function") {
+          setDictCaseEditMsg("Open API 함수를 불러오지 못했습니다. 페이지를 새로고침해 주세요.", true);
+          return;
+        }
+        btnCaseLawApi.disabled = true;
+        setDictCaseEditMsg("국가법령정보 Open API에서 판결문을 가져오는 중…", false);
+        window
+          .adminFetchCasePrecedentOpenApi({ citation: citation })
+          .then(function (data) {
+            if (!data || !data.ok) {
+              throw new Error((data && data.reason) || "판결문을 가져오지 못했습니다.");
+            }
+            var setVal = function (id, v) {
+              var el = $(id);
+              if (el && v) el.value = v;
+            };
+            if (data.caseToken) setVal("dict-case-edit-citation", data.caseToken);
+            setVal("dict-case-edit-title", data.title || "");
+            setVal("dict-case-edit-issues", data.issues || "");
+            setVal("dict-case-edit-judgment", data.judgment || "");
+            setVal("dict-case-edit-full-text", data.caseFullText || "");
+            var msg =
+              "Open API 판결문을 폼에 넣었습니다. 필요하면 「전문으로 AI 요약 채우기」로 사실관계 등을 정리하세요.";
+            if (data.lawGoKrWebUrl) {
+              msg +=
+                ' <a href="' +
+                data.lawGoKrWebUrl +
+                '" target="_blank" rel="noopener noreferrer">law.go.kr</a>';
+            }
+            setDictCaseEditMsg(msg, false, true);
+          })
+          .catch(function (err) {
+            setDictCaseEditMsg((err && err.message) || "Open API 판결문 가져오기에 실패했습니다.", true);
+          })
+          .then(function () {
+            btnCaseLawApi.disabled = false;
+          });
+      });
+    }
     if (aiFill) {
       aiFill.addEventListener("click", function () {
         var citation = String(($("dict-case-edit-citation") && $("dict-case-edit-citation").value) || "").trim();
@@ -1223,7 +2039,10 @@
           return;
         }
         if (!caseFullText) {
-          setDictCaseEditMsg("판결문 전문을 입력한 뒤 AI 요약을 실행해 주세요.", true);
+          setDictCaseEditMsg(
+            "판결문 전문이 없습니다. 「Open API 판결문 가져오기」를 먼저 실행하거나 전문을 직접 입력해 주세요.",
+            true
+          );
           return;
         }
         if (typeof firebase === "undefined" || !firebase.apps || !firebase.apps.length || !firebase.functions) {
@@ -1410,6 +2229,135 @@
       return out;
     }
 
+    function mergeUniqueCitations(existingList, incomingList) {
+      var seen = {};
+      var out = [];
+      var all = (existingList || []).concat(incomingList || []);
+      for (var i = 0; i < all.length; i++) {
+        var t = String(all[i] || "").trim();
+        if (!t || seen[t]) continue;
+        seen[t] = true;
+        out.push(t);
+      }
+      return out;
+    }
+
+    function parseWorkbookToCaseCitations(buffer) {
+      if (typeof XLSX === "undefined") {
+        throw new Error("엑셀 라이브러리(xlsx)를 불러오지 못했습니다.");
+      }
+      var wb = XLSX.read(buffer, { type: "array" });
+      var sheetName = wb.SheetNames && wb.SheetNames[0];
+      if (!sheetName) throw new Error("엑셀 시트가 없습니다.");
+      var sheet = wb.Sheets[sheetName];
+      var rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      if (!rows.length) throw new Error("데이터 행이 없습니다.");
+      var headerKeys = Object.keys(rows[0] || {});
+      var citeKey = "";
+      var aliases = ["citation", "사건번호", "사건표기", "case", "caseNo", "판례번호"];
+      for (var hi = 0; hi < headerKeys.length; hi++) {
+        var hk = String(headerKeys[hi] || "").trim();
+        var hkn = hk.replace(/\s/g, "").toLowerCase();
+        for (var ai = 0; ai < aliases.length; ai++) {
+          if (hkn === String(aliases[ai]).replace(/\s/g, "").toLowerCase()) {
+            citeKey = hk;
+            break;
+          }
+        }
+        if (citeKey) break;
+      }
+      if (!citeKey && headerKeys.length === 1) citeKey = headerKeys[0];
+      if (!citeKey) {
+        throw new Error("citation(사건번호) 열을 찾지 못했습니다. 샘플 형식을 확인해 주세요.");
+      }
+      var out = [];
+      var seen = {};
+      for (var ri = 0; ri < rows.length; ri++) {
+        var citation = String((rows[ri] && rows[ri][citeKey]) || "").trim();
+        if (!citation) continue;
+        if (seen[citation]) continue;
+        seen[citation] = true;
+        out.push(citation);
+      }
+      return out;
+    }
+
+    function downloadCaseCitationExcelTemplate() {
+      if (typeof XLSX === "undefined") {
+        window.alert("xlsx 라이브러리를 불러온 뒤 다시 시도하세요.");
+        return;
+      }
+      var head = ["citation"];
+      var sample = ["2016두31616", "91누3224", "2008두8680"];
+      var wb = XLSX.utils.book_new();
+      var ws = XLSX.utils.aoa_to_sheet([head].concat(sample.map(function (c) { return [c]; })));
+      XLSX.utils.book_append_sheet(wb, ws, "판례번호");
+      XLSX.writeFile(wb, "hanlaw_case_citations_template.xlsx");
+    }
+
+    function callAdminGenerateCaseDict(citation, caseFullText) {
+      if (typeof window.adminGenerateCaseDictFromOpenApi !== "function") {
+        return Promise.reject(new Error("판례 생성 함수를 불러오지 못했습니다. Functions 배포를 확인해 주세요."));
+      }
+      return window.adminGenerateCaseDictFromOpenApi({
+        citation: citation,
+        caseFullText: caseFullText || ""
+      });
+    }
+
+    var btnLoadExcel = $("dict-case-create-load-excel");
+    var btnExcelTpl = $("dict-case-create-excel-template");
+    var excelFileEl = $("dict-case-create-excel-file");
+    if (btnExcelTpl) {
+      btnExcelTpl.addEventListener("click", function () {
+        downloadCaseCitationExcelTemplate();
+      });
+    }
+    if (btnLoadExcel && excelFileEl) {
+      btnLoadExcel.addEventListener("click", function () {
+        if (!isAdminUser()) {
+          setDictCaseCreateMsg("관리자만 사용할 수 있습니다.", true);
+          return;
+        }
+        var file = excelFileEl.files && excelFileEl.files[0];
+        if (!file) {
+          setDictCaseCreateMsg("엑셀 파일(.xlsx/.xls)을 선택해 주세요.", true);
+          return;
+        }
+        var lower = String(file.name || "").toLowerCase();
+        if (lower.indexOf(".xlsx") === -1 && lower.indexOf(".xls") === -1) {
+          setDictCaseCreateMsg("엑셀 파일(.xlsx/.xls)만 업로드할 수 있습니다.", true);
+          return;
+        }
+        btnLoadExcel.disabled = true;
+        setDictCaseCreateMsg("엑셀에서 사건번호 읽는 중…", false);
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var incoming = parseWorkbookToCaseCitations(new Uint8Array(reader.result));
+            if (!incoming.length) {
+              setDictCaseCreateMsg("유효한 사건번호 행이 없습니다.", true);
+              return;
+            }
+            var merged = mergeUniqueCitations(parseCaseCitationsFromField(), incoming);
+            var citeEl = $("dict-case-create-citation");
+            if (citeEl) citeEl.value = merged.join("\n");
+            setDictCaseCreateMsg(incoming.length + "건을 불러왔습니다. (합계 " + merged.length + "건) 「판례사전 생성」을 눌러 주세요.", false);
+            excelFileEl.value = "";
+          } catch (err) {
+            setDictCaseCreateMsg((err && err.message) || "엑셀 파싱에 실패했습니다.", true);
+          } finally {
+            btnLoadExcel.disabled = false;
+          }
+        };
+        reader.onerror = function () {
+          btnLoadExcel.disabled = false;
+          setDictCaseCreateMsg("파일을 읽지 못했습니다.", true);
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
     var btnOxSave = $("dict-case-create-ox-save");
     if (btnOxSave) {
       btnOxSave.addEventListener("click", function () {
@@ -1571,43 +2519,44 @@
         return;
       }
       if (
-        typeof firebase === "undefined" ||
-        !firebase.apps ||
-        !firebase.apps.length ||
-        !firebase.functions
+        typeof window.adminGenerateCaseDictFromOpenApi !== "function"
       ) {
-        setDictCaseCreateMsg("Firebase Functions를 사용할 수 없습니다.", true);
+        setDictCaseCreateMsg("판례 생성 함수를 불러오지 못했습니다. Functions 배포를 확인해 주세요.", true);
         return;
       }
       btn.disabled = true;
-      var region = window.FIREBASE_FUNCTIONS_REGION || "asia-northeast3";
-      var fn = firebase.app().functions(region).httpsCallable("generateOrGetDictionaryEntry");
 
       if (citations.length > 1) {
         if (fullText) {
           setDictCaseCreateMsg(
-            "여러 사건을 순차 생성할 때는 판결문 전문 입력을 사용하지 않습니다. (사건번호 기반 생성으로 진행)",
+            "여러 사건을 순차 생성할 때는 판결문 전문 입력을 사용하지 않습니다. (Open API → Gemini로 진행)",
             false
           );
         }
         hideCaseCreateOxPanel();
         var okCount = 0;
+        var skipCount = 0;
         var failCount = 0;
         var firstFail = "";
         var chainMulti = Promise.resolve();
         citations.forEach(function (citation, i) {
           chainMulti = chainMulti.then(function () {
             setDictCaseCreateMsg(
-              "판례사전 순차 생성 중 (" + (i + 1) + "/" + citations.length + ") · " + citation,
+              "판례사전 생성 중 (" +
+                (i + 1) +
+                "/" +
+                citations.length +
+                ") · Open API → Gemini · " +
+                citation,
               false
             );
-            return fn({ tag: citation, caseFullText: "" })
-              .then(function (res) {
-                var d = res && res.data;
-                if (!d || !d.ok || d.kind !== "case" || !d.record) {
+            return callAdminGenerateCaseDict(citation, "")
+              .then(function (d) {
+                if (!d || !d.ok || d.kind !== "case") {
                   throw new Error("판례 생성 결과를 가져오지 못했습니다.");
                 }
-                okCount += 1;
+                if (d.source === "store") skipCount += 1;
+                else okCount += 1;
               })
               .catch(function (err) {
                 failCount += 1;
@@ -1618,11 +2567,12 @@
         });
         chainMulti
           .then(function () {
-            var msg = "판례사전 생성 완료: 성공 " + okCount + "건";
+            var msg = "판례사전 생성 완료: 신규 " + okCount + "건";
+            if (skipCount) msg += ", 기존 운영 항목 " + skipCount + "건(건너뜀)";
             if (failCount) msg += ", 실패 " + failCount + "건";
             if (firstFail) msg += " (예: " + firstFail + ")";
-            msg += " · 생성된 항목은 검수·승인 탭에서 확인·일괄 승인할 수 있습니다.";
-            setDictCaseCreateMsg(msg, failCount > 0 && okCount === 0);
+            msg += " · 검수·승인 탭에서 확인·일괄 승인할 수 있습니다.";
+            setDictCaseCreateMsg(msg, failCount > 0 && okCount === 0 && skipCount === 0);
             var adminTab = $("admin-tab");
             var reviewTab = $("admin-tab-review");
             var reviewTypeCase = $("admin-review-type-case");
@@ -1646,15 +2596,14 @@
 
       setDictCaseCreateMsg(
         fullText
-          ? "판례사전 생성 중입니다... (입력한 판결문 기반 · 검수 대기 등록)"
-          : "판례사전 생성 중입니다... (웹에서 판결문 자동 확인 시도 후 검수 대기 등록)",
+          ? "판례사전 생성 중… (입력 전문 → Gemini · 검수 대기 등록)"
+          : "판례사전 생성 중… (Open API → Gemini · 검수 대기 등록)",
         false
       );
       var citation = citations[0];
-      fn({ tag: citation, caseFullText: fullText })
-        .then(function (res) {
-          var d = res && res.data;
-          if (!d || !d.ok || d.kind !== "case" || !d.record) {
+      callAdminGenerateCaseDict(citation, fullText)
+        .then(function (d) {
+          if (!d || !d.ok || d.kind !== "case") {
             throw new Error("판례 생성 결과를 가져오지 못했습니다.");
           }
           var rec = d.record || {};
@@ -2570,6 +3519,55 @@
     }
     var btnGenOx = $("dict-statute-edit-gen-ox");
     var btnAiFill = $("dict-statute-edit-ai-fill");
+    var btnLawApi = $("dict-statute-edit-law-api");
+    if (btnLawApi) {
+      btnLawApi.addEventListener("click", function () {
+        var modal = $("dict-statute-edit-modal");
+        var sk =
+          modal && modal.dataset && modal.dataset.statuteKey
+            ? String(modal.dataset.statuteKey).trim()
+            : "";
+        if (!sk) {
+          setDictStatuteEditMsg("조문 키가 있어야 원문을 가져올 수 있습니다.", true);
+          return;
+        }
+        if (typeof window.adminFetchStatuteArticleOpenApi !== "function") {
+          setDictStatuteEditMsg("Open API 함수를 불러오지 못했습니다. 페이지를 새로고침해 주세요.", true);
+          return;
+        }
+        btnLawApi.disabled = true;
+        setDictStatuteEditMsg("국가법령정보 Open API에서 조문 원문을 가져오는 중…", false);
+        window
+          .adminFetchStatuteArticleOpenApi({ statuteKey: sk })
+          .then(function (data) {
+            if (!data || !data.ok) {
+              throw new Error((data && data.reason) || "조문 원문을 가져오지 못했습니다.");
+            }
+            var hEl = $("dict-statute-edit-heading");
+            var bEl = $("dict-statute-edit-body");
+            var sEl = $("dict-statute-edit-source-note");
+            if (hEl) hEl.value = data.heading || hEl.value || "";
+            if (bEl) bEl.value = data.body || bEl.value || "";
+            if (sEl) sEl.value = data.sourceNote || sEl.value || "";
+            setDictStatuteEditMsg(
+              "Open API 원문을 폼에 넣었습니다. 확인 후 저장하세요." +
+                (data.lawGoKrWebUrl
+                  ? ' <a href="' +
+                    data.lawGoKrWebUrl +
+                    '" target="_blank" rel="noopener noreferrer">law.go.kr</a>'
+                  : ""),
+              false,
+              true
+            );
+          })
+          .catch(function (err) {
+            setDictStatuteEditMsg((err && err.message) || "Open API 조문 가져오기에 실패했습니다.", true);
+          })
+          .then(function () {
+            btnLawApi.disabled = false;
+          });
+      });
+    }
     if (btnAiFill) {
       btnAiFill.addEventListener("click", function () {
         var modal = $("dict-statute-edit-modal");
@@ -3230,7 +4228,7 @@
       addSection("사실관계", normalizeCasePoliteStyle(c.facts));
       addSection("쟁점", normalizeCaseIssuesTextForUi(normalizeCasePoliteStyle(c.issues, { preserveIssueList: true })));
       addSection("법적 판단", normalizeCasePoliteStyle(c.judgment));
-      appendDictionaryOxQuizSection(article, c.oxQuizzes, "판례 OX 퀴즈", 5);
+      appendRelatedExamQuizSection(article, c, findRelatedQuestionsForCase);
       appendCaseFullTextToggle(article, c);
       appendCopyButtonRow(article, {
         label: "전체 복사",
@@ -3245,9 +4243,7 @@
             "\n[쟁점]\n" +
             String(normalizeCaseIssuesTextForUi(normalizeCasePoliteStyle(c.issues)) || "") +
             "\n[법적 판단]\n" +
-            String(normalizeCasePoliteStyle(c.judgment) || "") +
-            "\n[OX 퀴즈]\n" +
-            formatOxQuizzesForCopy(c.oxQuizzes)
+            String(normalizeCasePoliteStyle(c.judgment) || "")
           );
         }
       });
@@ -3589,6 +4585,7 @@
       outC.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
+        if (el.closest("[data-note-quiz]") || el.closest(".dict-related-quiz-section")) return;
         if (handleAdminDictEditClick(el)) return;
         var pick = el.closest("[data-case-citation]");
         if (pick && pick.dataset.caseCitation) {
@@ -3617,6 +4614,7 @@
       outS.addEventListener("click", function (e) {
         var el = eventTargetElement(e);
         if (!el) return;
+        if (el.closest("[data-note-quiz]") || el.closest(".dict-related-quiz-section")) return;
         if (handleAdminDictEditClick(el)) return;
         var pick = el.closest("[data-statute-key]");
         if (!pick || !pick.getAttribute("data-statute-key")) return;

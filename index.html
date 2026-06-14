@@ -34,7 +34,7 @@
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/css/style.css?v=20260610-library-ingest" />
+  <link rel="stylesheet" href="/css/style.css?v=20260614-personal-rate" />
   <link rel="stylesheet" href="/css/public-content.css?v=6" />
 </head>
 <body>
@@ -614,6 +614,7 @@
                 <div class="card card--question">
                   <p id="q-source" class="q-source"></p>
                   <p id="q-meta" class="q-meta"></p>
+                  <p id="q-personal-rate" class="q-personal-rate" hidden></p>
                   <div class="quiz-admin-edit-toolbar">
                     <button
                       type="button"
@@ -640,6 +641,7 @@
                 </div>
                 <div id="feedback" class="feedback" hidden>
                   <p id="feedback-result" class="feedback__result"></p>
+                  <p id="feedback-personal-rate" class="feedback__kv quiz-personal-rate" hidden></p>
                   <p id="feedback-answer-key" class="feedback__kv" hidden></p>
                   <p id="feedback-importance-line" class="feedback__kv feedback__kv--stars"></p>
                   <p id="feedback-difficulty-line" class="feedback__kv feedback__kv--stars"></p>
@@ -1131,7 +1133,8 @@
             <div class="card card--dict">
               <h2 class="card__title">조문사전</h2>
               <p class="dict-lead">
-                법령명·조문번호·본문 키워드로 검색하면 앱에 수록된 조문 전문을 볼 수 있습니다. 시험 전에는
+                법령명·조문번호·키워드(예: 피고적격, 소송법 13조)로 검색하면 조문 후보를 보여 드립니다. 후보를
+                선택하면 원문·위임조문 3단비교(연결된 시행령·시행규칙)·관련 기출을 볼 수 있습니다. 시험 전에는
                 <a href="https://www.law.go.kr" target="_blank" rel="noopener noreferrer">국가법령정보센터</a>에서
                 현행 법령을 확인하세요.
               </p>
@@ -1143,7 +1146,7 @@
                     type="search"
                     id="statute-article-query"
                     class="input"
-                    placeholder="예: 행정소송법 12조 · 원고적격 · 제소기간"
+                    placeholder="예: 피고적격 · 소송법 13조 · 행정소송법 제13조"
                     autocomplete="off"
                   />
                 </label>
@@ -2752,28 +2755,51 @@
               <section id="admin-panel-case-dict-create" hidden>
                 <section id="dict-case-create-admin" class="dict-case-create-admin" hidden>
                   <h3 class="dict-term-index__title">판례사전 생성 (관리자)</h3>
+                  <p class="admin-json-help">
+                    사건번호 목록(직접 입력 또는 엑셀)을 넣고 「판례사전 생성」을 누르면
+                    <strong>국가법령정보 Open API</strong>로 판결 전문을 가져온 뒤
+                    <strong>Gemini</strong>가 사실관계·쟁점·법적 판단·OX 퀴즈를 만들어 검수 대기에 등록합니다.
+                    승인 후 판례사전에 반영됩니다. (최대 500건 순차 처리)
+                  </p>
                   <label class="field">
-                    <span class="field__label">사건 표기/사건번호 (쉼표로 여러 개 가능)</span>
+                    <span class="field__label">사건 표기/사건번호 (쉼표·줄바꿈으로 여러 개)</span>
                     <textarea
                       id="dict-case-create-citation"
                       class="input textarea"
-                      rows="2"
+                      rows="4"
                       maxlength="10000"
                       autocomplete="off"
-                      placeholder="예: 대법원 2004. 9. 24. 선고 2004다33469 판결, 대법원 2019두12345 판결 (쉼표·줄바꿈 구분, 최대 500개 순차 처리)"
+                      placeholder="예: 2016두31616, 91누3224, 2008두8680 (쉼표·줄바꿈 구분)"
                     ></textarea>
                   </label>
                   <label class="field">
-                    <span class="field__label">판결문 전문 텍스트</span>
+                    <span class="field__label">판례번호 엑셀 (.xlsx / .xls)</span>
+                    <input
+                      type="file"
+                      id="dict-case-create-excel-file"
+                      class="input"
+                      accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    />
+                  </label>
+                  <p class="admin-json-help">
+                    엑셀 필수 열: <code class="pricing-code">citation</code> 또는
+                    <code class="pricing-code">사건번호</code> ·
+                    <code class="pricing-code">사건표기</code> (한 열에 사건번호만 나열).
+                    「엑셀에서 불러오기」로 위 칸에 채운 뒤 생성하세요.
+                  </p>
+                  <label class="field">
+                    <span class="field__label">판결문 전문 텍스트 (선택 · 1건일 때만)</span>
                     <textarea
                       id="dict-case-create-fulltext"
                       class="input textarea"
-                      rows="10"
-                      placeholder="선택 입력: 판결문 전문 원문(또는 핵심 발췌). 비워두면 AI가 사건번호로 웹에서 판결문 확인을 시도합니다."
+                      rows="6"
+                      placeholder="선택: 직접 붙여넣은 전문이 있으면 Open API 대신 이 텍스트로 Gemini 요약합니다. 여러 건 일괄 생성 시에는 무시됩니다."
                     ></textarea>
                   </label>
                   <div class="dict-case-create-admin__actions">
                     <button type="button" class="btn btn--primary" id="dict-case-create-run">판례사전 생성</button>
+                    <button type="button" class="btn btn--secondary" id="dict-case-create-load-excel">엑셀에서 불러오기</button>
+                    <button type="button" class="btn btn--outline" id="dict-case-create-excel-template">사건번호 샘플</button>
                     <button type="button" class="btn btn--outline btn--small" id="dict-case-clean-invalid">
                       '정보 없음' 판례 일괄 삭제
                     </button>
@@ -3776,6 +3802,9 @@
           </label>
         </details>
         <div class="modal__actions dict-case-edit-actions">
+          <button type="button" class="btn btn--outline" id="dict-case-edit-law-api">
+            Open API 판결문 가져오기
+          </button>
           <button type="button" class="btn btn--outline" id="dict-case-edit-ai-fill">전문으로 AI 요약 채우기</button>
           <button type="button" class="btn btn--ghost" id="dict-case-edit-cancel">취소</button>
           <button type="submit" class="btn btn--primary" id="dict-case-edit-save">저장</button>
@@ -3842,6 +3871,9 @@
         </label>
         <div class="field">
           <span class="field__label">조문 OX 퀴즈 (최대 3문항, 선택)</span>
+          <button type="button" class="btn btn--small btn--outline" id="dict-statute-edit-law-api">
+            Open API 원문 가져오기
+          </button>
           <button type="button" class="btn btn--small btn--outline" id="dict-statute-edit-ai-fill">
             AI로 조문 생성
           </button>
@@ -3996,12 +4028,12 @@
   <script src="/js/case-dictionary-data.js"></script>
   <script src="/js/case-text-normalize.js?v=1"></script>
   <script src="/js/casenote-link.js"></script>
-  <script src="/js/ai-answer-format.js?v=13"></script>
+  <script src="/js/ai-answer-format.js?v=14"></script>
   <script src="/js/statute-articles-static.js"></script>
   <script src="/js/case-ox-form.js?v=3"></script>
   <script src="/js/dict-favorites.js?v=1"></script>
   <script src="/js/modal-layer.js?v=1"></script>
-  <script src="/js/dict-panels.js?v=78"></script>
+  <script src="/js/dict-panels.js?v=87"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -4009,7 +4041,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="/js/firebase-config.js?v=20260514-test-account"></script>
   <script src="/js/auth-bridge.js"></script>
-  <script src="/js/firestore-db.js?v=25"></script>
+  <script src="/js/firestore-db.js?v=26"></script>
   <script src="/js/ai-config.js"></script>
   <script src="/js/app-brand-normalize.js?v=1"></script>
   <script src="/js/tickets-service.js?v=18"></script>
@@ -4030,7 +4062,7 @@
   <script src="/js/question-credits.js?v=8"></script>
   <script src="/js/quiz-ai-ask.js?v=22"></script>
   <script src="/js/dashboard-tickets.js?v=13"></script>
-  <script src="/js/learning-stats.js?v=6"></script>
+  <script src="/js/learning-stats.js?v=7"></script>
   <script src="/js/nav-layout.js?v=13"></script>
   <script src="/js/public-content-data.js?v=5"></script>
   <script src="/js/public-content-remote.js?v=5"></script>
@@ -4040,16 +4072,16 @@
   <script src="/js/public-guest-nav.js?v=3"></script>
   <script src="/js/admin-public-content.js?v=6"></script>
   <script src="/js/public-qa.js?v=18"></script>
-  <script src="/js/quiz-note-panel.js?v=14"></script>
+  <script src="/js/quiz-note-panel.js?v=17"></script>
   <script src="/js/dict-favorites-ui.js?v=3"></script>
   <script src="/js/quiz-question-memo.js?v=2"></script>
   <script src="/js/vendor/web-highlighter.min.js"></script>
-  <script src="/js/quiz-explain-highlighter.js?v=5"></script>
+  <script src="/js/quiz-explain-highlighter.js?v=6"></script>
   <script src="/js/quiz-trash.js?v=5"></script>
   <script src="/js/quiz-wrong-note.js?v=6"></script>
   <script src="/js/quiz-master.js?v=3"></script>
   <script src="/js/quiz-favorites.js?v=7"></script>
-  <script src="/js/app.js?v=73"></script>
+  <script src="/js/app.js?v=74"></script>
   <script src="/js/scope-favorites.js?v=9"></script>
   <script src="/js/ticket-modal.js?v=18"></script>
   <script src="/js/dict-panel-actions.js?v=11"></script>
