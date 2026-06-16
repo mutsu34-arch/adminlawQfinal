@@ -2295,6 +2295,13 @@
       XLSX.writeFile(wb, "hanlaw_case_citations_template.xlsx");
     }
 
+    function formatLowerCourtsFetchedNote(openApi) {
+      var list =
+        openApi && Array.isArray(openApi.lowerCourtsFetched) ? openApi.lowerCourtsFetched : [];
+      if (!list.length) return "";
+      return " (하급심 " + list.length + "건 Open API로 함께 분석)";
+    }
+
     function callAdminGenerateCaseDict(citation, caseFullText) {
       if (typeof window.adminGenerateCaseDictFromOpenApi !== "function") {
         return Promise.reject(new Error("판례 생성 함수를 불러오지 못했습니다. Functions 배포를 확인해 주세요."));
@@ -2546,7 +2553,7 @@
                 (i + 1) +
                 "/" +
                 citations.length +
-                ") · Open API → Gemini · " +
+                ") · Open API(하급심 포함) → Gemini · " +
                 citation,
               false
             );
@@ -2597,7 +2604,7 @@
       setDictCaseCreateMsg(
         fullText
           ? "판례사전 생성 중… (입력 전문 → Gemini · 검수 대기 등록)"
-          : "판례사전 생성 중… (Open API → Gemini · 검수 대기 등록)",
+          : "판례사전 생성 중… (Open API·하급심 조회 → Gemini · 검수 대기 등록)",
         false
       );
       var citation = citations[0];
@@ -2623,7 +2630,9 @@
             if (oxSec) oxSec.hidden = false;
             if (btnOxSave) btnOxSave.disabled = false;
             setDictCaseCreateMsg(
-              "생성 결과를 검수 대기함에 등록했습니다. 아래 OX 퀴즈를 확인·수정한 뒤 필요 시 저장하세요. 최종 승인은 검수·승인 탭에서 합니다.",
+              "생성 결과를 검수 대기함에 등록했습니다." +
+                formatLowerCourtsFetchedNote(d.openApi) +
+                " 아래 OX 퀴즈를 확인·수정한 뒤 필요 시 저장하세요. 최종 승인은 검수·승인 탭에서 합니다.",
               false
             );
           } else if (d.source === "generated-pending-review") {

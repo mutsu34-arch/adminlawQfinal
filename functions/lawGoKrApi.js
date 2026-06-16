@@ -696,6 +696,121 @@ async function fetchCasePrecedentOpenApi(citation) {
   };
 }
 
+const CONSTITUTIONAL_CASE_RE = /^\d{4}헌[가바마]/i;
+
+function isConstitutionalCaseToken(token) {
+  return CONSTITUTIONAL_CASE_RE.test(String(token || "").replace(/\s/g, ""));
+}
+
+function isSupremeCourtName(courtName) {
+  const c = String(courtName || "").trim();
+  return /대법원/.test(c) && !/고등/.test(c);
+}
+
+/** 판결문 본문에서 인용·원심 등에 등장하는 사건번호 토큰 추출 */
+function extractCaseTokensFromPrecedentText(text) {
+  const seen = {};
+  const out = [];
+  const re = /\d{2,4}[가-힣]{1,3}\d{2,7}/g;
+  const src = String(text || "");
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const token = normalizeCaseNumberToken(m[0]);
+    if (!token || seen[token]) continue;
+    if (isConstitutionalCaseToken(token)) continue;
+    seen[token] = true;
+    out.push(token);
+  }
+  return out;
+}
+
+function precedentCourtRank(courtName) {
+  const c = String(courtName || "");
+  if (/고등법원|특허법원|특허심판원|회생법원/.test(c)) return 60;
+  if (/행정법원|지방법원|가정법원|군사법원/.test(c)) return 40;
+  if (/심판|위원회/.test(c)) return 35;
+  return 30;
+}
+
+function isLowerCourtPrecedentMeta(courtName) {
+  const c = String(courtName || "");
+  if (!c) return false;
+  if (isSupremeCourtName(c)) return false;
+  if (/헌법재판소|헌재/.test(c)) return false;
+  return true;
+}
+
+async function fetchPrecedentBriefByCaseToken(caseToken) {
+  const token = normalizeCaseNumberToken(caseToken);
+  if (!token || isConstitutionalCaseToken(token)) return null;
+  let search;
+  try {
+    search = await searchPrecedentByCaseNumber(token, {});
+  } catch (e) {
+    return null;
+  }
+  if (!search.ok) return null;
+  const precId = String(search.row.판례일련번호 || "").trim();
+  if (!precId) return null;
+  let body;
+  try {
+    body = await fetchPrecedentBodyJson(precId);
+  } catch (e) {
+    return null;
+  }
+  const p = body.prec;
+  const court = String(p.법원명 || search.row.법원명 || "").trim();
+  if (!isLowerCourtPrecedentMeta(court)) return null;
+  const caseNo = String(p.사건번호 || search.row.사건번호 || token).trim();
+  const fullText = htmlToPlain(p.판례내용 || "").trim();
+  if (!fullText) return null;
+  return {
+    caseToken: caseNo || token,
+    court,
+    title: String(p.사건명 || search.row.사건명 || "").trim(),
+    decidedDate: formatYmdLabel(p.선고일자 || search.row.선고일자 || ""),
+    caseFullText: fullText,
+    courtRank: precedentCourtRank(court)
+  };
+}
+
+/**
+ * 대법원 판결 primaryOut 기준: 본문에 등장하는 하급심 사건번호를 Open API로 추가 조회.
+ * 헌법재판소 결정·비대법원 본건에는 적용하지 않습니다.
+ */
+async function fetchLowerCourtPrecedentsForCase(primaryOut, opts) {
+  opts = opts || {};
+  const maxFetch = typeof opts.maxFetch === "number" && opts.maxFetch > 0 ? opts.maxFetch : 4;
+  if (!primaryOut || !primaryOut.ok) return [];
+  const primaryToken = normalizeCaseNumberToken(primaryOut.caseToken || primaryOut.citation || "");
+  if (!primaryToken || isConstitutionalCaseToken(primaryToken)) return [];
+  if (!isSupremeCourtName(primaryOut.court)) return [];
+
+  const tokens = extractCaseTokensFromPrecedentText(primaryOut.caseFullText || "");
+  const candidates = tokens.filter((t) => t !== primaryToken);
+  const fetched = [];
+  const seenFetched = {};
+
+  for (let i = 0; i < candidates.length && fetched.length < maxFetch; i++) {
+    const want = candidates[i];
+    if (seenFetched[want]) continue;
+    seenFetched[want] = true;
+    try {
+      const row = await fetchPrecedentBriefByCaseToken(want);
+      if (!row || !row.caseFullText) continue;
+      const key = normalizeCaseNumberToken(row.caseToken) || want;
+      if (key === primaryToken || seenFetched["got:" + key]) continue;
+      seenFetched["got:" + key] = true;
+      fetched.push(row);
+    } catch (e) {
+      // 개별 하급심 조회 실패는 건너뜀
+    }
+  }
+
+  fetched.sort((a, b) => (b.courtRank || 0) - (a.courtRank || 0));
+  return fetched.slice(0, maxFetch);
+}
+
 async function verifyLawGoKrApi() {
   const oc = getLawGoKrOc();
   if (!oc) {
@@ -943,5 +1058,10 @@ module.exports = {
   parseStatuteSearchQuery,
   suggestStatuteArticlesOpenApi,
   normalizeLawStatutePlainText,
-  stripLawRevisionMeta
+  stripLawRevisionMeta,
+  isConstitutionalCaseToken,
+  isSupremeCourtName,
+  extractCaseTokensFromPrecedentText,
+  fetchLowerCourtPrecedentsForCase,
+  fetchPrecedentBriefByCaseToken
 };

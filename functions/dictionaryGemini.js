@@ -15,6 +15,7 @@ const {
   getLawGoKrOc,
   fetchStatuteArticleOpenApi,
   fetchCasePrecedentOpenApi,
+  fetchLowerCourtPrecedentsForCase,
   LAW_API_VPC
 } = require("./lawGoKrApi");
 
@@ -597,9 +598,44 @@ async function generateTermWithGemini(tag, apiKey, modelId, learnerNickname) {
   };
 }
 
-async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, caseFullText) {
+/** Gemini 입력용: 최종심 + 하급심 전문을 길이 한도 내에서 묶음 */
+function assembleGeminiCaseCorpus(primaryText, lowerCourtBriefs) {
+  const maxTotal = 150000;
+  let remain = maxTotal;
+  const chunks = [];
+  const main = String(primaryText || "").trim().slice(0, Math.min(90000, remain));
+  if (main) {
+    remain -= main.length;
+    chunks.push({
+      label: "최종심(대법원) 판결문 전문",
+      text: main
+    });
+  }
+  const lowers = Array.isArray(lowerCourtBriefs) ? lowerCourtBriefs : [];
+  for (let i = 0; i < lowers.length && remain > 4000; i++) {
+    const lc = lowers[i] || {};
+    const label =
+      "하급심 " +
+      (i + 1) +
+      ": " +
+      (lc.court || "법원 미상") +
+      " " +
+      (lc.caseToken || "") +
+      (lc.decidedDate ? ", 선고 " + lc.decidedDate : "");
+    const piece = String(lc.caseFullText || "").trim().slice(0, Math.min(35000, remain));
+    if (!piece) continue;
+    remain -= piece.length;
+    chunks.push({ label: label, text: piece });
+  }
+  if (!chunks.length) return String(primaryText || "").trim();
+  return chunks.map((c) => "[" + c.label + "]\n" + c.text).join("\n\n");
+}
+
+async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, caseFullText, lowerCourtBriefs) {
   const gen = new GoogleGenerativeAI(apiKey);
   const fullText = String(caseFullText || "").trim();
+  const lowerCourts = Array.isArray(lowerCourtBriefs) ? lowerCourtBriefs : [];
+  const corpus = assembleGeminiCaseCorpus(fullText, lowerCourts);
   let webContext = "";
   if (!fullText) {
     try {
@@ -608,6 +644,13 @@ async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, cas
       webContext = "";
     }
   }
+  const multiTierHint =
+    lowerCourts.length > 0
+      ? "여러 심급 판결문이 함께 제공됩니다.\n" +
+        "- facts(사실관계): 하급심(원심·항소심 등) 판결문의 사실 기술을 우선 활용해 풍부·정확하게 요약하세요. 최종심과 모순되면 최종심 기준으로 정리하고 불확실한 부분은 명시하세요.\n" +
+        "- issues(쟁점): 각 심급에서 다룬 쟁점을 통합해 '첫째, 둘째, ...' 형식으로 정리하세요. 심급별 판단 차이가 있으면 간략히 언급할 수 있습니다.\n" +
+        "- judgment(법적 판단): 최종심(대법원) 판단을 중심으로 요약하세요.\n"
+      : "";
   const prompt =
     nicknameHintLine(learnerNickname) +
     "당신은 한국 법학 교육용 요약가입니다.\n" +
@@ -620,12 +663,15 @@ async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, cas
     "줄바꿈 규칙: 단락 구분은 빈 줄(\\n\\n)만 사용하세요. 문장·날짜·숫자 중간에 단일 줄바꿈(\\n)을 넣지 마세요. 날짜(예: 2015. 2. 8.)·선고일·행사일은 반드시 한 줄에 'YYYY. M. D.' 형식으로 작성하세요.\n" +
     "issues는 2~5개 핵심 쟁점을 줄바꿈으로 나열하고, 반드시 '첫째, ...\\n둘째, ...\\n셋째, ...' 형식으로 작성하세요.\n" +
     "oxQuizzes 생성 규칙: answer는 boolean(true=O, false=X), 사실관계/쟁점/법적판단을 고르게 포함하고, 전문에 없는 단정은 금지.\n" +
-    (fullText
+    multiTierHint +
+    (corpus
       ? "아래 판결문 전문(또는 전문 발췌)을 최우선 근거로 요약하세요. 전문에 없는 사실을 단정해 추가하지 마세요.\n\n" +
         "[판례 식별자]\n" +
         JSON.stringify(tag) +
-        "\n\n[판결문 전문]\n" +
-        fullText
+        "\n\n[판결문 전문" +
+        (lowerCourts.length ? " — 최종심·하급심" : "") +
+        "]\n" +
+        corpus
       : "아래 판례 사건번호 또는 판례 식별 문자열을 기준으로 공개 판결문/판례정보를 우선 활용하세요.\n" +
         "웹수집 텍스트가 있으면 이를 우선 근거로 사용하고, 필요하면 하급심 내용도 반영하세요.\n" +
         "항목: " +
@@ -651,7 +697,7 @@ async function generateCaseWithGemini(tag, apiKey, modelId, learnerNickname, cas
         issues: o.issues || "",
         judgment: o.judgment || ""
       }) +
-      (fullText ? "\n\n[판결문 전문]\n" + fullText : "");
+      (corpus ? "\n\n[판결문 전문]\n" + corpus : "");
     try {
       const oxOnly = await generateJsonWithModelFallback(gen, modelId, oxPrompt);
       oxQuizzes = sanitizeOxQuizzes(oxOnly && oxOnly.oxQuizzes, 5);
@@ -1033,6 +1079,7 @@ const adminGenerateCaseDictFromOpenApi = onCall(
     }
 
     let openApiMeta = null;
+    let lowerCourtBriefs = [];
     if (!caseFullText) {
       let apiOut;
       try {
@@ -1054,6 +1101,15 @@ const adminGenerateCaseDictFromOpenApi = onCall(
         throw new HttpsError("failed-precondition", "판결문 전문이 비어 있습니다.");
       }
       openApiMeta = apiOut;
+      try {
+        lowerCourtBriefs = await fetchLowerCourtPrecedentsForCase(apiOut, { maxFetch: 4 });
+      } catch (lcErr) {
+        console.warn(
+          "adminGenerateCaseDictFromOpenApi lower courts skip",
+          lcErr && lcErr.message
+        );
+        lowerCourtBriefs = [];
+      }
     }
 
     const apiKey = process.env.GEMINI_API_KEY || "";
@@ -1073,7 +1129,14 @@ const adminGenerateCaseDictFromOpenApi = onCall(
 
     try {
       const gen = new GoogleGenerativeAI(apiKey);
-      const payload = await generateCaseWithGemini(raw, apiKey, modelId, learnerNick, caseFullText);
+      const payload = await generateCaseWithGemini(
+        raw,
+        apiKey,
+        modelId,
+        learnerNick,
+        caseFullText,
+        lowerCourtBriefs
+      );
       payload.caseFullText = caseFullText;
       if (openApiMeta && openApiMeta.caseToken && !payload.citation) {
         payload.citation = String(openApiMeta.caseToken).trim();
@@ -1098,7 +1161,13 @@ const adminGenerateCaseDictFromOpenApi = onCall(
           ? {
               caseToken: openApiMeta.caseToken || "",
               title: openApiMeta.title || "",
-              lawGoKrWebUrl: openApiMeta.lawGoKrWebUrl || ""
+              court: openApiMeta.court || "",
+              lawGoKrWebUrl: openApiMeta.lawGoKrWebUrl || "",
+              lowerCourtsFetched: lowerCourtBriefs.map((lc) => ({
+                caseToken: lc.caseToken || "",
+                court: lc.court || "",
+                decidedDate: lc.decidedDate || ""
+              }))
             }
           : null
       };
